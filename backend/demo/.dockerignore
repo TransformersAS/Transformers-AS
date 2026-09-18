@@ -1,0 +1,24 @@
+# Only send the build inputs to Docker.
+**
+!.mvn/
+!.mvn/wrapper/
+!.mvn/wrapper/maven-wrapper.properties
+!mvnw
+!pom.xml
+!src/
+!src/**
+
+# Keep secrets and editor files out, including any placed under src/.
+**/.env
+**/.env.*
+**/*.pem
+**/*.key
+**/*.p12
+**/*.pfx
+**/*.jks
+**/.idea
+**/.vscode
+**/*.iml
+**/.DS_Store
+**/*~
+**/*.swp

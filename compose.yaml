@@ -1,6 +1,21 @@
-# Local MySQL; run Spring Boot on the host with the same DB_* environment.
+# Host Spring Boot uses localhost:3307; the backend service uses mysql:3306.
 # Initialization variables apply only when the data volume is empty.
 services:
+  backend:
+    build:
+      context: ./backend/demo
+    environment:
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: ${DB_NAME:-marketplace}
+      DB_USER: ${DB_USER:-marketplace_app}
+      DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+    ports:
+      - "127.0.0.1:${BACKEND_HOST_PORT:-8080}:8080"
+    depends_on:
+      mysql:
+        condition: service_healthy
+
   mysql:
     image: mysql:8.4
     environment:
