@@ -9,12 +9,14 @@ import com.transformersas.marketplace.cart.dto.UpdateCartItemRequest;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
 import java.util.List;
 
 @Service
+@Transactional
 public class CartService {
 
     private final CartRepository cartRepository;
@@ -39,6 +41,7 @@ public class CartService {
                 .orElseGet(() -> cartRepository.save(new Cart()));
     }
 
+    // This read also creates the global cart when absent, so it needs a write transaction.
     public CartResponse getCart() {
 
         Cart cart = getOrCreateCart();
@@ -94,8 +97,8 @@ public class CartService {
                 )
                 .orElse(null);
 
-        int newQuantity =
-                request.quantity()
+        long newQuantity =
+                (long) request.quantity()
                 + (item == null ? 0 : item.getQuantity());
 
         if (newQuantity > product.getStock()) {
@@ -111,7 +114,7 @@ public class CartService {
             item.setProduct(product);
         }
 
-        item.setQuantity(newQuantity);
+        item.setQuantity((int) newQuantity);
 
         return toResponse(
                 cartItemRepository.save(item)
@@ -137,6 +140,10 @@ public class CartService {
                     HttpStatus.BAD_REQUEST,
                     "La cantidad debe ser mayor que cero"
             );
+        }
+
+        if (!item.getProduct().getActive()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El producto no está disponible");
         }
 
         if (request.quantity() > item.getProduct().getStock()) {
