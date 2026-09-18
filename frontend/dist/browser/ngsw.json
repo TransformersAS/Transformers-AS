@@ -1,0 +1,102 @@
+{
+  "configVersion": 1,
+  "timestamp": 1789705969708,
+  "index": "/index.html",
+  "assetGroups": [
+    {
+      "name": "app-shell",
+      "installMode": "prefetch",
+      "updateMode": "prefetch",
+      "cacheQueryOptions": {
+        "ignoreVary": true
+      },
+      "urls": [
+        "/chunk-2XEKNPML.js",
+        "/chunk-3KUMRP2G.js",
+        "/chunk-4CLCTAJ7.js",
+        "/chunk-4G7ZN6JZ.js",
+        "/chunk-4TNQ2CKY.js",
+        "/chunk-AP2G5PST.js",
+        "/chunk-CASEXNPQ.js",
+        "/chunk-EG5WW7QP.js",
+        "/chunk-GE55KSXC.js",
+        "/chunk-GEZ2DYUS.js",
+        "/chunk-GRN74ODV.js",
+        "/chunk-IK6M4ZMS.js",
+        "/chunk-KWNNEOZ6.js",
+        "/chunk-NHGBHXHN.js",
+        "/chunk-NMFL75IO.js",
+        "/chunk-OZYAE5MO.js",
+        "/chunk-TDXZVYRX.js",
+        "/chunk-TZXGNZGN.js",
+        "/chunk-UI4AEFPZ.js",
+        "/chunk-UQBKVQV4.js",
+        "/chunk-WH2HIQK6.js",
+        "/chunk-WQZJ57VT.js",
+        "/index.html",
+        "/main.js",
+        "/polyfills.js",
+        "/styles.css"
+      ],
+      "patterns": []
+    },
+    {
+      "name": "images",
+      "installMode": "lazy",
+      "updateMode": "prefetch",
+      "cacheQueryOptions": {
+        "ignoreVary": true
+      },
+      "urls": [],
+      "patterns": []
+    }
+  ],
+  "dataGroups": [],
+  "hashTable": {
+    "/chunk-2XEKNPML.js": "da4d28db687e3c16701ffcfed37571a72f7ef5a1",
+    "/chunk-3KUMRP2G.js": "fd97ee21dcdb971accc862124219f6755780fb64",
+    "/chunk-4CLCTAJ7.js": "6cdb544d58baffeddb11018aac3c5c4ebcd615a3",
+    "/chunk-4G7ZN6JZ.js": "907f0fa4688da8a9c0aaa4092b6b3312a0b3a94e",
+    "/chunk-4TNQ2CKY.js": "22bfc9fe710c47c7adc2bb370cff3ad3ced07e17",
+    "/chunk-AP2G5PST.js": "0e911f5ea8bb35a59302dab341311272c1b8bb51",
+    "/chunk-CASEXNPQ.js": "16b6707b75e20630f22cfcc9e544b6802d60bf93",
+    "/chunk-EG5WW7QP.js": "4dccfdfd2f87e251124291b3673f946eee54a830",
+    "/chunk-GE55KSXC.js": "5697f5660c003cc0314a09873c1e0920524dae10",
+    "/chunk-GEZ2DYUS.js": "5fb0dc69704faa079974ed6cfabd1f1138201bb5",
+    "/chunk-GRN74ODV.js": "d9b5be647fd545071ac0747b1e83a803adcb207c",
+    "/chunk-IK6M4ZMS.js": "cf5171130293e4023861ce0fc7201344a2db302d",
+    "/chunk-KWNNEOZ6.js": "efeaf710deeb066e998c6ab4ff764ad1b4524e2d",
+    "/chunk-NHGBHXHN.js": "4c9e0413de93c10dad45dd9ea9f8e4a182c5dc39",
+    "/chunk-NMFL75IO.js": "474d4da78c6df98c5979a2dab41ed174f171cc39",
+    "/chunk-OZYAE5MO.js": "b6c9276ca7ce79eae96db8d8143f094e95dfa62a",
+    "/chunk-TDXZVYRX.js": "4b7d056cafc190ed77401e7c8d26d94f339dfe42",
+    "/chunk-TZXGNZGN.js": "95989bc1fe7a249e009762104c421f256c1df2a7",
+    "/chunk-UI4AEFPZ.js": "ee9cea8c698d008fce82d838b1e8c71d8e476831",
+    "/chunk-UQBKVQV4.js": "b430046c8936a570915eccd8270444624c6e1d65",
+    "/chunk-WH2HIQK6.js": "47337488cb335d50769376cdef6fc9faffc8b3d8",
+    "/chunk-WQZJ57VT.js": "4783bab13cd235500143337e61b94e1025b612e4",
+    "/index.html": "2c736ba85d6dcff3dd0423fd9e2a46651fb95f35",
+    "/main.js": "8ee705c9faf1cc590edee1853690e848a4093ef0",
+    "/polyfills.js": "f49b49a155bc7d192db62a4c15d0a612b460a667",
+    "/styles.css": "d6b4bdbb6a0c0081d22f2e33393b7b38fa5ffc04"
+  },
+  "navigationUrls": [
+    {
+      "positive": true,
+      "regex": "^\\/.*$"
+    },
+    {
+      "positive": false,
+      "regex": "^\\/(?:.+\\/)?[^/]*\\.[^/]*$"
+    },
+    {
+      "positive": false,
+      "regex": "^\\/(?:.+\\/)?[^/]*__[^/]*$"
+    },
+    {
+      "positive": false,
+      "regex": "^\\/(?:.+\\/)?[^/]*__[^/]*\\/.*$"
+    }
+  ],
+  "navigationRequestStrategy": "performance"
+}

@@ -1,0 +1,44 @@
+<ion-app>
+  <ion-content [fullscreen]="true">
+    <!-- La barra prioriza la búsqueda y conserva acciones esenciales en móvil. -->
+    <header class="topbar">
+      <a class="brand" href="#inicio" aria-label="Marketplace Integral, inicio"><span>m</span>erca.do</a>
+      <label class="search" aria-label="Buscar productos"><ion-icon name="search-outline"></ion-icon><input type="search" placeholder="¿Qué estás buscando hoy?"></label>
+      <div class="quick-actions">
+        <button aria-label="Abrir mensajes"><ion-icon name="chatbubble-ellipses-outline"></ion-icon></button>
+        <button class="cart-button" aria-label="Abrir carrito"><ion-icon name="bag-handle-outline"></ion-icon><em *ngIf="items$ | async as items">{{ cantidadCarrito(items) }}</em></button>
+        <button aria-label="Ver cuenta"><ion-icon name="person-circle-outline"></ion-icon></button>
+      </div>
+    </header>
+
+    <main id="inicio">
+      <section class="welcome-strip"><span>Hola, {{ nombre }} <b>·</b> Entregamos donde estés</span><a href="#vender">Vende con nosotros <ion-icon name="arrow-forward-outline"></ion-icon></a></section>
+
+      <!-- Un bloque editorial sustituye el hero genérico por una campaña con gesto gráfico propio. -->
+      <section class="campaign" aria-labelledby="campaign-title">
+        <div class="campaign-copy"><p class="eyebrow"><ion-icon name="flash-outline"></ion-icon> selección de la semana</p><h1 id="campaign-title">Objetos con<br><i>buena historia.</i></h1><p>Pequeñas marcas, hallazgos útiles y precios que dan ganas de llevar dos.</p><button class="coral-cta">Explorar la selección <ion-icon name="arrow-forward-outline"></ion-icon></button></div>
+        <div class="campaign-object"><div class="sticker">hasta<br><strong>30%</strong><br>menos</div><img src="https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=800&q=90" alt="Reloj minimalista sobre fondo de color"></div>
+      </section>
+
+      <section class="section categories" aria-labelledby="categories-title">
+        <div class="section-heading"><div><p class="eyebrow">Explora por antojo</p><h2 id="categories-title">Un mercado, mil rutas</h2></div><a href="#catalogo">Ver todo <ion-icon name="chevron-forward-outline"></ion-icon></a></div>
+        <div class="category-row" *ngIf="categorias$ | async as categorias">
+          <a class="category" *ngFor="let categoria of categorias" href="#catalogo"><span [style.background]="categoria.color"><ion-icon [name]="categoria.icono"></ion-icon></span>{{ categoria.nombre }}</a>
+        </div>
+      </section>
+
+      <section class="section product-area" id="catalogo" aria-labelledby="products-title">
+        <div class="section-heading"><div><p class="eyebrow">Recién aterrizados</p><h2 id="products-title">Piezas que merecen vitrina</h2></div><button class="filter">Ordenar por <b>relevancia</b>⌄</button></div>
+        <div class="product-grid" *ngIf="destacados$ | async as productos">
+          <article class="product-card" *ngFor="let producto of productos">
+            <div class="product-image"><img [src]="producto.imagen" [alt]="producto.nombre"><span *ngIf="producto.etiqueta">{{ producto.etiqueta }}</span><button [attr.aria-label]="'Guardar ' + producto.nombre"><ion-icon name="heart-outline"></ion-icon></button></div>
+            <div class="product-info"><p class="store">{{ producto.tienda }}</p><h3>{{ producto.nombre }}</h3><div class="price"><strong>{{ producto.precio | currency:'COP':'symbol-narrow':'1.0-0' }}</strong><del *ngIf="producto.precioAnterior">{{ producto.precioAnterior | currency:'COP':'symbol-narrow':'1.0-0' }}</del></div><div class="product-foot"><span class="rating"><ion-icon name="star"></ion-icon> {{ producto.calificacion }} <small>({{ producto.cantidadResenas }})</small></span><span *ngIf="producto.envioGratis" class="shipping">Envío gratis</span></div><button class="add-button" (click)="agregarAlCarrito(producto.id)">Agregar <ion-icon name="bag-handle-outline"></ion-icon></button></div>
+          </article>
+        </div>
+      </section>
+
+      <section class="seller-callout" id="vender"><div class="seller-mark">↗</div><div><p class="eyebrow">¿Tienes algo bueno entre manos?</p><h2>Tu tienda cabe aquí.</h2><p>Vende sin letras pequeñas. Herramientas claras para que tu negocio se mueva.</p></div><button>Conocer el espacio vendedor <ion-icon name="arrow-forward-outline"></ion-icon></button></section>
+    </main>
+    <footer><a class="brand" href="#inicio"><span>m</span>erca.do</a><p>Comercio con pulso local.</p><div><a href="#">Ayuda</a><a href="#">Términos</a><a href="#">Privacidad</a></div></footer>
+  </ion-content>
+</ion-app>

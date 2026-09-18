@@ -1,0 +1,21 @@
+@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,400..800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&display=swap');
+@import '@ionic/angular/css/core.css';
+@import '@ionic/angular/css/normalize.css';
+@import '@ionic/angular/css/structure.css';
+@import '@ionic/angular/css/typography.css';
+
+/* Tokens compartidos: permiten trasladar la identidad visual a cada futura vista. */
+:root {
+  --ink: #073b4c;
+  --coral: #f45b49;
+  --paper: #fff8ed;
+  --lime: #c8e65a;
+  --sand: #f1e7d7;
+  --muted: #667b80;
+  --line: #d9d0c1;
+  --ion-font-family: 'DM Sans', sans-serif;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--paper); color: var(--ink); font-family: 'DM Sans', sans-serif; }
+button, input { font: inherit; }
