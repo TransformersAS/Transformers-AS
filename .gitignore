@@ -1,3 +1,8 @@
 .env
 .env.*
 !.env.example
+
+# El gestor de paquetes y Angular regeneran estos artefactos; no pertenecen al repositorio.
+frontend/node_modules/
+frontend/dist/
+frontend/.angular/
