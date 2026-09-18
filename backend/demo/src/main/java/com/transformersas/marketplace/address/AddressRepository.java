@@ -1,4 +1,4 @@
-package com.example.demo.address;
+package com.transformersas.marketplace.address;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 

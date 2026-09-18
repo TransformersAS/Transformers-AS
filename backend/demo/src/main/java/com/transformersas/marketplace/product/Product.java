@@ -1,4 +1,4 @@
-package com.example.demo.product;
+package com.transformersas.marketplace.product;
 
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;

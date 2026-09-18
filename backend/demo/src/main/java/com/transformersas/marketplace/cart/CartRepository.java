@@ -1,4 +1,4 @@
-package com.example.demo.cart;
+package com.transformersas.marketplace.cart;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 

@@ -1,4 +1,4 @@
-package com.example.demo.cart.dto;
+package com.transformersas.marketplace.cart.dto;
 
 import java.math.BigDecimal;
 import java.util.List;

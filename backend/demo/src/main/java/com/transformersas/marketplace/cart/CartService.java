@@ -1,11 +1,11 @@
-package com.example.demo.cart;
+package com.transformersas.marketplace.cart;
 
-import com.example.demo.cart.dto.AddCartItemRequest;
-import com.example.demo.cart.dto.CartItemResponse;
-import com.example.demo.cart.dto.CartResponse;
-import com.example.demo.cart.dto.UpdateCartItemRequest;
-import com.example.demo.product.Product;
-import com.example.demo.product.ProductRepository;
+import com.transformersas.marketplace.product.Product;
+import com.transformersas.marketplace.product.ProductRepository;
+import com.transformersas.marketplace.cart.dto.AddCartItemRequest;
+import com.transformersas.marketplace.cart.dto.CartItemResponse;
+import com.transformersas.marketplace.cart.dto.CartResponse;
+import com.transformersas.marketplace.cart.dto.UpdateCartItemRequest;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;

@@ -1,12 +1,12 @@
-package com.example.demo.cart;
-
-import com.example.demo.cart.dto.AddCartItemRequest;
-import com.example.demo.cart.dto.CartItemResponse;
-import com.example.demo.cart.dto.CartResponse;
-import com.example.demo.cart.dto.UpdateCartItemRequest;
+package com.transformersas.marketplace.cart;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
+
+import com.transformersas.marketplace.cart.dto.AddCartItemRequest;
+import com.transformersas.marketplace.cart.dto.CartItemResponse;
+import com.transformersas.marketplace.cart.dto.CartResponse;
+import com.transformersas.marketplace.cart.dto.UpdateCartItemRequest;
 
 @RestController
 @RequestMapping("/api/cart")

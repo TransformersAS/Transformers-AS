@@ -1,6 +1,7 @@
-package com.example.demo.cart;
+package com.transformersas.marketplace.cart;
 
-import com.example.demo.product.Product;
+import com.transformersas.marketplace.product.Product;
+
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;

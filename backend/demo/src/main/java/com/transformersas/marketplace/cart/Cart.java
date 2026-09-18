@@ -1,4 +1,4 @@
-package com.example.demo.cart;
+package com.transformersas.marketplace.cart;
 
 import jakarta.persistence.*;
 import lombok.Getter;

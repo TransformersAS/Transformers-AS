@@ -1,4 +1,4 @@
-package com.example.demo.address;
+package com.transformersas.marketplace.address;
 
 import jakarta.persistence.*;
 import lombok.Getter;
