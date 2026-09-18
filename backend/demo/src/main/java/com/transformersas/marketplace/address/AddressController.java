@@ -1,5 +1,8 @@
 package com.transformersas.marketplace.address;
 
+import jakarta.validation.Valid;
+import com.transformersas.marketplace.address.dto.AddressRequest;
+import com.transformersas.marketplace.address.dto.AddressResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
@@ -19,14 +22,14 @@ public class AddressController {
     }
 
     @GetMapping
-    public List<Address> getAll() {
+    public List<AddressResponse> getAll() {
         return addressService.getAll();
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public Address create(
-            @RequestBody Address address
+    public AddressResponse create(
+            @Valid @RequestBody AddressRequest address
     ) {
         return addressService.create(address);
     }

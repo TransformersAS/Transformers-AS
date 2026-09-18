@@ -1,5 +1,8 @@
 package com.transformersas.marketplace.product;
 
+import jakarta.validation.Valid;
+import com.transformersas.marketplace.product.dto.ProductRequest;
+import com.transformersas.marketplace.product.dto.ProductResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
@@ -17,18 +20,18 @@ public class ProductController {
     }
 
     @GetMapping
-    public List<Product> getAllProducts() {
+    public List<ProductResponse> getAllProducts() {
         return productService.getAllProducts();
     }
 
     @GetMapping("/{id}")
-    public Product getProductById(@PathVariable Long id) {
+    public ProductResponse getProductById(@PathVariable Long id) {
         return productService.getProductById(id);
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public Product createProduct(@RequestBody Product product) {
+    public ProductResponse createProduct(@Valid @RequestBody ProductRequest product) {
         return productService.createProduct(product);
     }
 } 
