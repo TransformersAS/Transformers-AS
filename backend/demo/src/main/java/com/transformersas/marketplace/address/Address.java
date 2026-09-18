@@ -28,8 +28,9 @@ public class Address {
     @Column(nullable = false)
     private String department;
 
+    @Column(length = 50)
     private String postalCode;
 
-    @Column(nullable = false)
+    @Column(nullable = false, length = 50)
     private String phone;
 }

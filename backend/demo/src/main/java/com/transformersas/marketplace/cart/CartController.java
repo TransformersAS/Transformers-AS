@@ -1,5 +1,6 @@
 package com.transformersas.marketplace.cart;
 
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
@@ -27,7 +28,7 @@ public class CartController {
     @PostMapping("/items")
     @ResponseStatus(HttpStatus.CREATED)
     public CartItemResponse addItem(
-            @RequestBody AddCartItemRequest request
+            @Valid @RequestBody AddCartItemRequest request
     ) {
         return cartService.addItem(request);
     }
@@ -35,7 +36,7 @@ public class CartController {
     @PatchMapping("/items/{itemId}")
     public CartItemResponse updateQuantity(
             @PathVariable Long itemId,
-            @RequestBody UpdateCartItemRequest request
+            @Valid @RequestBody UpdateCartItemRequest request
     ) {
         return cartService.updateQuantity(itemId, request);
     }
