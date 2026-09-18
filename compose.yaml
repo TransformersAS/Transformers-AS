@@ -1,0 +1,28 @@
+# Local MySQL; run Spring Boot on the host with the same DB_* environment.
+# Initialization variables apply only when the data volume is empty.
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: ${DB_NAME:-marketplace}
+      MYSQL_USER: ${DB_USER:-marketplace_app}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in .env}
+    ports:
+      - "127.0.0.1:${MYSQL_HOST_PORT:-3307}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          MYSQL_PWD="$${MYSQL_PASSWORD}" mysql --protocol=TCP
+          --host=127.0.0.1 --user="$${MYSQL_USER}"
+          --database="$${MYSQL_DATABASE}" --execute="SELECT 1" > /dev/null 2>&1
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
+volumes:
+  mysql_data:
