@@ -9,7 +9,7 @@ runner self-hosted. Ejecutar `deploy.sh` desde un manager con Docker y curl.
   de la imagen, restart con 10 s de espera y actualización de una réplica a la vez.
   `start-first` requiere capacidad temporal para una tercera réplica. Un fallo
   detectado durante la actualización solicita rollback de la aplicación.
-- `mysql`: MySQL 8.4, una réplica, volumen local `<stack>_mysql_data`, fijado al ID
+- `mysql`: MySQL 8.4.11 LTS, una réplica, volumen local `<stack>_mysql_data`, fijado al ID
   de un manager concreto. Las actualizaciones usan `stop-first` para evitar dos
   escritores simultáneos sobre ese volumen. **No hay HA ni replicación de MySQL.**
 - Ambos servicios comparten una red overlay `<stack>_internal`. El backend usa
@@ -92,8 +92,8 @@ nodo necesita conectividad a GHCR. No se construye ninguna imagen desde el stack
 
 `BACKEND_IMAGE_TAG=latest` sirve para pruebas iniciales. Preferir
 `BACKEND_IMAGE_TAG=sha-<SHA completo publicado>` para identificar una versión.
-Swarm resuelve el digest del registro. Las etiquetas pueden cambiar y MySQL 8.4
-sigue siendo un tag actualizable: no equivale a fijar todo por digest.
+Swarm resuelve el digest del registro. Las etiquetas pueden cambiar. MySQL está fijado a `8.4.11`;
+fijar una versión no equivale a fijar todo por digest.
 
 Verificar arquitecturas antes de desplegar:
 
@@ -102,10 +102,10 @@ docker info --format '{{.Architecture}}'
 docker manifest inspect ghcr.io/transformersas/transformers-as-backend:latest
 ```
 
-La CI actual en Ubuntu puede publicar solo amd64. Un Mac ARM necesita una imagen
-compatible; esta fase no cambia la CI ni promete emulación en Swarm. Si falta la
-arquitectura del nodo, detenerse y preparar la publicación multi-arquitectura en
-otra fase. No sustituir silenciosamente GHCR por una imagen local.
+La CI publica para amd64 y arm64. Verificar el manifiesto de la etiqueta elegida:
+las imágenes anteriores al arreglo multi-arquitectura pueden contener solo amd64.
+Si falta la arquitectura del nodo, usar una versión publicada compatible; no se
+asume emulación en Swarm ni se sustituye GHCR por una imagen local.
 
 ## Validación estática
 

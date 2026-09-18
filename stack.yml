@@ -42,7 +42,7 @@ services:
         monitor: 90s
 
   mysql:
-    image: mysql:8.4
+    image: mysql:8.4.11
     environment:
       MYSQL_DATABASE: ${DB_NAME:-marketplace}
       MYSQL_USER: ${DB_USER:-marketplace_app}
