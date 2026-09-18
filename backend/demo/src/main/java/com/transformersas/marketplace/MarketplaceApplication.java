@@ -4,7 +4,7 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration;
 
-// Temporary development baseline: no generated in-memory user.
+// Authentication uses the explicit account-backed provider, never a generated user.
 @SpringBootApplication(exclude = UserDetailsServiceAutoConfiguration.class)
 public class MarketplaceApplication {
 
