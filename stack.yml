@@ -1,0 +1,102 @@
+version: "3.8"
+
+services:
+  backend:
+    image: ghcr.io/transformersas/transformers-as-backend:${BACKEND_IMAGE_TAG:-latest}
+    environment:
+      DB_HOST: mysql
+      DB_PORT: "3306"
+      DB_NAME: ${DB_NAME:-marketplace}
+      DB_USER: ${DB_USER:-marketplace_app}
+      SPRING_CONFIG_IMPORT: configtree:/run/secrets/
+    secrets:
+      - source: db_password
+        target: DB_PASSWORD
+        uid: "10001"
+        gid: "10001"
+        mode: 0400
+    networks:
+      - internal
+    ports:
+      - target: 8080
+        published: ${BACKEND_HOST_PORT:-8080}
+        protocol: tcp
+        mode: ingress
+    deploy:
+      replicas: 2
+      placement:
+        preferences:
+          - spread: node.labels.backend_zone
+      restart_policy:
+        condition: any
+        delay: 10s
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+        failure_action: rollback
+        monitor: 90s
+      rollback_config:
+        parallelism: 1
+        order: stop-first
+        monitor: 90s
+
+  mysql:
+    image: mysql:8.4.11
+    environment:
+      MYSQL_DATABASE: ${DB_NAME:-marketplace}
+      MYSQL_USER: ${DB_USER:-marketplace_app}
+      MYSQL_PASSWORD_FILE: /run/secrets/db_password
+      MYSQL_ROOT_PASSWORD_FILE: /run/secrets/mysql_root_password
+    secrets:
+      - source: db_password
+        target: db_password
+      - source: mysql_root_password
+        target: mysql_root_password
+    networks:
+      - internal
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          MYSQL_PWD="$$(cat /run/secrets/db_password)" mysql --protocol=TCP
+          --host=127.0.0.1 --user="$${MYSQL_USER}"
+          --database="$${MYSQL_DATABASE}" --execute="SELECT 1" > /dev/null 2>&1
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+          - node.id == ${MYSQL_NODE_ID:?Set MYSQL_NODE_ID to the database manager node ID}
+      restart_policy:
+        condition: any
+        delay: 10s
+      update_config:
+        parallelism: 1
+        order: stop-first
+        failure_action: pause
+      rollback_config:
+        parallelism: 1
+        order: stop-first
+
+networks:
+  internal:
+    driver: overlay
+
+volumes:
+  mysql_data:
+    driver: local
+
+secrets:
+  db_password:
+    external: true
+    name: ${DB_PASSWORD_SECRET:?Set DB_PASSWORD_SECRET}
+  mysql_root_password:
+    external: true
+    name: ${MYSQL_ROOT_PASSWORD_SECRET:?Set MYSQL_ROOT_PASSWORD_SECRET}
