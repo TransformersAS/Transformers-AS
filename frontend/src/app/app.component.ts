@@ -1,5 +1,5 @@
 import {
-  ChangeDetectionStrategy,
+
   Component,
   inject
 } from '@angular/core';
@@ -10,6 +10,8 @@ import {
   NgFor,
   NgIf
 } from '@angular/common';
+
+import { FormsModule } from '@angular/forms';
 
 import {
   IonApp,
@@ -38,8 +40,13 @@ import {
 import { CatalogoService } from './catalogo/services/catalogo.service';
 import { CarritoService } from './carrito/services/carrito.service';
 import { AuthService } from './core/services/auth.service';
+import { CheckoutService } from './checkout/services/checkout.service';
 
 import { ItemCarrito } from './carrito/models/carrito.model';
+
+import {
+  CheckoutPreviewResponse
+} from './checkout/models/checkout.model';
 
 
 @Component({
@@ -47,7 +54,7 @@ import { ItemCarrito } from './carrito/models/carrito.model';
 
   standalone: true,
 
-  changeDetection: ChangeDetectionStrategy.OnPush,
+  
 
   imports: [
     IonApp,
@@ -56,7 +63,8 @@ import { ItemCarrito } from './carrito/models/carrito.model';
     AsyncPipe,
     CurrencyPipe,
     NgFor,
-    NgIf
+    NgIf,
+    FormsModule
   ],
 
   templateUrl: './app.component.html',
@@ -77,6 +85,9 @@ export class AppComponent {
 
   private readonly auth =
     inject(AuthService);
+
+  private readonly checkout =
+    inject(CheckoutService);
 
 
   // =========================
@@ -104,6 +115,26 @@ export class AppComponent {
 
 
   // =========================
+  // CHECKOUT
+  // =========================
+
+  mostrarCheckout = false;
+
+  addressId = 1;
+
+  shippingMethod = 'STANDARD';
+
+  couponCode = '';
+
+  checkoutPreview:
+    CheckoutPreviewResponse | null = null;
+
+  checkoutError = '';
+
+  procesandoCheckout = false;
+
+
+  // =========================
   // USUARIO
   // =========================
 
@@ -111,9 +142,12 @@ export class AppComponent {
     this.auth.obtenerNombreVisible();
 
 
+  // =========================
+  // CONSTRUCTOR
+  // =========================
+
   constructor() {
 
-    // Registrar únicamente los iconos utilizados.
     addIcons({
       bagHandleOutline,
       chatbubbleEllipsesOutline,
@@ -136,7 +170,9 @@ export class AppComponent {
   // AGREGAR PRODUCTO
   // =========================
 
-  agregarAlCarrito(id: number): void {
+  agregarAlCarrito(
+    id: number
+  ): void {
 
     this.carrito.agregar(id);
   }
@@ -147,11 +183,16 @@ export class AppComponent {
   // =========================
 
   cantidadCarrito(
-    items: readonly { cantidad: number }[]
+    items: readonly {
+      cantidad: number
+    }[]
   ): number {
 
     return items.reduce(
-      (total, item) =>
+      (
+        total,
+        item
+      ) =>
         total + item.cantidad,
       0
     );
@@ -167,11 +208,9 @@ export class AppComponent {
     this.mostrarCarrito =
       !this.mostrarCarrito;
 
-    /*
-     * Cada vez que abrimos el carrito,
-     * consultamos nuevamente el backend.
-     */
-    if (this.mostrarCarrito) {
+    if (
+      this.mostrarCarrito
+    ) {
 
       this.carrito.refrescar();
     }
@@ -180,19 +219,22 @@ export class AppComponent {
 
   cerrarCarrito(): void {
 
-    this.mostrarCarrito = false;
+    this.mostrarCarrito =
+      false;
   }
 
 
   // =========================
-  // MODIFICAR CANTIDADES
+  // MODIFICAR CANTIDAD
   // =========================
 
   aumentarCantidad(
     item: ItemCarrito
   ): void {
 
-    this.carrito.aumentar(item);
+    this.carrito.aumentar(
+      item
+    );
   }
 
 
@@ -200,42 +242,126 @@ export class AppComponent {
     item: ItemCarrito
   ): void {
 
-    this.carrito.disminuir(item);
+    this.carrito.disminuir(
+      item
+    );
   }
 
 
   // =========================
-  // ELIMINAR PRODUCTO
+  // ELIMINAR DEL CARRITO
   // =========================
 
   eliminarDelCarrito(
     itemId: number
   ): void {
 
-    this.carrito.eliminar(itemId);
+    this.carrito.eliminar(
+      itemId
+    );
   }
 
 
   // =========================
-  // CHECKOUT
+  // IR AL CHECKOUT
   // =========================
 
   continuarCompra(): void {
 
-    /*
-     * Por ahora solamente comprobamos
-     * que el botón funciona.
-     *
-     * El siguiente paso será abrir
-     * la vista de checkout:
-     *
-     * Dirección
-     * Método de envío
-     * Cupón
-     * Resumen
-     */
-    console.log(
-      'Iniciar checkout del CU-03'
-    );
+    this.mostrarCarrito =
+      false;
+
+    this.mostrarCheckout =
+      true;
+
+    this.checkoutPreview =
+      null;
+
+    this.checkoutError =
+      '';
   }
+
+
+  // =========================
+  // CERRAR CHECKOUT
+  // =========================
+
+  cerrarCheckout(): void {
+
+    this.mostrarCheckout =
+      false;
+
+    this.checkoutPreview =
+      null;
+
+    this.checkoutError =
+      '';
+  }
+
+
+  // =========================
+  // MÉTODO DE ENVÍO
+  // =========================
+
+  actualizarMetodoEnvio(
+    metodo: string
+  ): void {
+
+    this.shippingMethod =
+      metodo;
+  }
+
+
+  // =========================
+  // CALCULAR CHECKOUT
+  // =========================
+
+  aplicarCheckout(): void {
+
+  this.procesandoCheckout = true;
+  this.checkoutError = '';
+
+  this.checkout.preview({
+    addressId: this.addressId,
+    shippingMethod: this.shippingMethod,
+    couponCode: this.couponCode
+  })
+  .subscribe({
+
+    next: (response) => {
+
+      this.checkoutPreview = response;
+
+      this.procesandoCheckout = false;
+
+      console.log(
+        'Checkout calculado:',
+        response
+      );
+    },
+
+    error: (error) => {
+
+      console.error(
+        'Error calculando checkout:',
+        error
+      );
+
+      this.checkoutError =
+        error?.error?.message
+        ??
+        error?.error?.detail
+        ??
+        'No fue posible calcular el checkout.';
+
+      this.procesandoCheckout = false;
+    },
+
+    complete: () => {
+
+      this.procesandoCheckout = false;
+    }
+
+  });
+}
 }

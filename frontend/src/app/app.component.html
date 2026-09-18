@@ -260,7 +260,260 @@
       </ng-container>
 
     </aside>
+<!-- ========================= -->
+<!-- CHECKOUT -->
+<!-- ========================= -->
 
+<div
+  class="checkout-overlay"
+  *ngIf="mostrarCheckout"
+  (click)="cerrarCheckout()"
+></div>
+
+<aside
+  class="checkout-panel"
+  *ngIf="mostrarCheckout"
+>
+
+  <div class="checkout-header">
+
+    <div>
+      <p class="eyebrow">
+        Finalizar compra
+      </p>
+
+      <h2>
+        Checkout
+      </h2>
+    </div>
+
+    <button
+      class="close-cart"
+      type="button"
+      (click)="cerrarCheckout()"
+    >
+      ×
+    </button>
+
+  </div>
+
+
+  <!-- DIRECCIÓN -->
+
+  <section class="checkout-section">
+
+    <h3>
+      Dirección de entrega
+    </h3>
+
+    <label>
+      Dirección seleccionada
+    </label>
+
+    <select
+      [(ngModel)]="addressId"
+    >
+      <option [ngValue]="1">
+        Dirección #1
+      </option>
+    </select>
+
+  </section>
+
+
+  <!-- ENVÍO -->
+
+  <section class="checkout-section">
+
+    <h3>
+      Método de envío
+    </h3>
+
+    <label class="shipping-option">
+
+      <input
+        type="radio"
+        name="shipping"
+        value="STANDARD"
+        [checked]="shippingMethod === 'STANDARD'"
+        (change)="actualizarMetodoEnvio('STANDARD')"
+      >
+
+      <span>
+        Estándar
+      </span>
+
+      <strong>
+        $10.000
+      </strong>
+
+    </label>
+
+
+    <label class="shipping-option">
+
+      <input
+        type="radio"
+        name="shipping"
+        value="EXPRESS"
+        [checked]="shippingMethod === 'EXPRESS'"
+        (change)="actualizarMetodoEnvio('EXPRESS')"
+      >
+
+      <span>
+        Express
+      </span>
+
+      <strong>
+        $20.000
+      </strong>
+
+    </label>
+
+  </section>
+
+
+  <!-- CUPÓN -->
+
+  <section class="checkout-section">
+
+    <h3>
+      Cupón
+    </h3>
+
+    <input
+      class="coupon-input"
+      type="text"
+      placeholder="Ej. DESC10"
+      [(ngModel)]="couponCode"
+    >
+
+  </section>
+
+
+  <!-- BOTÓN CALCULAR -->
+
+  <button
+    class="checkout-button"
+    type="button"
+    (click)="aplicarCheckout()"
+    [disabled]="procesandoCheckout"
+  >
+
+    {{
+      procesandoCheckout
+        ? 'Calculando...'
+        : 'Calcular total'
+    }}
+
+  </button>
+
+
+  <!-- ERROR -->
+
+  <p
+    class="checkout-error"
+    *ngIf="checkoutError"
+  >
+    {{ checkoutError }}
+  </p>
+
+
+  <!-- RESUMEN -->
+
+  <section
+    class="checkout-summary"
+    *ngIf="checkoutPreview"
+  >
+
+    <h3>
+      Resumen
+    </h3>
+
+
+    <div>
+
+      <span>
+        Subtotal
+      </span>
+
+      <strong>
+        {{
+          checkoutPreview.subtotal
+          | currency:'COP':'symbol-narrow':'1.0-0'
+        }}
+      </strong>
+
+    </div>
+
+
+    <div>
+
+      <span>
+        Descuento
+      </span>
+
+      <strong>
+        -
+        {{
+          checkoutPreview.discount
+          | currency:'COP':'symbol-narrow':'1.0-0'
+        }}
+      </strong>
+
+    </div>
+
+
+    <div>
+
+      <span>
+        Envío
+      </span>
+
+      <strong>
+        {{
+          checkoutPreview.shippingCost
+          | currency:'COP':'symbol-narrow':'1.0-0'
+        }}
+      </strong>
+
+    </div>
+
+
+    <div class="checkout-total">
+
+      <span>
+        Total
+      </span>
+
+      <strong>
+        {{
+          checkoutPreview.total
+          | currency:'COP':'symbol-narrow':'1.0-0'
+        }}
+      </strong>
+
+    </div>
+
+
+    <p
+      class="coupon-valid"
+      *ngIf="couponCode && checkoutPreview.couponValid"
+    >
+      Cupón aplicado correctamente.
+    </p>
+
+
+    <p
+      class="coupon-invalid"
+      *ngIf="couponCode && !checkoutPreview.couponValid"
+    >
+      El cupón no es válido. Puedes continuar sin él.
+    </p>
+
+  </section>
+
+</aside>
 
     <!-- ========================= -->
     <!-- CONTENIDO PRINCIPAL -->
