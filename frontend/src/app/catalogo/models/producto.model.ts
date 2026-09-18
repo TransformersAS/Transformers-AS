@@ -1,6 +1,6 @@
 /** Representa el contrato de catálogo que la futura API REST deberá entregar. */
 export interface Producto {
-  id: string;
+  id: number;
   nombre: string;
   precio: number;
   precioAnterior?: number;
