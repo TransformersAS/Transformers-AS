@@ -32,7 +32,8 @@ public class PaymentController {
 
         PaymentResult result =
                 processPaymentUseCase.execute(
-                        request.paymentMethod()
+                        request.paymentMethod(),
+                        request.reservationIds()
                 );
 
 
