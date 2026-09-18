@@ -1,12 +1,15 @@
 <ion-app>
+
   <ion-content [fullscreen]="true">
 
-    <!-- ========================= -->
+
+    <!-- ===================================================== -->
     <!-- BARRA SUPERIOR -->
-    <!-- ========================= -->
+    <!-- ===================================================== -->
 
     <header class="topbar">
 
+      <!-- Logo -->
       <a
         class="brand"
         href="#inicio"
@@ -15,56 +18,83 @@
         <span>m</span>erca.do
       </a>
 
+
+      <!-- Buscador -->
       <label
         class="search"
         aria-label="Buscar productos"
       >
-        <ion-icon name="search-outline"></ion-icon>
+
+        <ion-icon
+          name="search-outline"
+        ></ion-icon>
 
         <input
           type="search"
           placeholder="¿Qué estás buscando hoy?"
         >
+
       </label>
 
+
+      <!-- Acciones rápidas -->
       <div class="quick-actions">
 
+
         <!-- Mensajes -->
-        <button aria-label="Abrir mensajes">
+        <button
+          type="button"
+          aria-label="Abrir mensajes"
+        >
+
           <ion-icon
             name="chatbubble-ellipses-outline"
           ></ion-icon>
+
         </button>
+
 
         <!-- Carrito -->
         <button
           class="cart-button"
+          type="button"
           aria-label="Abrir carrito"
           (click)="toggleCarrito()"
         >
+
           <ion-icon
             name="bag-handle-outline"
           ></ion-icon>
 
+
           <em *ngIf="items$ | async as items">
             {{ cantidadCarrito(items) }}
           </em>
+
         </button>
 
+
         <!-- Cuenta -->
-        <button aria-label="Ver cuenta">
+        <button
+          type="button"
+          aria-label="Ver cuenta"
+        >
+
           <ion-icon
             name="person-circle-outline"
           ></ion-icon>
+
         </button>
 
       </div>
+
     </header>
 
 
-    <!-- ========================= -->
-    <!-- FONDO DEL CARRITO -->
-    <!-- ========================= -->
+
+    <!-- ===================================================== -->
+    <!-- OVERLAY CARRITO -->
+    <!-- ===================================================== -->
 
     <div
       class="cart-overlay"
@@ -73,9 +103,10 @@
     ></div>
 
 
-    <!-- ========================= -->
-    <!-- PANEL LATERAL DEL CARRITO -->
-    <!-- ========================= -->
+
+    <!-- ===================================================== -->
+    <!-- PANEL DEL CARRITO -->
+    <!-- ===================================================== -->
 
     <aside
       class="cart-panel"
@@ -83,10 +114,12 @@
       aria-label="Carrito de compras"
     >
 
-      <!-- Encabezado del carrito -->
+
+      <!-- Encabezado -->
       <div class="cart-header">
 
         <div>
+
           <p class="eyebrow">
             Tu selección
           </p>
@@ -94,7 +127,9 @@
           <h2>
             Carrito
           </h2>
+
         </div>
+
 
         <button
           class="close-cart"
@@ -108,8 +143,10 @@
       </div>
 
 
-      <!-- Información proveniente del backend -->
+
+      <!-- Productos del carrito -->
       <ng-container *ngIf="items$ | async as items">
+
 
         <!-- Carrito vacío -->
         <div
@@ -132,17 +169,20 @@
         </div>
 
 
+
         <!-- Carrito con productos -->
         <div
           class="cart-content"
           *ngIf="items.length > 0"
         >
 
+
           <!-- Producto -->
           <article
             class="cart-item"
             *ngFor="let item of items"
           >
+
 
             <!-- Información -->
             <div class="cart-item-info">
@@ -151,12 +191,14 @@
                 {{ item.nombreProducto }}
               </h3>
 
+
               <p>
                 {{
                   item.precioUnitario
-                    | currency:'COP':'symbol-narrow':'1.0-0'
+                  | currency:'COP':'symbol-narrow':'1.0-0'
                 }}
               </p>
+
 
               <button
                 class="remove-item"
@@ -169,12 +211,15 @@
             </div>
 
 
-            <!-- Cantidad -->
+
+            <!-- Cantidad y subtotal -->
             <div class="cart-item-actions">
 
+
+              <!-- Cantidad -->
               <div class="quantity">
 
-                <!-- Disminuir -->
+
                 <button
                   type="button"
                   aria-label="Disminuir cantidad"
@@ -183,11 +228,12 @@
                   −
                 </button>
 
+
                 <span>
                   {{ item.cantidad }}
                 </span>
 
-                <!-- Aumentar -->
+
                 <button
                   type="button"
                   aria-label="Aumentar cantidad"
@@ -203,7 +249,7 @@
               <strong>
                 {{
                   item.subtotal
-                    | currency:'COP':'symbol-narrow':'1.0-0'
+                  | currency:'COP':'symbol-narrow':'1.0-0'
                 }}
               </strong>
 
@@ -212,11 +258,13 @@
           </article>
 
 
-          <!-- ========================= -->
-          <!-- RESUMEN DEL CARRITO -->
-          <!-- ========================= -->
+
+          <!-- ================================================= -->
+          <!-- RESUMEN CARRITO -->
+          <!-- ================================================= -->
 
           <div class="cart-summary">
+
 
             <div class="cart-total">
 
@@ -224,33 +272,39 @@
                 Total
               </span>
 
+
               <ng-container *ngIf="total$ | async as total">
+
                 <strong>
                   {{
                     total
-                      | currency:'COP':'symbol-narrow':'1.0-0'
+                    | currency:'COP':'symbol-narrow':'1.0-0'
                   }}
                 </strong>
+
               </ng-container>
 
             </div>
 
+
             <p>
-              El envío y los descuentos se calcularán
-              durante el proceso de compra.
+              El envío y los descuentos se calcularán durante
+              el proceso de compra.
             </p>
 
-            <!-- Ir a checkout -->
+
             <button
               class="checkout-button"
               type="button"
               (click)="continuarCompra()"
             >
+
               Continuar compra
 
               <ion-icon
                 name="arrow-forward-outline"
               ></ion-icon>
+
             </button>
 
           </div>
@@ -260,266 +314,529 @@
       </ng-container>
 
     </aside>
-<!-- ========================= -->
-<!-- CHECKOUT -->
-<!-- ========================= -->
 
-<div
-  class="checkout-overlay"
-  *ngIf="mostrarCheckout"
-  (click)="cerrarCheckout()"
-></div>
 
-<aside
-  class="checkout-panel"
-  *ngIf="mostrarCheckout"
->
 
-  <div class="checkout-header">
+    <!-- ===================================================== -->
+    <!-- OVERLAY CHECKOUT -->
+    <!-- ===================================================== -->
 
-    <div>
-      <p class="eyebrow">
-        Finalizar compra
+    <div
+      class="checkout-overlay"
+      *ngIf="mostrarCheckout"
+      (click)="cerrarCheckout()"
+    ></div>
+
+
+
+    <!-- ===================================================== -->
+    <!-- CHECKOUT -->
+    <!-- ===================================================== -->
+
+    <aside
+      class="checkout-panel"
+      *ngIf="mostrarCheckout"
+      aria-label="Finalizar compra"
+    >
+
+
+      <!-- Encabezado -->
+      <div class="checkout-header">
+
+        <div>
+
+          <p class="eyebrow">
+            Finalizar compra
+          </p>
+
+          <h2>
+            Checkout
+          </h2>
+
+        </div>
+
+
+        <button
+          class="close-cart"
+          type="button"
+          aria-label="Cerrar checkout"
+          (click)="cerrarCheckout()"
+        >
+          ×
+        </button>
+
+      </div>
+
+
+
+      <!-- ================================================= -->
+      <!-- DIRECCIÓN -->
+      <!-- ================================================= -->
+
+      <section class="checkout-section">
+
+        <h3>
+          Dirección de entrega
+        </h3>
+
+
+        <label>
+          Dirección seleccionada
+        </label>
+
+
+        <select
+          [(ngModel)]="addressId"
+        >
+
+          <option [ngValue]="1">
+            Dirección #1
+          </option>
+
+        </select>
+
+      </section>
+
+
+
+      <!-- ================================================= -->
+      <!-- MÉTODO DE ENVÍO -->
+      <!-- ================================================= -->
+
+      <section class="checkout-section">
+
+        <h3>
+          Método de envío
+        </h3>
+
+
+        <!-- STANDARD -->
+        <label class="shipping-option">
+
+          <input
+            type="radio"
+            name="shipping"
+            value="STANDARD"
+            [checked]="shippingMethod === 'STANDARD'"
+            (change)="actualizarMetodoEnvio('STANDARD')"
+          >
+
+          <span>
+            Estándar
+          </span>
+
+          <strong>
+            $10.000
+          </strong>
+
+        </label>
+
+
+        <!-- EXPRESS -->
+        <label class="shipping-option">
+
+          <input
+            type="radio"
+            name="shipping"
+            value="EXPRESS"
+            [checked]="shippingMethod === 'EXPRESS'"
+            (change)="actualizarMetodoEnvio('EXPRESS')"
+          >
+
+          <span>
+            Express
+          </span>
+
+          <strong>
+            $20.000
+          </strong>
+
+        </label>
+
+      </section>
+
+
+
+      <!-- ================================================= -->
+      <!-- CUPÓN -->
+      <!-- ================================================= -->
+
+      <section class="checkout-section">
+
+        <h3>
+          Cupón
+        </h3>
+
+
+        <input
+          class="coupon-input"
+          type="text"
+          placeholder="Ej. DESC10"
+          [(ngModel)]="couponCode"
+        >
+
+      </section>
+
+
+
+      <!-- ================================================= -->
+      <!-- CALCULAR TOTAL -->
+      <!-- ================================================= -->
+
+      <button
+        class="checkout-button"
+        type="button"
+        (click)="aplicarCheckout()"
+        [disabled]="procesandoCheckout"
+      >
+
+        {{
+          procesandoCheckout
+          ? 'Calculando...'
+          : 'Calcular total'
+        }}
+
+      </button>
+
+
+
+      <!-- Error preview -->
+      <p
+        class="checkout-error"
+        *ngIf="checkoutError"
+      >
+        {{ checkoutError }}
       </p>
 
-      <h2>
-        Checkout
-      </h2>
-    </div>
-
-    <button
-      class="close-cart"
-      type="button"
-      (click)="cerrarCheckout()"
-    >
-      ×
-    </button>
-
-  </div>
 
 
-  <!-- DIRECCIÓN -->
+      <!-- ================================================= -->
+      <!-- RESUMEN CHECKOUT -->
+      <!-- ================================================= -->
 
-  <section class="checkout-section">
-
-    <h3>
-      Dirección de entrega
-    </h3>
-
-    <label>
-      Dirección seleccionada
-    </label>
-
-    <select
-      [(ngModel)]="addressId"
-    >
-      <option [ngValue]="1">
-        Dirección #1
-      </option>
-    </select>
-
-  </section>
-
-
-  <!-- ENVÍO -->
-
-  <section class="checkout-section">
-
-    <h3>
-      Método de envío
-    </h3>
-
-    <label class="shipping-option">
-
-      <input
-        type="radio"
-        name="shipping"
-        value="STANDARD"
-        [checked]="shippingMethod === 'STANDARD'"
-        (change)="actualizarMetodoEnvio('STANDARD')"
+      <section
+        class="checkout-summary"
+        *ngIf="checkoutPreview"
       >
 
-      <span>
-        Estándar
-      </span>
 
-      <strong>
-        $10.000
-      </strong>
-
-    </label>
+        <h3>
+          Resumen de compra
+        </h3>
 
 
-    <label class="shipping-option">
 
-      <input
-        type="radio"
-        name="shipping"
-        value="EXPRESS"
-        [checked]="shippingMethod === 'EXPRESS'"
-        (change)="actualizarMetodoEnvio('EXPRESS')"
-      >
+        <!-- Subtotal -->
+        <div>
 
-      <span>
-        Express
-      </span>
-
-      <strong>
-        $20.000
-      </strong>
-
-    </label>
-
-  </section>
+          <span>
+            Subtotal
+          </span>
 
 
-  <!-- CUPÓN -->
+          <strong>
+            {{
+              checkoutPreview.subtotal
+              | currency:'COP':'symbol-narrow':'1.0-0'
+            }}
+          </strong>
 
-  <section class="checkout-section">
-
-    <h3>
-      Cupón
-    </h3>
-
-    <input
-      class="coupon-input"
-      type="text"
-      placeholder="Ej. DESC10"
-      [(ngModel)]="couponCode"
-    >
-
-  </section>
+        </div>
 
 
-  <!-- BOTÓN CALCULAR -->
 
-  <button
-    class="checkout-button"
-    type="button"
-    (click)="aplicarCheckout()"
-    [disabled]="procesandoCheckout"
-  >
+        <!-- Descuento -->
+        <div>
 
-    {{
-      procesandoCheckout
-        ? 'Calculando...'
-        : 'Calcular total'
-    }}
-
-  </button>
+          <span>
+            Descuento
+          </span>
 
 
-  <!-- ERROR -->
+          <strong>
+            -
+            {{
+              checkoutPreview.discount
+              | currency:'COP':'symbol-narrow':'1.0-0'
+            }}
+          </strong>
 
-  <p
-    class="checkout-error"
-    *ngIf="checkoutError"
-  >
-    {{ checkoutError }}
-  </p>
-
-
-  <!-- RESUMEN -->
-
-  <section
-    class="checkout-summary"
-    *ngIf="checkoutPreview"
-  >
-
-    <h3>
-      Resumen
-    </h3>
+        </div>
 
 
-    <div>
 
-      <span>
-        Subtotal
-      </span>
+        <!-- Envío -->
+        <div>
 
-      <strong>
-        {{
-          checkoutPreview.subtotal
-          | currency:'COP':'symbol-narrow':'1.0-0'
-        }}
-      </strong>
-
-    </div>
+          <span>
+            Envío
+          </span>
 
 
-    <div>
+          <strong>
+            {{
+              checkoutPreview.shippingCost
+              | currency:'COP':'symbol-narrow':'1.0-0'
+            }}
+          </strong>
 
-      <span>
-        Descuento
-      </span>
-
-      <strong>
-        -
-        {{
-          checkoutPreview.discount
-          | currency:'COP':'symbol-narrow':'1.0-0'
-        }}
-      </strong>
-
-    </div>
+        </div>
 
 
-    <div>
 
-      <span>
-        Envío
-      </span>
+        <!-- Total -->
+        <div class="checkout-total">
 
-      <strong>
-        {{
-          checkoutPreview.shippingCost
-          | currency:'COP':'symbol-narrow':'1.0-0'
-        }}
-      </strong>
-
-    </div>
+          <span>
+            Total
+          </span>
 
 
-    <div class="checkout-total">
+          <strong>
+            {{
+              checkoutPreview.total
+              | currency:'COP':'symbol-narrow':'1.0-0'
+            }}
+          </strong>
 
-      <span>
-        Total
-      </span>
-
-      <strong>
-        {{
-          checkoutPreview.total
-          | currency:'COP':'symbol-narrow':'1.0-0'
-        }}
-      </strong>
-
-    </div>
+        </div>
 
 
-    <p
-      class="coupon-valid"
-      *ngIf="couponCode && checkoutPreview.couponValid"
-    >
-      Cupón aplicado correctamente.
-    </p>
+
+        <!-- Cupón válido -->
+        <p
+          class="coupon-valid"
+          *ngIf="
+            couponCode &&
+            checkoutPreview.couponValid
+          "
+        >
+          ✓ Cupón aplicado correctamente.
+        </p>
 
 
-    <p
-      class="coupon-invalid"
-      *ngIf="couponCode && !checkoutPreview.couponValid"
-    >
-      El cupón no es válido. Puedes continuar sin él.
-    </p>
 
-  </section>
+        <!-- Cupón inválido -->
+        <p
+          class="coupon-invalid"
+          *ngIf="
+            couponCode &&
+            !checkoutPreview.couponValid
+          "
+        >
+          El cupón no es válido.
+          Puedes continuar sin él.
+        </p>
 
-</aside>
 
-    <!-- ========================= -->
+
+        <!-- ================================================= -->
+        <!-- MÉTODO DE PAGO -->
+        <!-- ================================================= -->
+
+        <div class="payment-section">
+
+
+          <h3>
+            Método de pago
+          </h3>
+
+
+          <select
+            [(ngModel)]="paymentMethod"
+            class="payment-select"
+          >
+
+            <!-- Flujo normal -->
+            <option value="CARD">
+              Tarjeta
+            </option>
+
+
+            <!-- Alterno A5 -->
+            <option value="TEST_REJECT">
+              Simular pago rechazado
+            </option>
+
+
+            <!-- Alterno A6 -->
+            <option value="TEST_PENDING">
+              Simular pago pendiente
+            </option>
+
+
+            <!-- Alterno A8 -->
+            <option value="TEST_UNAVAILABLE">
+              Simular pasarela no disponible
+            </option>
+
+          </select>
+
+        </div>
+
+
+
+        <!-- ================================================= -->
+        <!-- CONFIRMAR COMPRA -->
+        <!-- ================================================= -->
+
+        <button
+          class="confirm-purchase-button"
+          type="button"
+          (click)="confirmarCompra()"
+          [disabled]="procesandoCompra"
+        >
+
+          {{
+            procesandoCompra
+            ? 'Procesando compra...'
+            : 'Confirmar compra'
+          }}
+
+
+          <ion-icon
+            name="arrow-forward-outline"
+          ></ion-icon>
+
+        </button>
+
+
+
+        <!-- Error compra -->
+        <p
+          class="checkout-error"
+          *ngIf="compraError"
+        >
+          {{ compraError }}
+        </p>
+
+
+
+        <!-- ================================================= -->
+        <!-- RESULTADO: APROBADO -->
+        <!-- ================================================= -->
+
+        <div
+          class="purchase-result approved"
+          *ngIf="
+            compraResultado &&
+            compraResultado.status === 'APPROVED'
+          "
+        >
+
+          <h3>
+            ✓ ¡Compra confirmada!
+          </h3>
+
+
+          <p>
+            Tu pedido fue creado correctamente.
+          </p>
+
+
+          <div>
+
+            <span>
+              Pedido
+            </span>
+
+            <strong>
+              #{{ compraResultado.orderId }}
+            </strong>
+
+          </div>
+
+
+          <div>
+
+            <span>
+              Total pagado
+            </span>
+
+            <strong>
+              {{
+                compraResultado.total
+                | currency:'COP':'symbol-narrow':'1.0-0'
+              }}
+            </strong>
+
+          </div>
+
+
+          <small>
+            Transacción:
+            {{ compraResultado.transactionId }}
+          </small>
+
+        </div>
+
+
+
+        <!-- ================================================= -->
+        <!-- RESULTADO: RECHAZADO -->
+        <!-- ================================================= -->
+
+        <div
+          class="purchase-result rejected"
+          *ngIf="
+            compraResultado &&
+            compraResultado.status === 'REJECTED'
+          "
+        >
+
+          <h3>
+            Pago rechazado
+          </h3>
+
+
+          <p>
+            No se realizó la compra.
+            Las unidades reservadas fueron liberadas
+            y puedes intentar nuevamente.
+          </p>
+
+        </div>
+
+
+
+        <!-- ================================================= -->
+        <!-- RESULTADO: PENDIENTE -->
+        <!-- ================================================= -->
+
+        <div
+          class="purchase-result pending"
+          *ngIf="
+            compraResultado &&
+            compraResultado.status === 'PENDING'
+          "
+        >
+
+          <h3>
+            Pago pendiente
+          </h3>
+
+
+          <p>
+            Estamos esperando la confirmación
+            de la pasarela de pago.
+            Tu inventario permanecerá reservado
+            temporalmente.
+          </p>
+
+        </div>
+
+      </section>
+
+    </aside>
+
+
+
+    <!-- ===================================================== -->
     <!-- CONTENIDO PRINCIPAL -->
-    <!-- ========================= -->
+    <!-- ===================================================== -->
 
     <main id="inicio">
+
 
       <!-- Bienvenida -->
       <section class="welcome-strip">
@@ -530,27 +847,33 @@
           Entregamos donde estés
         </span>
 
+
         <a href="#vender">
+
           Vende con nosotros
 
           <ion-icon
             name="arrow-forward-outline"
           ></ion-icon>
+
         </a>
 
       </section>
 
 
-      <!-- ========================= -->
+
+      <!-- ================================================= -->
       <!-- CAMPAÑA -->
-      <!-- ========================= -->
+      <!-- ================================================= -->
 
       <section
         class="campaign"
         aria-labelledby="campaign-title"
       >
 
+
         <div class="campaign-copy">
+
 
           <p class="eyebrow">
 
@@ -562,17 +885,28 @@
 
           </p>
 
+
           <h1 id="campaign-title">
+
             Objetos con<br>
-            <i>buena historia.</i>
+
+            <i>
+              buena historia.
+            </i>
+
           </h1>
+
 
           <p>
             Pequeñas marcas, hallazgos útiles
             y precios que dan ganas de llevar dos.
           </p>
 
-          <button class="coral-cta">
+
+          <button
+            class="coral-cta"
+            type="button"
+          >
 
             Explorar la selección
 
@@ -585,9 +919,12 @@
         </div>
 
 
+
         <div class="campaign-object">
 
+
           <div class="sticker">
+
             hasta<br>
 
             <strong>
@@ -595,8 +932,11 @@
             </strong>
 
             <br>
+
             menos
+
           </div>
+
 
           <img
             src="https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=800&q=90"
@@ -608,16 +948,19 @@
       </section>
 
 
-      <!-- ========================= -->
+
+      <!-- ================================================= -->
       <!-- CATEGORÍAS -->
-      <!-- ========================= -->
+      <!-- ================================================= -->
 
       <section
         class="section categories"
         aria-labelledby="categories-title"
       >
 
+
         <div class="section-heading">
+
 
           <div>
 
@@ -630,6 +973,7 @@
             </h2>
 
           </div>
+
 
           <a href="#catalogo">
 
@@ -644,16 +988,19 @@
         </div>
 
 
+
         <div
           class="category-row"
           *ngIf="categorias$ | async as categorias"
         >
+
 
           <a
             class="category"
             *ngFor="let categoria of categorias"
             href="#catalogo"
           >
+
 
             <span
               [style.background]="categoria.color"
@@ -665,6 +1012,7 @@
 
             </span>
 
+
             {{ categoria.nombre }}
 
           </a>
@@ -674,9 +1022,10 @@
       </section>
 
 
-      <!-- ========================= -->
-      <!-- PRODUCTOS -->
-      <!-- ========================= -->
+
+      <!-- ================================================= -->
+      <!-- CATÁLOGO -->
+      <!-- ================================================= -->
 
       <section
         class="section product-area"
@@ -684,7 +1033,9 @@
         aria-labelledby="products-title"
       >
 
+
         <div class="section-heading">
+
 
           <div>
 
@@ -698,13 +1049,20 @@
 
           </div>
 
-          <button class="filter">
+
+          <button
+            class="filter"
+            type="button"
+          >
+
             Ordenar por
             <b>relevancia</b>
             ⌄
+
           </button>
 
         </div>
+
 
 
         <div
@@ -712,68 +1070,84 @@
           *ngIf="destacados$ | async as productos"
         >
 
+
           <article
             class="product-card"
             *ngFor="let producto of productos"
           >
 
+
             <!-- Imagen -->
             <div class="product-image">
+
 
               <img
                 [src]="producto.imagen"
                 [alt]="producto.nombre"
               >
 
+
               <span *ngIf="producto.etiqueta">
                 {{ producto.etiqueta }}
               </span>
 
+
               <button
+                type="button"
                 [attr.aria-label]="'Guardar ' + producto.nombre"
               >
+
                 <ion-icon
                   name="heart-outline"
                 ></ion-icon>
+
               </button>
 
             </div>
 
 
+
             <!-- Información -->
             <div class="product-info">
+
 
               <p class="store">
                 {{ producto.tienda }}
               </p>
+
 
               <h3>
                 {{ producto.nombre }}
               </h3>
 
 
+
               <!-- Precio -->
               <div class="price">
+
 
                 <strong>
                   {{
                     producto.precio
-                      | currency:'COP':'symbol-narrow':'1.0-0'
+                    | currency:'COP':'symbol-narrow':'1.0-0'
                   }}
                 </strong>
+
 
                 <del *ngIf="producto.precioAnterior">
                   {{
                     producto.precioAnterior
-                      | currency:'COP':'symbol-narrow':'1.0-0'
+                    | currency:'COP':'symbol-narrow':'1.0-0'
                   }}
                 </del>
 
               </div>
 
 
+
               <!-- Información inferior -->
               <div class="product-foot">
+
 
                 <span class="rating">
 
@@ -789,6 +1163,7 @@
 
                 </span>
 
+
                 <span
                   *ngIf="producto.envioGratis"
                   class="shipping"
@@ -799,7 +1174,8 @@
               </div>
 
 
-              <!-- Agregar al carrito -->
+
+              <!-- Agregar -->
               <button
                 class="add-button"
                 type="button"
@@ -823,18 +1199,21 @@
       </section>
 
 
-      <!-- ========================= -->
+
+      <!-- ================================================= -->
       <!-- VENDEDOR -->
-      <!-- ========================= -->
+      <!-- ================================================= -->
 
       <section
         class="seller-callout"
         id="vender"
       >
 
+
         <div class="seller-mark">
           ↗
         </div>
+
 
         <div>
 
@@ -854,7 +1233,8 @@
 
         </div>
 
-        <button>
+
+        <button type="button">
 
           Conocer el espacio vendedor
 
@@ -869,11 +1249,13 @@
     </main>
 
 
-    <!-- ========================= -->
+
+    <!-- ===================================================== -->
     <!-- FOOTER -->
-    <!-- ========================= -->
+    <!-- ===================================================== -->
 
     <footer>
+
 
       <a
         class="brand"
@@ -882,9 +1264,11 @@
         <span>m</span>erca.do
       </a>
 
+
       <p>
         Comercio con pulso local.
       </p>
+
 
       <div>
 
@@ -904,5 +1288,7 @@
 
     </footer>
 
+
   </ion-content>
+
 </ion-app>

@@ -1,7 +1,7 @@
 package com.transformersas.marketplace.payments.infrastructure.web.controller;
 
+import com.transformersas.marketplace.payments.application.dto.PaymentProcessResult;
 import com.transformersas.marketplace.payments.application.usecase.ProcessPaymentUseCase;
-import com.transformersas.marketplace.payments.domain.model.PaymentResult;
 import com.transformersas.marketplace.payments.infrastructure.web.request.PaymentRequest;
 import com.transformersas.marketplace.payments.infrastructure.web.response.PaymentResponse;
 
@@ -30,10 +30,13 @@ public class PaymentController {
             @RequestBody PaymentRequest request
     ) {
 
-        PaymentResult result =
+        PaymentProcessResult result =
                 processPaymentUseCase.execute(
                         request.paymentMethod(),
-                        request.reservationIds()
+                        request.reservationIds(),
+                        request.addressId(),
+                        request.shippingMethod(),
+                        request.couponCode()
                 );
 
 

@@ -4,6 +4,9 @@ import java.util.List;
 
 public record PaymentRequest(
         String paymentMethod,
-        List<Long> reservationIds
+        List<Long> reservationIds,
+        Long addressId,
+        String shippingMethod,
+        String couponCode
 ) {
 }
