@@ -4,6 +4,7 @@ import jakarta.servlet.DispatcherType;
 import com.transformersas.marketplace.auth.infrastructure.security.AccountPrincipal;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -18,6 +19,10 @@ import org.springframework.security.web.context.HttpSessionSecurityContextReposi
 import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.session.web.http.CookieSerializer;
 import org.springframework.session.web.http.DefaultCookieSerializer;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import java.util.List;
 
 @Configuration(proxyBeanMethods = false)
 public class SecurityConfiguration {
@@ -42,10 +47,30 @@ public class SecurityConfiguration {
         return provider;
     }
 
+    /**
+     * Solo los orígenes configurados pueden llamar a la API desde un navegador, y con credenciales para
+     * que viaje la cookie de sesión (por eso no puede ser un comodín).
+     */
+    @Bean
+    CorsConfigurationSource corsConfigurationSource(
+            @Value("${app.cors.allowed-origins:http://localhost:4300,http://localhost:4200,http://localhost:8100}")
+            List<String> allowedOrigins) {
+        var cors = new CorsConfiguration();
+        cors.setAllowedOrigins(allowedOrigins);
+        cors.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+        cors.setAllowedHeaders(List.of("Content-Type", "Accept", "X-CSRF-TOKEN", "X-XSRF-TOKEN"));
+        cors.setAllowCredentials(true);
+        cors.setMaxAge(3600L);
+        var source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", cors);
+        return source;
+    }
+
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http, DaoAuthenticationProvider provider,
                                             SecurityContextRepository contexts) throws Exception {
         return http
+                .cors(Customizer.withDefaults())
                 .authenticationProvider(provider)
                 .securityContext(context -> context.securityContextRepository(contexts))
                 .authorizeHttpRequests(authorize -> authorize
@@ -55,6 +80,7 @@ public class SecurityConfiguration {
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/auth/validation/comprador").hasRole("COMPRADOR")
                         .requestMatchers(HttpMethod.GET, "/api/auth/validation/vendedor").hasRole("VENDEDOR")
+                        .requestMatchers("/api/support/**").hasRole("SOPORTE")
                         .requestMatchers("/api/**").authenticated()
                         .anyRequest().denyAll())
                 .csrf(Customizer.withDefaults())
