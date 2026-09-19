@@ -11,7 +11,11 @@ import {
 } from '@angular/common';
 
 import { FormsModule } from '@angular/forms';
-import { HttpErrorResponse } from '@angular/common/http';
+
+import {
+  HttpClient,
+  HttpErrorResponse
+} from '@angular/common/http';
 
 import {
   IonApp,
@@ -122,6 +126,9 @@ export class AppComponent {
   private readonly payment =
     inject(PaymentService);
 
+  private readonly http =
+    inject(HttpClient);
+
 
   // =========================================================
   // CATÁLOGO
@@ -153,7 +160,16 @@ export class AppComponent {
 
   mostrarCheckout = false;
 
-  addressId = 1;
+  /*
+   * Dirección escrita por el usuario.
+   */
+  deliveryAddress = '';
+
+  /*
+   * ID generado por el backend después de
+   * guardar la dirección.
+   */
+  addressId: number | null = null;
 
   shippingMethod = 'STANDARD';
 
@@ -313,6 +329,13 @@ export class AppComponent {
     this.compraResultado = null;
 
     this.compraError = '';
+
+    /*
+     * Cada vez que inicia un nuevo checkout,
+     * todavía no existe una dirección guardada
+     * para esta compra.
+     */
+    this.addressId = null;
   }
 
 
@@ -361,6 +384,19 @@ export class AppComponent {
 
   aplicarCheckout(): void {
 
+    /*
+     * Primero validamos que el usuario
+     * realmente haya escrito una dirección.
+     */
+    if (!this.deliveryAddress.trim()) {
+
+      this.checkoutError =
+        'Escribe una dirección de entrega.';
+
+      return;
+    }
+
+
     this.procesandoCheckout = true;
 
     this.checkoutError = '';
@@ -372,55 +408,108 @@ export class AppComponent {
     this.compraError = '';
 
 
-    this.checkout.preview({
+    /*
+     * PASO 1:
+     *
+     * Guardamos la dirección que escribió
+     * el usuario.
+     *
+     * POST /api/addresses
+     */
+    this.http
+      .post<{ id: number }>(
+        'http://localhost:8080/api/addresses',
+        {
+          recipientName: 'Comprador',
 
-      addressId:
-        this.addressId,
+          street:
+            this.deliveryAddress.trim(),
 
-      shippingMethod:
-        this.shippingMethod,
+          /*
+           * Como por ahora el frontend solamente
+           * solicita una caja de texto para la dirección,
+           * dejamos estos datos generales para el prototipo.
+           */
+          city: 'Bogotá',
 
-      couponCode:
-        this.couponCode
+          department: 'Bogotá D.C.',
 
-    })
-    .pipe(
-      finalize(() => {
-        this.procesandoCheckout = false;
-      })
-    )
-    .subscribe({
+          postalCode: '',
 
-      next: (
-        response: CheckoutPreviewResponse
-      ) => {
+          phone: '333-333-3333'
+        }
+      )
 
-        this.checkoutPreview =
-          response;
-      },
+      .pipe(
+
+        /*
+         * PASO 2:
+         *
+         * Cuando el backend crea la dirección,
+         * devuelve su ID.
+         *
+         * Utilizamos ese ID para calcular
+         * el checkout.
+         */
+        switchMap(address => {
+
+          this.addressId = address.id;
+
+          return this.checkout.preview({
+
+            addressId:
+              address.id,
+
+            shippingMethod:
+              this.shippingMethod,
+
+            couponCode:
+              this.couponCode
+          });
+        }),
+
+        /*
+         * Se ejecuta tanto si funciona
+         * como si ocurre un error.
+         */
+        finalize(() => {
+
+          this.procesandoCheckout =
+            false;
+        })
+      )
+
+      .subscribe({
+
+        next: (
+          response: CheckoutPreviewResponse
+        ) => {
+
+          this.checkoutPreview =
+            response;
+        },
 
 
-      error: (
-        error: HttpErrorResponse
-      ) => {
+        error: (
+          error: HttpErrorResponse
+        ) => {
 
-        console.error(
-          'Error calculando checkout',
-          error
-        );
+          console.error(
+            'Error guardando dirección o calculando checkout',
+            error
+          );
 
 
-        this.checkoutError =
-          error.error?.message
-          ??
-          error.error?.detail
-          ??
-          error.message
-          ??
-          'No fue posible calcular el checkout.';
-      }
-
-    });
+          this.checkoutError =
+            error.error?.message
+            ??
+            error.error?.detail
+            ??
+            error.message
+            ??
+            'No fue posible calcular el checkout.';
+        }
+      });
   }
 
 
@@ -438,6 +527,22 @@ export class AppComponent {
 
       this.compraError =
         'Primero debes calcular el total de la compra.';
+
+      return;
+    }
+
+
+    /*
+     * Tampoco podemos confirmar si por alguna
+     * razón la dirección todavía no fue guardada.
+     */
+    const addressId =
+      this.addressId;
+
+    if (addressId === null) {
+
+      this.compraError =
+        'Primero debes registrar una dirección de entrega.';
 
       return;
     }
@@ -488,15 +593,17 @@ export class AppComponent {
 
               reservationIds,
 
-              addressId:
-                this.addressId,
+              /*
+               * Aquí ya usamos el ID REAL
+               * de la dirección creada.
+               */
+              addressId,
 
               shippingMethod:
                 this.shippingMethod,
 
               couponCode:
                 this.couponCode
-
             });
           }
         ),
@@ -562,7 +669,6 @@ export class AppComponent {
             ??
             'No fue posible completar la compra.';
         }
-
       });
   }
 }

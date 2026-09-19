@@ -378,22 +378,13 @@
         <h3>
           Dirección de entrega
         </h3>
+  
 
-
-        <label>
-          Dirección seleccionada
-        </label>
-
-
-        <select
-          [(ngModel)]="addressId"
-        >
-
-          <option [ngValue]="1">
-            Dirección #1
-          </option>
-
-        </select>
+<input
+  type="text"
+  [(ngModel)]="deliveryAddress"
+  placeholder="Escribe tu dirección de entrega"
+/>
 
       </section>
 
