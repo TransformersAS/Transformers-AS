@@ -271,6 +271,91 @@ class SessionAuthenticationTests {
         mvc.perform(get("/api/auth/me").cookie(own)).andExpect(status().isOk());
     }
 
+    @Test
+    void passwordChangeStoresBcryptAndRevokesOnlyOtherSessionsOfTheAccount() throws Exception {
+        Cookie current = login(csrf(null), "person@example.com", "TestPassword!123", 204);
+        Cookie second = login(csrf(null), "person@example.com", "TestPassword!123", 204);
+        Cookie third = login(csrf(null), "person@example.com", "TestPassword!123", 204);
+        accounts.save(new UserAccount(null, "other@example.com", hash, AccountStatus.ACTIVA, Set.of(Role.VENDEDOR)));
+        Cookie other = login(csrf(null), "other@example.com", "TestPassword!123", 204);
+        var before = accounts.findByEmail("person@example.com").orElseThrow();
+        changePassword(current, "TestPassword!123", "NewPassword!456", 204);
+        var after = accounts.findById(before.id()).orElseThrow();
+        assertThat(after.passwordHash()).startsWith("$2").isNotEqualTo(hash).isNotEqualTo("NewPassword!456");
+        assertThat(encoder.matches("NewPassword!456", after.passwordHash())).isTrue();
+        assertThat(encoder.matches("TestPassword!123", after.passwordHash())).isFalse();
+        assertThat(after.email()).isEqualTo(before.email());
+        assertThat(after.status()).isEqualTo(before.status());
+        assertThat(after.roles()).isEqualTo(before.roles());
+        mvc.perform(get("/api/auth/me").cookie(current)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.activeRole").value("COMPRADOR"));
+        mvc.perform(get("/api/auth/me").cookie(second)).andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/auth/me").cookie(third)).andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/auth/me").cookie(other)).andExpect(status().isOk());
+        assertThat(accounts.findByEmail("other@example.com").orElseThrow().passwordHash()).isEqualTo(hash);
+        mvc.perform(get("/api/auth/sessions").cookie(current)).andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].current").value(true));
+        login(csrf(null), "person@example.com", "TestPassword!123", 401);
+        Cookie fresh = login(csrf(null), "person@example.com", "NewPassword!456", 204);
+        mvc.perform(get("/api/auth/me").cookie(fresh)).andExpect(status().isOk());
+        for (byte[] bytes : jdbc.query("SELECT ATTRIBUTE_BYTES FROM SPRING_SESSION_ATTRIBUTES",
+                (rs, row) -> rs.getBytes(1))) {
+            assertThat(new String(bytes, StandardCharsets.ISO_8859_1))
+                    .doesNotContain("NewPassword!456", "TestPassword!123", after.passwordHash());
+        }
+    }
+
+    @Test
+    void wrongCurrentPasswordDoesNotChangeCredentialsOrRevokeSessions() throws Exception {
+        Cookie current = login(csrf(null), "person@example.com", "TestPassword!123", 204);
+        Cookie other = login(csrf(null), "person@example.com", "TestPassword!123", 204);
+        changePassword(current, "WrongPassword!", "NewPassword!456", 403);
+        assertThat(accounts.findByEmail("person@example.com").orElseThrow().passwordHash()).isEqualTo(hash);
+        mvc.perform(get("/api/auth/me").cookie(current)).andExpect(status().isOk());
+        mvc.perform(get("/api/auth/me").cookie(other)).andExpect(status().isOk());
+        login(csrf(null), "person@example.com", "TestPassword!123", 204);
+        login(csrf(null), "person@example.com", "NewPassword!456", 401);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"", "            ", "short", "TestPassword!123",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "ééééééééééééééééééééééééééééééééééééé"})
+    void invalidNewPasswordDoesNotChangeCredentialsOrRevokeSessions(String password) throws Exception {
+        Cookie current = login(csrf(null), "person@example.com", "TestPassword!123", 204);
+        Cookie other = login(csrf(null), "person@example.com", "TestPassword!123", 204);
+        changePassword(current, "TestPassword!123", password, 400);
+        assertThat(accounts.findByEmail("person@example.com").orElseThrow().passwordHash()).isEqualTo(hash);
+        mvc.perform(get("/api/auth/me").cookie(current)).andExpect(status().isOk());
+        mvc.perform(get("/api/auth/me").cookie(other)).andExpect(status().isOk());
+    }
+
+    @Test
+    void passwordChangeRequiresAuthenticationCsrfAndBothFields() throws Exception {
+        Csrf anonymous = csrf(null);
+        mvc.perform(put("/api/auth/password").cookie(anonymous.cookie()).header(anonymous.header(), anonymous.token())
+                .contentType("application/json").content("{}")) .andExpect(status().isUnauthorized());
+        Cookie current = login(csrf(null), "person@example.com", "TestPassword!123", 204);
+        mvc.perform(put("/api/auth/password").cookie(current).contentType("application/json").content("{}"))
+                .andExpect(status().isForbidden());
+        Csrf token = csrf(current);
+        for (String body : new String[]{"{}", "{\"currentPassword\":\"TestPassword!123\"}",
+                "{\"newPassword\":\"NewPassword!456\"}"}) {
+            mvc.perform(put("/api/auth/password").cookie(current).header(token.header(), token.token())
+                    .contentType("application/json").content(body)).andExpect(status().isBadRequest());
+        }
+        assertThat(accounts.findByEmail("person@example.com").orElseThrow().passwordHash()).isEqualTo(hash);
+        mvc.perform(get("/api/auth/me").cookie(current)).andExpect(status().isOk());
+    }
+
+    private void changePassword(Cookie cookie, String currentPassword, String newPassword, int expectedStatus) throws Exception {
+        Csrf token = csrf(cookie);
+        mvc.perform(put("/api/auth/password").cookie(cookie).header(token.header(), token.token())
+                .contentType("application/json").content(json.writeValueAsString(java.util.Map.of(
+                        "currentPassword", currentPassword, "newPassword", newPassword))))
+                .andExpect(status().is(expectedStatus));
+    }
+
     private String currentManagementId(Cookie cookie) throws Exception {
         var result = mvc.perform(get("/api/auth/sessions").cookie(cookie)).andExpect(status().isOk()).andReturn();
         for (var session : json.readTree(result.getResponse().getContentAsString())) {

@@ -2,6 +2,7 @@ package com.transformersas.marketplace.auth.infrastructure.web.controller;
 
 import com.transformersas.marketplace.auth.infrastructure.security.AccountPrincipal;
 import com.transformersas.marketplace.auth.application.usecase.ManageAccountSessions;
+import com.transformersas.marketplace.auth.application.usecase.ChangeAccountPassword;
 import org.springframework.security.web.authentication.logout.SecurityContextLogoutHandler;
 import java.util.List;
 import com.transformersas.marketplace.users.domain.model.Role;
@@ -26,14 +27,29 @@ public class SessionController {
 
     private final ManageAccountSessions sessions;
 
-    public SessionController(SecurityContextRepository contexts, ManageAccountSessions sessions) {
+    private final ChangeAccountPassword passwords;
+
+    public SessionController(SecurityContextRepository contexts, ManageAccountSessions sessions, ChangeAccountPassword passwords) {
         this.contexts = contexts;
         this.sessions = sessions;
+        this.passwords = passwords;
     }
 
     public record CsrfResponse(String headerName, String token) {}
     public record AuthenticatedAccountResponse(Long accountId, String email, Set<Role> roles, Role activeRole) {}
     public record ActiveRoleRequest(@NotNull Role role) {}
+
+    public record PasswordChangeRequest(String currentPassword, String newPassword) {
+        @Override
+        public String toString() { return "PasswordChangeRequest[REDACTED]"; }
+    }
+
+    @PutMapping("/password")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void changePassword(@AuthenticationPrincipal AccountPrincipal principal,
+                               @RequestBody PasswordChangeRequest change, HttpServletRequest request) {
+        passwords.execute(principal, change.currentPassword(), change.newPassword(), request.getSession(false).getId());
+    }
 
     @GetMapping("/csrf")
     public CsrfResponse csrf(CsrfToken token) {
