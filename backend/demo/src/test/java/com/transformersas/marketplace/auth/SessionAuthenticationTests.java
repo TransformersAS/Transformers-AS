@@ -187,6 +187,104 @@ class SessionAuthenticationTests {
         assertAuthorities(cookie, "ROLE_COMPRADOR");
     }
 
+    @Test
+    void listsOwnSessionsAndRevokesOnlyTheSelectedSession() throws Exception {
+        Cookie first = login(csrf(null), "person@example.com", "TestPassword!123", 204);
+        Cookie second = login(csrf(null), "person@example.com", "TestPassword!123", 204);
+        accounts.save(new UserAccount(null, "other@example.com", hash, AccountStatus.ACTIVA, Set.of(Role.COMPRADOR)));
+        Cookie other = login(csrf(null), "other@example.com", "TestPassword!123", 204);
+        var result = mvc.perform(get("/api/auth/sessions").cookie(first)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2)).andReturn();
+        var listed = json.readTree(result.getResponse().getContentAsString());
+        String currentId = null;
+        String otherId = null;
+        for (var session : listed) {
+            assertThat(session.get("id").asText()).matches("[0-9a-f]{64}");
+            var created = java.time.Instant.parse(session.get("createdAt").asText());
+            var accessed = java.time.Instant.parse(session.get("lastAccessedAt").asText());
+            var expires = java.time.Instant.parse(session.get("expiresAt").asText());
+            assertThat(accessed).isAfterOrEqualTo(created);
+            assertThat(expires).isAfter(accessed);
+            assertThat(session.size()).isEqualTo(5);
+            if (session.get("current").asBoolean()) {
+                assertThat(currentId).isNull();
+                currentId = session.get("id").asText();
+            } else otherId = session.get("id").asText();
+        }
+        assertThat(currentId).isEqualTo(currentManagementId(first));
+        assertThat(otherId).isEqualTo(currentManagementId(second));
+        String response = result.getResponse().getContentAsString();
+        assertThat(response).doesNotContain(first.getValue(), second.getValue(), hash,
+                new String(java.util.Base64.getDecoder().decode(first.getValue()), StandardCharsets.UTF_8),
+                new String(java.util.Base64.getDecoder().decode(second.getValue()), StandardCharsets.UTF_8));
+        revoke(first, otherId, 204);
+        mvc.perform(get("/api/auth/me").cookie(second)).andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/auth/me").cookie(first)).andExpect(status().isOk());
+        mvc.perform(get("/api/auth/me").cookie(other)).andExpect(status().isOk());
+        mvc.perform(get("/api/auth/sessions").cookie(first)).andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].id").value(currentId)).andExpect(jsonPath("$[0].current").value(true));
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM SPRING_SESSION WHERE PRINCIPAL_NAME='person@example.com'", Integer.class)).isEqualTo(1);
+    }
+
+    @Test
+    void cannotRevokeAnotherAccountsSessionOrAnUnknownSession() throws Exception {
+        Cookie own = login(csrf(null), "person@example.com", "TestPassword!123", 204);
+        accounts.save(new UserAccount(null, "other@example.com", hash, AccountStatus.ACTIVA, Set.of(Role.COMPRADOR)));
+        Cookie other = login(csrf(null), "other@example.com", "TestPassword!123", 204);
+        revoke(own, currentManagementId(other), 404);
+        revoke(own, "unknown", 404);
+        mvc.perform(get("/api/auth/me").cookie(other)).andExpect(status().isOk());
+        mvc.perform(get("/api/auth/me").cookie(own)).andExpect(status().isOk());
+    }
+
+    @Test
+    void revokingCurrentSessionLogsOutAndLeavesAnotherSessionAlive() throws Exception {
+        Cookie current = login(csrf(null), "person@example.com", "TestPassword!123", 204);
+        Cookie other = login(csrf(null), "person@example.com", "TestPassword!123", 204);
+        revoke(current, currentManagementId(current), 204);
+        mvc.perform(get("/api/auth/me").cookie(current)).andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/auth/sessions").cookie(current)).andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/auth/me").cookie(other)).andExpect(status().isOk());
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM SPRING_SESSION WHERE PRINCIPAL_NAME='person@example.com'", Integer.class)).isEqualTo(1);
+    }
+
+    @Test
+    void expiredSessionsAreNotListed() throws Exception {
+        Cookie current = login(csrf(null), "person@example.com", "TestPassword!123", 204);
+        Cookie expired = login(csrf(null), "person@example.com", "TestPassword!123", 204);
+        String expiredId = new String(java.util.Base64.getDecoder().decode(expired.getValue()), StandardCharsets.UTF_8);
+        jdbc.update("UPDATE SPRING_SESSION SET LAST_ACCESS_TIME=0, EXPIRY_TIME=0 WHERE SESSION_ID=?", expiredId);
+        mvc.perform(get("/api/auth/sessions").cookie(current)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1)).andExpect(jsonPath("$[0].current").value(true));
+        mvc.perform(get("/api/auth/me").cookie(expired)).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void sessionManagementRequiresAuthenticationAndRevocationRequiresCsrf() throws Exception {
+        mvc.perform(get("/api/auth/sessions")).andExpect(status().isUnauthorized());
+        Csrf anonymous = csrf(null);
+        mvc.perform(delete("/api/auth/sessions/unknown").cookie(anonymous.cookie())
+                        .header(anonymous.header(), anonymous.token())).andExpect(status().isUnauthorized());
+        Cookie own = login(csrf(null), "person@example.com", "TestPassword!123", 204);
+        mvc.perform(delete("/api/auth/sessions/{id}", currentManagementId(own)).cookie(own))
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/api/auth/me").cookie(own)).andExpect(status().isOk());
+    }
+
+    private String currentManagementId(Cookie cookie) throws Exception {
+        var result = mvc.perform(get("/api/auth/sessions").cookie(cookie)).andExpect(status().isOk()).andReturn();
+        for (var session : json.readTree(result.getResponse().getContentAsString())) {
+            if (session.get("current").asBoolean()) return session.get("id").asText();
+        }
+        throw new AssertionError("No current session in listing");
+    }
+
+    private void revoke(Cookie cookie, String id, int expectedStatus) throws Exception {
+        Csrf token = csrf(cookie);
+        mvc.perform(delete("/api/auth/sessions/{id}", id).cookie(cookie).header(token.header(), token.token()))
+                .andExpect(status().is(expectedStatus));
+    }
+
     private void selectRole(Cookie cookie, String role, int expectedStatus) throws Exception {
         Csrf token = csrf(cookie);
         mvc.perform(put("/api/auth/active-role").cookie(cookie).header(token.header(), token.token())
