@@ -10,6 +10,8 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.PessimisticLockingFailureException;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
@@ -31,6 +33,12 @@ public class ApiExceptionHandler {
     @ExceptionHandler(ResponseStatusException.class)
     ResponseEntity<ApiError> business(ResponseStatusException exception, HttpServletRequest request) {
         return response(HttpStatus.valueOf(exception.getStatusCode().value()), exception.getReason(), request);
+    }
+
+    @ExceptionHandler({ObjectOptimisticLockingFailureException.class, PessimisticLockingFailureException.class})
+    ResponseEntity<ApiError> concurrency(HttpServletRequest request) {
+        return response(HttpStatus.CONFLICT, "Otro usuario modificó el recurso al mismo tiempo; intente de nuevo",
+                request);
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)
