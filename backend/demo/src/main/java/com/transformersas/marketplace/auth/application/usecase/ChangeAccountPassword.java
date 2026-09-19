@@ -28,12 +28,7 @@ public class ChangeAccountPassword {
                 || currentPassword.getBytes(StandardCharsets.UTF_8).length > 72) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Contraseña actual inválida");
         }
-        if (newPassword == null || newPassword.isBlank()
-                || newPassword.codePointCount(0, newPassword.length()) < 12
-                || newPassword.getBytes(StandardCharsets.UTF_8).length > 72) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "La nueva contraseña requiere al menos 12 caracteres y un máximo de 72 bytes UTF-8");
-        }
+        PasswordPolicy.validate(newPassword);
         var account = accounts.findById(principal.accountId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Cuenta no disponible"));
         if (!encoder.matches(currentPassword, account.passwordHash())) {

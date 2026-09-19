@@ -78,6 +78,8 @@ public class SecurityConfiguration {
                         .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/auth/csrf").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/password-recovery/request",
+                                "/api/auth/password-recovery/confirm").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/auth/validation/comprador").hasRole("COMPRADOR")
                         .requestMatchers(HttpMethod.GET, "/api/auth/validation/vendedor").hasRole("VENDEDOR")
                         .requestMatchers("/api/support/**").hasRole("SOPORTE")
