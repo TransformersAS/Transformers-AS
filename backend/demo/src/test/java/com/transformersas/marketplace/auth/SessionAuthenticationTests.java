@@ -120,6 +120,100 @@ class SessionAuthenticationTests {
         mvc.perform(get("/api/auth/me").cookie(second)).andExpect(status().isOk());
     }
 
+    @Test
+    void singleRoleIsAutomaticallyActive() throws Exception {
+        Cookie cookie = login(csrf(null), "person@example.com", "TestPassword!123", 204);
+        mvc.perform(get("/api/auth/me").cookie(cookie)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.accountId").value(accounts.findByEmail("person@example.com").orElseThrow().id()))
+                .andExpect(jsonPath("$.roles[0]").value("COMPRADOR"))
+                .andExpect(jsonPath("$.activeRole").value("COMPRADOR"));
+        assertPermissions(cookie, 204, 403);
+        assertAuthorities(cookie, "ROLE_COMPRADOR");
+    }
+
+    @Test
+    void multipleRolesRequireSelectionAndSwitchPermissionsInOnlyThatSession() throws Exception {
+        accounts.save(new UserAccount(null, "multi@example.com", hash, AccountStatus.ACTIVA,
+                Set.of(Role.COMPRADOR, Role.VENDEDOR)));
+        Cookie first = login(csrf(null), "multi@example.com", "TestPassword!123", 204);
+        Cookie second = login(csrf(null), "multi@example.com", "TestPassword!123", 204);
+        mvc.perform(get("/api/auth/me").cookie(first)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.roles", org.hamcrest.Matchers.containsInAnyOrder("COMPRADOR", "VENDEDOR")))
+                .andExpect(jsonPath("$.activeRole").value(org.hamcrest.Matchers.nullValue()));
+        assertPermissions(first, 403, 403);
+        assertAuthorities(first);
+        selectRole(first, "COMPRADOR", 200);
+        mvc.perform(get("/api/auth/me").cookie(first)).andExpect(jsonPath("$.activeRole").value("COMPRADOR"));
+        assertPermissions(first, 204, 403);
+        assertAuthorities(first, "ROLE_COMPRADOR");
+        selectRole(first, "VENDEDOR", 200);
+        mvc.perform(get("/api/auth/me").cookie(first)).andExpect(jsonPath("$.activeRole").value("VENDEDOR"));
+        assertPermissions(first, 403, 204);
+        assertAuthorities(first, "ROLE_VENDEDOR");
+        assertPermissions(second, 403, 403);
+        assertAuthorities(second);
+        mvc.perform(get("/api/auth/me").cookie(second))
+                .andExpect(jsonPath("$.activeRole").value(org.hamcrest.Matchers.nullValue()));
+        assertThat(accounts.findByEmail("multi@example.com").orElseThrow().roles())
+                .containsExactlyInAnyOrder(Role.COMPRADOR, Role.VENDEDOR);
+    }
+
+    @Test
+    void unavailableRoleIsForbiddenAndDoesNotChangeSessionOrAccount() throws Exception {
+        Cookie cookie = login(csrf(null), "person@example.com", "TestPassword!123", 204);
+        selectRole(cookie, "ADMIN", 403);
+        mvc.perform(get("/api/auth/me").cookie(cookie)).andExpect(jsonPath("$.activeRole").value("COMPRADOR"));
+        assertPermissions(cookie, 204, 403);
+        assertAuthorities(cookie, "ROLE_COMPRADOR");
+        assertThat(accounts.findByEmail("person@example.com").orElseThrow().roles()).containsExactly(Role.COMPRADOR);
+    }
+
+    @Test
+    void roleSelectionRequiresAuthenticationCsrfAndValidRole() throws Exception {
+        Csrf anonymous = csrf(null);
+        mvc.perform(put("/api/auth/active-role").cookie(anonymous.cookie())
+                        .header(anonymous.header(), anonymous.token()).contentType("application/json")
+                        .content("{\"role\":\"COMPRADOR\"}"))
+                .andExpect(status().isUnauthorized());
+        Cookie cookie = login(csrf(null), "person@example.com", "TestPassword!123", 204);
+        mvc.perform(put("/api/auth/active-role").cookie(cookie).contentType("application/json")
+                        .content("{\"role\":\"COMPRADOR\"}"))
+                .andExpect(status().isForbidden());
+        selectRole(cookie, "UNKNOWN", 400);
+        Csrf token = csrf(cookie);
+        mvc.perform(put("/api/auth/active-role").cookie(cookie).header(token.header(), token.token())
+                        .contentType("application/json").content("{}"))
+                .andExpect(status().isBadRequest());
+        assertAuthorities(cookie, "ROLE_COMPRADOR");
+    }
+
+    private void selectRole(Cookie cookie, String role, int expectedStatus) throws Exception {
+        Csrf token = csrf(cookie);
+        mvc.perform(put("/api/auth/active-role").cookie(cookie).header(token.header(), token.token())
+                        .contentType("application/json").content("{\"role\":\"" + role + "\"}"))
+                .andExpect(status().is(expectedStatus));
+    }
+
+    private void assertPermissions(Cookie cookie, int comprador, int vendedor) throws Exception {
+        mvc.perform(get("/api/auth/validation/comprador").cookie(cookie)).andExpect(status().is(comprador));
+        mvc.perform(get("/api/auth/validation/vendedor").cookie(cookie)).andExpect(status().is(vendedor));
+    }
+
+    private void assertAuthorities(Cookie cookie, String... expected) {
+        String sessionId = new String(java.util.Base64.getDecoder().decode(cookie.getValue()), StandardCharsets.UTF_8);
+        byte[] serialized = jdbc.queryForObject("""
+                SELECT a.ATTRIBUTE_BYTES FROM SPRING_SESSION_ATTRIBUTES a
+                JOIN SPRING_SESSION s ON s.PRIMARY_ID = a.SESSION_PRIMARY_ID
+                WHERE s.SESSION_ID = ? AND a.ATTRIBUTE_NAME = 'SPRING_SECURITY_CONTEXT'
+                """, byte[].class, sessionId);
+        var context = (org.springframework.security.core.context.SecurityContext)
+                org.springframework.util.SerializationUtils.deserialize(serialized);
+        assertThat(context.getAuthentication().getAuthorities())
+                .extracting(org.springframework.security.core.GrantedAuthority::getAuthority)
+                .containsExactly(expected);
+        assertThat(new String(serialized, StandardCharsets.ISO_8859_1)).doesNotContain(hash, "TestPassword!123");
+    }
+
     private Cookie login(Csrf csrf, String email, String password, int status) throws Exception {
         MvcResult result = mvc.perform(post("/api/auth/login").cookie(csrf.cookie())
                         .contentType("application/x-www-form-urlencoded")
