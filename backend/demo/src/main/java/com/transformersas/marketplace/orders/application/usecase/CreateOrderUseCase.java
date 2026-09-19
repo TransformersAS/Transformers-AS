@@ -12,6 +12,8 @@ import com.transformersas.marketplace.orders.domain.model.OrderItem;
 import com.transformersas.marketplace.orders.domain.model.OrderStatus;
 import com.transformersas.marketplace.orders.domain.repository.OrderRepository;
 
+import com.transformersas.marketplace.recommendation.interaction.InteractionService;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,11 +32,14 @@ public class CreateOrderUseCase {
 
     private final CartItemRepository cartItemRepository;
 
+    private final InteractionService interactionService;
+
 
     public CreateOrderUseCase(
             OrderRepository orderRepository,
             CartRepository cartRepository,
-            CartItemRepository cartItemRepository
+            CartItemRepository cartItemRepository,
+            InteractionService interactionService
     ) {
 
         this.orderRepository =
@@ -45,6 +50,9 @@ public class CreateOrderUseCase {
 
         this.cartItemRepository =
                 cartItemRepository;
+
+        this.interactionService =
+                interactionService;
     }
 
 
@@ -134,10 +142,24 @@ public class CreateOrderUseCase {
 
 
         /*
-         * La compra ya quedó convertida
-         * en pedido.
+         * El pedido ya fue creado correctamente.
          *
-         * Ahora sí vaciamos el carrito.
+         * Registramos cada producto comprado
+         * como una interacción PURCHASE
+         * para el sistema de recomendaciones.
+         */
+        for (CartItem cartItem : cartItems) {
+
+            interactionService.registerPurchase(
+                    1L,
+                    cartItem.getProduct().getId()
+            );
+        }
+
+
+        /*
+         * Después de registrar la compra,
+         * vaciamos el carrito.
          */
         cartItemRepository.deleteAll(
                 cartItems

@@ -148,4 +148,20 @@ public class InteractionService {
             )
             .toList();
     }
+
+    public InteractionResponse registerPurchase(
+    Long userId,
+    Long productId
+) {
+
+    InteractionRequest request =
+        new InteractionRequest(
+            userId,
+            productId,
+            InteractionType.PURCHASE,
+            null
+        );
+
+    return register(request);
+}
 }

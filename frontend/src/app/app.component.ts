@@ -749,6 +749,9 @@ buscarProductos(): void {
           ) {
 
             this.carrito.refrescar();
+            this.recommendations$ =
+            this.recommendation
+             .getRecommendations(1);
           }
         },
 
