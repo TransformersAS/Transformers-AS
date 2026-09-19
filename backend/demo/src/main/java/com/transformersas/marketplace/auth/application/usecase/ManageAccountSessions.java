@@ -45,6 +45,12 @@ public class ManageAccountSessions {
         return target.getId().equals(currentSessionId);
     }
 
+    public void revokeOthers(AccountPrincipal account, String currentSessionId) {
+        ownedSessions(account).stream()
+                .filter(session -> !session.getId().equals(currentSessionId))
+                .forEach(session -> sessions.deleteById(session.getId()));
+    }
+
     private List<? extends Session> ownedSessions(AccountPrincipal account) {
         return sessions.findByPrincipalName(account.getUsername()).values().stream()
                 .filter(session -> !session.isExpired())
