@@ -69,7 +69,7 @@ class MarketplaceApplicationTests {
 				Integer.class)).isEqualTo(1);
 		assertThat(entityManagerFactory.getProperties().get("hibernate.hbm2ddl.auto"))
 				.isEqualTo("validate");
-		assertThat(applicationContext.getBeansOfType(UserDetailsService.class)).isEmpty();
+		assertThat(applicationContext.getBeansOfType(UserDetailsService.class)).hasSize(1);
 		assertThat(cacheManager).isInstanceOf(CaffeineCacheManager.class);
 		assertThat(cacheManager.getCacheNames()).isEmpty();
 	}
@@ -83,7 +83,7 @@ class MarketplaceApplicationTests {
 					.andExpect(jsonPath("$.status").value("UP"))
 					.andExpect(jsonPath("$.components").doesNotExist());
 		}
-		mockMvc.perform(get("/actuator/env")).andExpect(status().isForbidden());
+		mockMvc.perform(get("/actuator/env")).andExpect(status().isUnauthorized());
 	}
 
 }
