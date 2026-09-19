@@ -165,6 +165,23 @@ class SessionAuthenticationTests {
                 .containsExactlyInAnyOrder(Role.COMPRADOR, Role.VENDEDOR);
     }
 
+    @ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({
+            "comprador, COMPRADOR, 204",
+            "comprador, VENDEDOR, 403",
+            "vendedor, VENDEDOR, 204",
+            "vendedor, COMPRADOR, 403"
+    })
+    void headValidationUsesTheSameActiveRoleAuthorizationAsGet(String endpoint, Role activeRole, int expectedStatus) throws Exception {
+        accounts.save(new UserAccount(null, "multi@example.com", hash, AccountStatus.ACTIVA,
+                Set.of(Role.COMPRADOR, Role.VENDEDOR)));
+        Cookie cookie = login(csrf(null), "multi@example.com", "TestPassword!123", 204);
+        selectRole(cookie, activeRole.name(), 200);
+        String path = "/api/auth/validation/" + endpoint;
+        mvc.perform(head(path).cookie(cookie)).andExpect(status().is(expectedStatus));
+        mvc.perform(get(path).cookie(cookie)).andExpect(status().is(expectedStatus));
+    }
+
     @Test
     void unavailableRoleIsForbiddenAndDoesNotChangeSessionOrAccount() throws Exception {
         Cookie cookie = login(csrf(null), "person@example.com", "TestPassword!123", 204);

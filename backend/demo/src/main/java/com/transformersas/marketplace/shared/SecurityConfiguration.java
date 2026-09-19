@@ -82,6 +82,8 @@ public class SecurityConfiguration {
                                 "/api/auth/password-recovery/confirm").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/auth/validation/comprador").hasRole("COMPRADOR")
                         .requestMatchers(HttpMethod.GET, "/api/auth/validation/vendedor").hasRole("VENDEDOR")
+                        .requestMatchers(HttpMethod.HEAD, "/api/auth/validation/comprador").hasRole("COMPRADOR")
+                        .requestMatchers(HttpMethod.HEAD, "/api/auth/validation/vendedor").hasRole("VENDEDOR")
                         .requestMatchers("/api/support/**").hasRole("SOPORTE")
                         .requestMatchers("/api/**").authenticated()
                         .anyRequest().denyAll())
