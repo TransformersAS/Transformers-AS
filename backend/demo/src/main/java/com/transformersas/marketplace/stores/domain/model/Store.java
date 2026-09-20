@@ -11,6 +11,7 @@ public record Store(
         Long id,
         Long ownerAccountId,
         StoreProfile profile,
+        StorePolicy policy,
         StoreStatus status,
         String statusReason,
         long version
@@ -20,6 +21,7 @@ public record Store(
 
     public Store {
         Objects.requireNonNull(profile, "profile");
+        Objects.requireNonNull(policy, "policy");
         Objects.requireNonNull(status, "status");
         if (ownerAccountId != null && ownerAccountId <= 0) {
             throw new IllegalArgumentException("Identificador de cuenta dueña inválido");
@@ -33,12 +35,23 @@ public record Store(
         }
     }
 
+    /** Tienda con la política por defecto (plazo de devolución de 30 días, sin texto). */
+    public Store(Long id, Long ownerAccountId, StoreProfile profile, StoreStatus status, String statusReason,
+                 long version) {
+        this(id, ownerAccountId, profile, StorePolicy.DEFAULT, status, statusReason, version);
+    }
+
     public boolean isOwnedBy(Long accountId) {
         return ownerAccountId != null && ownerAccountId.equals(accountId);
     }
 
-    /** Misma tienda con otro perfil; el estado, el motivo y la versión guardada no cambian. */
+    /** Misma tienda con otro perfil; la política, el estado, el motivo y la versión guardada no cambian. */
     public Store withProfile(StoreProfile newProfile) {
-        return new Store(id, ownerAccountId, newProfile, status, statusReason, version);
+        return withSettings(newProfile, policy);
+    }
+
+    /** Misma tienda con otro perfil y otra política; el estado, el motivo y la versión guardada no cambian. */
+    public Store withSettings(StoreProfile newProfile, StorePolicy newPolicy) {
+        return new Store(id, ownerAccountId, newProfile, newPolicy, status, statusReason, version);
     }
 }
