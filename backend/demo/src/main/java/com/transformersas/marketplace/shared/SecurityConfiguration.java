@@ -96,6 +96,11 @@ public class SecurityConfiguration {
                         // El servicio logístico no tiene sesión: se autentica con la firma HMAC del cuerpo.
                         .requestMatchers(HttpMethod.POST, "/api/logistics/webhooks/**").permitAll()
                         .requestMatchers("/api/support/**").hasRole("SOPORTE")
+                        // Reclamaciones de compra (CU-13): el comprador; el vendedor pasa por /api/seller/** y soporte por
+                        // /api/support/**.
+                        .requestMatchers("/api/claims/**").hasRole("COMPRADOR")
+                        // Administración del catálogo (CU-17): categorías, marcas y atributos.
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/**").authenticated()
                         .anyRequest().denyAll())
                 // Sin sesión no hay token CSRF que enviar: el webhook se protege con la firma del cuerpo.
