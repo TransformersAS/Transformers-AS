@@ -22,12 +22,14 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.*;
 
 @SpringBootTest
+@org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 @Testcontainers
 class CheckoutReservationIntegrationTests {
     @Container @ServiceConnection
     static final MySQLContainer mysql = new MySQLContainer("mysql:8.4.11")
             .withDatabaseName("checkout_reservation_test").withUsername("test").withPassword("test");
     @Autowired JdbcTemplate jdbc;
+    @Autowired org.springframework.test.web.servlet.MockMvc mvc;
     @Autowired CheckoutService checkout;
     @Autowired InventoryReservationService reservations;
     @Autowired com.transformersas.marketplace.reservation.InventoryReservationRepository reservationRepository;
@@ -237,6 +239,20 @@ class CheckoutReservationIntegrationTests {
                 400, "No existe un carrito");
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM orders", Integer.class)).isEqualTo(ordersBefore);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM cart_items", Integer.class)).isZero();
+    }
+
+    @Test
+    void reservationEndpointPersistsCartReservationsAndReturnsTheirPublicDetails() throws Exception {
+        long product = item("Reservable", "10", 3, 2);
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/reservations/cart")
+                        .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("buyer").roles("COMPRADOR"))
+                        .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf()))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$[0].productId").value(product))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$[0].quantity").value(2))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$[0].status").value("ACTIVE"));
+        assertThat(jdbc.queryForObject("SELECT quantity FROM inventory_reservations WHERE product_id=?", Integer.class, product)).isEqualTo(2);
+        assertThat(stock(product)).isEqualTo(3);
     }
 
     private CheckoutPreviewRequest request(String shipping, String coupon) {

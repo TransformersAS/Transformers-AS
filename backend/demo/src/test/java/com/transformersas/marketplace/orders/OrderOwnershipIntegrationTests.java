@@ -111,6 +111,13 @@ class OrderOwnershipIntegrationTests {
         assertThat(historical.accountId()).isNull();
         assertThat(historical.items()).hasSize(1);
         assertThat(OrderMapper.toEntity(historical).getAccountId()).isNull();
+        new TransactionTemplate(transactions).executeWithoutResult(transaction -> {
+            var entity = orders.findById(id).orElseThrow();
+            var persistedItem = entity.getItems().getFirst();
+            assertThat(persistedItem.getId()).isPositive();
+            assertThat(persistedItem.getOrder().getId()).isEqualTo(id);
+            assertThat(persistedItem.getProductId()).isEqualTo(product);
+        });
     }
 
     @Test

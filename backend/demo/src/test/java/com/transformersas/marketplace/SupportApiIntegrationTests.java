@@ -152,7 +152,7 @@ class SupportApiIntegrationTests {
                 @Override
                 public java.util.Optional<ContentSnapshot> load(String contentId) {
                     return java.util.Optional.of(new ContentSnapshot("Reseña " + contentId, "Texto de la reseña",
-                            "seller_9", java.util.Map.of()));
+                            "blank-owner".equals(contentId) ? " " : "seller_9", java.util.Map.of()));
                 }
             };
         }
@@ -169,6 +169,10 @@ class SupportApiIntegrationTests {
     @Autowired NotificationDispatcher dispatcher;
     @Autowired ContentVisibility visibility;
     @Autowired ProductRepository products;
+    @Autowired com.transformersas.marketplace.audit.application.AuditService audit;
+    @Autowired com.transformersas.marketplace.reports.application.ReportModerationService moderation;
+    @Autowired com.transformersas.marketplace.reports.infrastructure.persistence.repository.ReportRepository reportRepository;
+    @Autowired com.transformersas.marketplace.reports.infrastructure.persistence.repository.ModerationCaseRepository caseRepository;
 
     @BeforeEach
     void cleanDatabase() {
@@ -255,6 +259,106 @@ class SupportApiIntegrationTests {
         product.setCategory("Hogar");
         return products.save(product).getId();
     }
+
+    @Test
+    void reportIntakeRejectsEachMissingRequiredFieldWithoutWritingData() {
+        for (String missing : Arrays.asList(null, " ")) {
+            for (SubmitReport command : List.of(
+                    new SubmitReport(missing, ReportContentType.RESENA, "42", "SPAM", null, null),
+                    new SubmitReport("reporter", ReportContentType.RESENA, missing, "SPAM", null, null),
+                    new SubmitReport("reporter", ReportContentType.RESENA, "42", missing, null, null))) {
+                assertThatThrownBy(() -> intake.submit(command)).isInstanceOfSatisfying(ResponseStatusException.class,
+                        ex -> assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST));
+            }
+        }
+        assertThatThrownBy(() -> intake.submit(new SubmitReport("reporter", null, "42", "SPAM", null, null)))
+                .isInstanceOfSatisfying(ResponseStatusException.class, ex -> assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST));
+        assertThat(count("SELECT COUNT(*) FROM reports")).isZero();
+        assertThat(count("SELECT COUNT(*) FROM moderation_cases")).isZero();
+        assertThat(count("SELECT COUNT(*) FROM audit_logs")).isZero();
+    }
+
+    @Test
+    void reportWithoutEvidenceIsPersistedAndPrePersistSuppliesMissingCreationDate() {
+        var result = intake.submit(new SubmitReport("reporter", ReportContentType.RESENA, "42", "SPAM", null, null));
+        assertThat(count("SELECT COUNT(*) FROM report_evidences")).isZero();
+        var report = new com.transformersas.marketplace.reports.infrastructure.persistence.entity.ReportEntity();
+        report.setCaseId(result.caseId());
+        report.setReporterId("second-reporter");
+        report.setContentType(ReportContentType.RESENA);
+        report.setContentId("42");
+        report.setReason("SPAM");
+        LocalDateTime before = LocalDateTime.now().minusSeconds(1);
+        var saved = reportRepository.saveAndFlush(report);
+        assertThat(saved.getCreatedAt()).isBetween(before, LocalDateTime.now().plusSeconds(1));
+        assertThat(reportRepository.findById(saved.getId()).orElseThrow().getCreatedAt()).isNotNull();
+    }
+
+    @Test
+    void auditSupportsAbsentMetadataWithoutSerializingNullAsText() {
+        audit.logAction(null, "CHECK", "TEST", "42", "SUCCESS", null);
+        var history = audit.history("TEST", "42");
+        assertThat(history).hasSize(1);
+        assertThat(history.getFirst().actorId()).isEqualTo("SYSTEM");
+        assertThat(history.getFirst().metadata()).isNull();
+        assertThat(jdbc.queryForObject("SELECT metadata FROM audit_logs WHERE entity_type='TEST'", String.class)).isNull();
+    }
+
+    @Test
+    void moderationUsesDefaultPageSizeForNonpositiveSizeAndResolvedDetailDoesNotIncludeItself() throws Exception {
+        var created = report("reporter", ReportContentType.RESENA, "42");
+        var pending = caseRepository.findById(created.caseId()).orElseThrow();
+        pending.resumeReview();
+        assertThat(pending.getStatus().name()).isEqualTo("PENDIENTE");
+        assertThat(moderation.list(null, null, -1, 0).size()).isEqualTo(20);
+        decide(created.caseId(), AGENT, "MANTENER").andExpect(status().isCreated());
+        mvc.perform(asSupport(get(CASES + "/" + created.caseId())))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.history", hasSize(0)));
+    }
+
+    @Test
+    void respondingToOneOfTwoRequestsKeepsCaseWaitingUntilBothAreAnswered() throws Exception {
+        var created = report("reporter_one", ReportContentType.RESENA, "42");
+        report("reporter_two", ReportContentType.RESENA, "42");
+        askInformation(created.caseId(), AGENT, "{\"target\":\"REPORTADOR\",\"targetUserId\":\"reporter_one\",\"message\":\"Adjunte información\"}")
+                .andExpect(status().isCreated());
+        Long first = requestIdOf(created.caseId());
+        askInformation(created.caseId(), AGENT, "{\"target\":\"REPORTADOR\",\"targetUserId\":\"reporter_two\",\"message\":\"Adjunte información\"}")
+                .andExpect(status().isCreated());
+        Long second = requestIdOf(created.caseId());
+        respond(first, "reporter_one", "Primera respuesta").andExpect(status().isOk());
+        assertThat(caseStatus(created.caseId())).isEqualTo("INFO_SOLICITADA");
+        assertThat(informationRequests.hasActiveRequest(created.caseId())).isTrue();
+        respond(second, "reporter_two", "Segunda respuesta").andExpect(status().isOk());
+        assertThat(caseStatus(created.caseId())).isEqualTo("EN_REVISION");
+        assertThat(informationRequests.hasActiveRequest(created.caseId())).isFalse();
+    }
+
+    @Test
+    void overdueRequestsAreNotConsideredActiveBeforeTheSchedulerRuns() throws Exception {
+        var created = report("reporter", ReportContentType.RESENA, "42");
+        askInformation(created.caseId(), AGENT, json.writeValueAsString(java.util.Map.of("target", "REPORTADOR", "targetUserId", "  ", "message", "Adjunte información")))
+                .andExpect(status().isCreated());
+        assertThat(informationRequests.hasActiveRequest(created.caseId())).isTrue();
+        clock.advance(Duration.ofHours(73));
+        assertThat(informationRequests.hasActiveRequest(created.caseId())).isFalse();
+        assertThat(requestStatus(requestIdOf(created.caseId()))).isEqualTo("ABIERTA");
+    }
+
+    @Test
+    void requestingInformationRejectsMissingCaseAndBlankOwner() throws Exception {
+        respond(Long.MAX_VALUE, "reporter", "Respuesta").andExpect(status().isNotFound());
+        var command = new com.transformersas.marketplace.reports.application.dto.RequestInfoRequest(
+                com.transformersas.marketplace.reports.domain.model.InfoRequestTarget.PROPIETARIO, null, "Adjunte información");
+        assertThatThrownBy(() -> informationRequests.request(Long.MAX_VALUE, AGENT, command))
+                .isInstanceOfSatisfying(ResponseStatusException.class, ex -> assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND));
+        var created = report("reporter", ReportContentType.RESENA, "blank-owner");
+        assertThatThrownBy(() -> informationRequests.request(created.caseId(), AGENT, command))
+                .isInstanceOfSatisfying(ResponseStatusException.class, ex -> assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY));
+        assertThat(count("SELECT COUNT(*) FROM information_requests")).isZero();
+        assertThat(caseStatus(created.caseId())).isEqualTo("PENDIENTE");
+    }
+
 
     // ---- acceso -----------------------------------------------------------------------------
 

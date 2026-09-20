@@ -79,4 +79,15 @@ class NotificationDispatcherTests {
         assertThat(notification.getStatus()).isEqualTo(NotificationStatus.FALLIDA);
         assertThat(notification.getNextAttemptAt()).isNull();
     }
+    @Test
+    void longFailureMessagesAreTruncatedAndFourthFailureUsesEightMinuteBackoff() {
+        String message = "x".repeat(600);
+        doThrow(new IllegalStateException(message)).when(client).send(any(), any(), any());
+        var notification = pending(3);
+        assertThat(dispatcher.dispatchDue()).isZero();
+        assertThat(notification.getLastError()).hasSize(500).startsWith("IllegalStateException: ");
+        assertThat(notification.getStatus()).isEqualTo(NotificationStatus.PENDIENTE);
+        assertThat(notification.getNextAttemptAt()).isEqualTo(NOW_LOCAL.plusMinutes(8));
+    }
+
 }

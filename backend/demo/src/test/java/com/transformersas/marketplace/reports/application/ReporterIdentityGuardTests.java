@@ -31,7 +31,7 @@ class ReporterIdentityGuardTests {
 
     @Test
     void ignoresIdsTooShortToBeMeaningful() {
-        assertThatCode(() -> ReporterIdentityGuard.ensureAbsent("cualquier texto con a y b", List.of("a", "b")))
+        assertThatCode(() -> ReporterIdentityGuard.ensureAbsent("cualquier texto con a y b", java.util.Arrays.asList(null, "a", "b")))
                 .doesNotThrowAnyException();
     }
 }
