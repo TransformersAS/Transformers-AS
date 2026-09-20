@@ -162,6 +162,8 @@ type Pestana = 'categorias' | 'marcas' | 'atributos';
     </ion-content>
   `,
   styles: [`
+    :host { display: flex; flex-direction: column; height: 100%; }
+    ion-content { flex: 1; }
     .pestanas { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; }
     form { margin-bottom: 1.5rem; }
   `]

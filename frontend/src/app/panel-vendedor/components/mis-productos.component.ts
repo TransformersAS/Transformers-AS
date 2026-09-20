@@ -235,6 +235,8 @@ interface Formulario {
     </ion-content>
   `,
   styles: [`
+    :host { display: flex; flex-direction: column; height: 100%; }
+    ion-content { flex: 1; }
     .filtros { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.75rem; margin-bottom: 1rem; }
     .buscar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.5rem; }
     form { margin-bottom: 1.5rem; }
