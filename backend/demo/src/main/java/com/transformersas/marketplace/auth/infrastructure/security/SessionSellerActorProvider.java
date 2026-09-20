@@ -2,6 +2,7 @@ package com.transformersas.marketplace.auth.infrastructure.security;
 
 import com.transformersas.marketplace.shared.error.BusinessException;
 import com.transformersas.marketplace.shared.security.CurrentActorProvider;
+import com.transformersas.marketplace.stores.application.usecase.ResolveSellerStoreUseCase;
 import com.transformersas.marketplace.users.domain.model.Role;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -12,23 +13,32 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 
 /**
  * Identidad del vendedor a partir de la sesión autenticada (CU-08): la cuenta sale del principal y exige el rol
- * activo VENDEDOR. PROVISIONAL: todavía no existe la relación cuenta-tienda (CU-18), por lo que la tienda se toma
- * de la cabecera X-Store-Id. Solo se acepta con sesión de vendedor, pero NO se valida que la cuenta sea dueña de
- * esa tienda: cuando CU-18 la defina, este es el único punto que debe cambiar (storeId() saldrá de la cuenta).
+ * activo VENDEDOR. La tienda sale de la relación cuenta-tienda (CU-18): si llega X-Store-Id se valida que la cuenta
+ * sea su dueña; si falta, se usa la tienda de la cuenta.
  */
 @Component
 public class SessionSellerActorProvider implements CurrentActorProvider {
 
     static final String STORE_HEADER = "X-Store-Id";
 
+    private final ResolveSellerStoreUseCase resolveStore;
+
+    public SessionSellerActorProvider(ResolveSellerStoreUseCase resolveStore) {
+        this.resolveStore = resolveStore;
+    }
+
     @Override
     public Long storeId() {
-        principal();
+        return resolveStore.execute(principal().accountId(), requestedStoreId());
+    }
+
+    /** Tienda pedida en la cabecera, o null si no viene. Una cabecera presente pero inválida se rechaza. */
+    private Long requestedStoreId() {
         RequestAttributes attributes = RequestContextHolder.getRequestAttributes();
         String raw = attributes instanceof ServletRequestAttributes servlet
                 ? servlet.getRequest().getHeader(STORE_HEADER) : null;
         if (raw == null || raw.isBlank()) {
-            throw BusinessException.unauthenticated("STORE_IDENTITY_MISSING", "Falta la identidad de la tienda");
+            return null;
         }
         try {
             long id = Long.parseLong(raw.strip());

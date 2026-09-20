@@ -1,6 +1,7 @@
 package com.transformersas.marketplace.users.infrastructure.config;
 
 import com.transformersas.marketplace.shared.PasswordEncodingConfiguration;
+import com.transformersas.marketplace.stores.application.usecase.AssignStoreOwnerUseCase;
 import com.transformersas.marketplace.users.domain.model.AccountStatus;
 import com.transformersas.marketplace.users.domain.model.Role;
 import com.transformersas.marketplace.users.domain.model.UserAccount;
@@ -34,10 +35,16 @@ class LocalDemoAccountConfigurationTests {
     @Test
     void localProfileCreatesActiveDemoWithBothRolesAndBcryptOnlyOnce() {
         var accounts = mock(UserAccountRepository.class);
+        var assignStoreOwner = mock(AssignStoreOwnerUseCase.class);
         when(accounts.findByEmail("demo@marketplace.local")).thenReturn(Optional.empty());
+        when(accounts.save(any())).thenAnswer(call -> {
+            UserAccount saved = call.getArgument(0);
+            return new UserAccount(9L, saved.email(), saved.passwordHash(), saved.status(), saved.roles());
+        });
         context.withPropertyValues("spring.profiles.active=local")
                 .withUserConfiguration(PasswordEncodingConfiguration.class)
                 .withBean(UserAccountRepository.class, () -> accounts)
+                .withBean(AssignStoreOwnerUseCase.class, () -> assignStoreOwner)
                 .run(app -> {
                     var runner = app.getBean(ApplicationRunner.class);
                     runner.run(new DefaultApplicationArguments());
@@ -50,24 +57,46 @@ class LocalDemoAccountConfigurationTests {
                     assertThat(account.passwordHash()).startsWith("$2").isNotEqualTo("MarketplaceDemo123!");
                     assertThat(app.getBean(PasswordEncoder.class)
                             .matches("MarketplaceDemo123!", account.passwordHash())).isTrue();
-                    when(accounts.findByEmail(account.email())).thenReturn(Optional.of(account));
+                    verify(assignStoreOwner).execute(1L, 9L);
+                    when(accounts.findByEmail(account.email())).thenReturn(Optional.of(new UserAccount(9L,
+                            account.email(), account.passwordHash(), account.status(), account.roles())));
                     runner.run(new DefaultApplicationArguments());
                     verify(accounts, times(1)).save(any());
+                    verify(assignStoreOwner, times(2)).execute(1L, 9L);
                 });
+    }
+
+    @Test
+    void existingSellerDemoIsAssignedTheMainStoreWithoutBeingRecreated() {
+        var accounts = mock(UserAccountRepository.class);
+        var assignStoreOwner = mock(AssignStoreOwnerUseCase.class);
+        var existing = new UserAccount(4L, "demo@marketplace.local", "$2a$12$" + "a".repeat(53),
+                AccountStatus.ACTIVA, Set.of(Role.COMPRADOR, Role.VENDEDOR));
+        when(accounts.findByEmail(existing.email())).thenReturn(Optional.of(existing));
+        context.withPropertyValues("spring.profiles.active=local")
+                .withBean(UserAccountRepository.class, () -> accounts)
+                .withBean(PasswordEncoder.class, () -> mock(PasswordEncoder.class))
+                .withBean(AssignStoreOwnerUseCase.class, () -> assignStoreOwner)
+                .run(app -> app.getBean(ApplicationRunner.class).run(new DefaultApplicationArguments()));
+        verify(accounts, never()).save(any());
+        verify(assignStoreOwner).execute(1L, 4L);
     }
 
     @Test
     void existingAccountIsNotReactivatedOrGivenNewRolesOrPassword() {
         var accounts = mock(UserAccountRepository.class);
         var encoder = mock(PasswordEncoder.class);
+        var assignStoreOwner = mock(AssignStoreOwnerUseCase.class);
         var existing = new UserAccount(1L, "demo@marketplace.local", "$2a$12$" + "a".repeat(53),
                 AccountStatus.INACTIVA, Set.of(Role.COMPRADOR));
         when(accounts.findByEmail(existing.email())).thenReturn(Optional.of(existing));
         context.withPropertyValues("spring.profiles.active=local")
                 .withBean(UserAccountRepository.class, () -> accounts)
                 .withBean(PasswordEncoder.class, () -> encoder)
+                .withBean(AssignStoreOwnerUseCase.class, () -> assignStoreOwner)
                 .run(app -> app.getBean(ApplicationRunner.class).run(new DefaultApplicationArguments()));
         verify(accounts, never()).save(any());
         verifyNoInteractions(encoder);
+        verifyNoInteractions(assignStoreOwner);
     }
 }
