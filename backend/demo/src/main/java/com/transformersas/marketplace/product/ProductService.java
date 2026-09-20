@@ -27,15 +27,21 @@ public class ProductService {
     public List<ProductResponse> getAllProducts() {
         Set<String> moderated = contentVisibility.nonVisibleIds(ReportContentType.PUBLICACION);
         return productRepository.findAll().stream()
+                .filter(this::isVisibleToBuyers)
                 .filter(product -> !moderated.contains(String.valueOf(product.getId())))
                 .map(ProductResponse::from).toList();
+    }
+
+    /** Los borradores y los productos retirados por su vendedor (CU-14) nunca se muestran a los compradores. */
+    private boolean isVisibleToBuyers(Product product) {
+        return product.getStatus() != ProductStatus.DRAFT && product.getStatus() != ProductStatus.RETIRED;
     }
 
     public ProductResponse getProductById(Long id) {
         if (contentVisibility.stateOf(ReportContentType.PUBLICACION, String.valueOf(id)) != ContentModerationState.VISIBLE) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Producto no encontrado");
         }
-        return productRepository.findById(id).map(ProductResponse::from)
+        return productRepository.findById(id).filter(this::isVisibleToBuyers).map(ProductResponse::from)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Producto no encontrado"));
     }
 
@@ -47,7 +53,8 @@ public class ProductService {
         product.setPrice(request.price());
         product.setStock(request.stock());
         product.setCategory(request.category());
-        product.setActive(request.active() == null ? true : request.active());
+        boolean active = request.active() == null || request.active();
+        product.changeStatus(active ? ProductStatus.ACTIVE : ProductStatus.PAUSED);
         return ProductResponse.from(productRepository.save(product));
     }
 }
