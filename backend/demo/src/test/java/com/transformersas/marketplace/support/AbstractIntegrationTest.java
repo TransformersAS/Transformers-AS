@@ -128,6 +128,16 @@ public abstract class AbstractIntegrationTest {
         jdbc.update("UPDATE stores SET owner_account_id = ? WHERE id = ?", accountId, storeId);
     }
 
+    protected Long accountIdOf(String email) {
+        return jdbc.queryForObject("SELECT id FROM user_accounts WHERE email = ?", Long.class, email);
+    }
+
+    /** Cuenta con rol VENDEDOR dueña de la tienda (RF-062) y con la sesión iniciada. La tienda debe existir. */
+    protected Session sellerOfStore(String email, long storeId) throws Exception {
+        assignStoreOwner(storeId, createAccount(email, "VENDEDOR"));
+        return login(email);
+    }
+
     protected long seedProduct(long storeId, String name, int stock, String price) {
         jdbc.update("INSERT INTO products(name, price, stock, category, active, store_id) VALUES (?,?,?,?,TRUE,?)",
                 name, price, stock, "Hogar", storeId);

@@ -18,12 +18,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class SellerOrdersQueryTests extends AbstractIntegrationTest {
 
     private Session seller;
+    private Session otherSeller;
     private long product;
 
     @BeforeEach
     void setUp() throws Exception {
-        seller = sessionWithRole("seller@example.com", "VENDEDOR");
         seedStore(2, "Otra tienda");
+        seller = sellerOfStore("seller@example.com", 1);
+        otherSeller = sellerOfStore("seller2@example.com", 2);
         product = seedProduct(1, "Lámpara", 7, "100.00");
     }
 
@@ -182,9 +184,9 @@ class SellerOrdersQueryTests extends AbstractIntegrationTest {
     void rnf003_anotherStoreCannotSeeOrListTheOrder() throws Exception {
         long order = seedOrder(1, "CONFIRMED", product, 1, "100.00");
 
-        performAsSeller(seller, 2, get("/api/seller/orders/" + order)).andExpect(status().isNotFound())
+        performAsSeller(otherSeller, 2, get("/api/seller/orders/" + order)).andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("ORDER_NOT_FOUND"));
-        performAsSeller(seller, 2, get("/api/seller/orders")).andExpect(status().isOk())
+        performAsSeller(otherSeller, 2, get("/api/seller/orders")).andExpect(status().isOk())
                 .andExpect(jsonPath("$.content", empty()));
         api("/api/seller/orders/999999").andExpect(status().isNotFound());
     }
@@ -194,7 +196,8 @@ class SellerOrdersQueryTests extends AbstractIntegrationTest {
         seedOrder(1, "CONFIRMED", product, 1, "100.00");
 
         mvc.perform(get("/api/seller/orders")).andExpect(status().isUnauthorized()); // sin sesión
-        perform(seller, get("/api/seller/orders")).andExpect(status().isUnauthorized()) // sesión sin tienda
+        perform(sessionWithRole("sintienda@example.com", "VENDEDOR"), get("/api/seller/orders"))
+                .andExpect(status().isUnauthorized()) // sesión de vendedor sin tienda
                 .andExpect(jsonPath("$.code").value("STORE_IDENTITY_MISSING"));
         Session buyer = sessionWithRole("buyer@example.com", "COMPRADOR");
         performAsSeller(buyer, 1, get("/api/seller/orders")).andExpect(status().isForbidden())
@@ -205,7 +208,7 @@ class SellerOrdersQueryTests extends AbstractIntegrationTest {
     void rnf003_theStoreIsNeverTakenFromTheQueryString() throws Exception {
         seedOrder(1, "CONFIRMED", product, 1, "100.00");
 
-        performAsSeller(seller, 2, get("/api/seller/orders?storeId=1")).andExpect(status().isOk())
+        performAsSeller(otherSeller, 2, get("/api/seller/orders?storeId=1")).andExpect(status().isOk())
                 .andExpect(jsonPath("$.content", empty()));
     }
 }

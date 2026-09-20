@@ -3,6 +3,7 @@ package com.transformersas.marketplace.auth;
 import com.transformersas.marketplace.auth.infrastructure.security.AccountPrincipal;
 import com.transformersas.marketplace.auth.infrastructure.security.SessionSellerActorProvider;
 import com.transformersas.marketplace.shared.error.BusinessException;
+import com.transformersas.marketplace.stores.application.usecase.ResolveSellerStoreUseCase;
 import com.transformersas.marketplace.users.domain.model.AccountStatus;
 import com.transformersas.marketplace.users.domain.model.Role;
 import com.transformersas.marketplace.users.domain.model.UserAccount;
@@ -19,12 +20,17 @@ import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
-/** D2: identidad del vendedor. La cuenta sale de la sesión; la tienda es provisional (cabecera X-Store-Id). */
+/** Identidad del vendedor: la cuenta sale de la sesión y la tienda la resuelve la relación cuenta-tienda (RF-062). */
 class SessionSellerActorProviderTests {
 
     private static final String HASH = new BCryptPasswordEncoder(4).encode("x");
-    private final SessionSellerActorProvider provider = new SessionSellerActorProvider();
+    private final ResolveSellerStoreUseCase resolveStore = mock(ResolveSellerStoreUseCase.class);
+    private final SessionSellerActorProvider provider = new SessionSellerActorProvider(resolveStore);
 
     @AfterEach
     void cleanContext() {
@@ -58,9 +64,21 @@ class SessionSellerActorProviderTests {
     void sellerSessionWithStoreHeaderResolvesBothIdentities() {
         authenticate(15L, Role.VENDEDOR);
         request("2");
+        when(resolveStore.execute(15L, 2L)).thenReturn(2L);
 
         assertThat(provider.actorId()).isEqualTo(15L);
         assertThat(provider.storeId()).isEqualTo(2L);
+        verify(resolveStore).execute(15L, 2L);
+    }
+
+    @Test
+    void theOwnershipCheckFailureOfTheUseCaseIsNotSwallowed() {
+        authenticate(15L, Role.VENDEDOR);
+        request("2");
+        when(resolveStore.execute(15L, 2L)).thenThrow(
+                BusinessException.forbidden("STORE_NOT_AUTHORIZED", "ajena"));
+
+        assertFails(provider::storeId, BusinessException.Kind.FORBIDDEN, "STORE_NOT_AUTHORIZED");
     }
 
     @Test
@@ -85,17 +103,30 @@ class SessionSellerActorProviderTests {
     }
 
     @Test
-    void missingOrInvalidStoreHeaderIsUnauthenticated() {
+    void missingOrBlankStoreHeaderFallsBackToTheAccountsStore() {
         authenticate(15L, Role.VENDEDOR);
-        for (String header : new String[]{null, "", "  ", "abc", "0", "-3", "1.5"}) {
+        when(resolveStore.execute(15L, null)).thenReturn(7L);
+        for (String header : new String[]{null, "", "  "}) {
             request(header);
-            assertFails(provider::storeId, BusinessException.Kind.UNAUTHENTICATED, "STORE_IDENTITY_MISSING");
+            assertThat(provider.storeId()).isEqualTo(7L);
         }
     }
 
     @Test
-    void outsideARequestThereIsNoStoreIdentity() {
+    void invalidStoreHeaderIsUnauthenticatedWithoutConsultingTheStore() {
         authenticate(15L, Role.VENDEDOR);
-        assertFails(provider::storeId, BusinessException.Kind.UNAUTHENTICATED, "STORE_IDENTITY_MISSING");
+        for (String header : new String[]{"abc", "0", "-3", "1.5"}) {
+            request(header);
+            assertFails(provider::storeId, BusinessException.Kind.UNAUTHENTICATED, "STORE_IDENTITY_MISSING");
+        }
+        verifyNoInteractions(resolveStore);
+    }
+
+    @Test
+    void outsideARequestTheAccountsStoreIsUsed() {
+        authenticate(15L, Role.VENDEDOR);
+        when(resolveStore.execute(15L, null)).thenReturn(7L);
+
+        assertThat(provider.storeId()).isEqualTo(7L);
     }
 }
