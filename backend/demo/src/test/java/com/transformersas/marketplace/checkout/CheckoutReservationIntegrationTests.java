@@ -30,6 +30,9 @@ class CheckoutReservationIntegrationTests {
     @Autowired JdbcTemplate jdbc;
     @Autowired CheckoutService checkout;
     @Autowired InventoryReservationService reservations;
+    @Autowired com.transformersas.marketplace.reservation.InventoryReservationRepository reservationRepository;
+    @Autowired com.transformersas.marketplace.cart.CartService cartService;
+    @Autowired com.transformersas.marketplace.orders.application.usecase.CreateOrderUseCase createOrder;
     long addressId;
     long cartId;
 
@@ -60,7 +63,7 @@ class CheckoutReservationIntegrationTests {
         assertThat(response.productName()).isEqualTo("Primero");
         assertThat(response.quantity()).isEqualTo(2);
         assertThat(response.status()).isEqualTo("ACTIVE");
-        LocalDateTime created = jdbc.queryForObject("SELECT created_at FROM inventory_reservations WHERE id=?", LocalDateTime.class, response.id());
+        LocalDateTime created = reservationRepository.findById(response.id()).orElseThrow().getCreatedAt();
         LocalDateTime expiry = jdbc.queryForObject("SELECT expires_at FROM inventory_reservations WHERE id=?", LocalDateTime.class, response.id());
         assertThat(expiry).isEqualTo(created.plusMinutes(10));
         assertThat(response.expiresAt()).isAfter(created.plusMinutes(9)).isBefore(created.plusMinutes(11));
@@ -205,6 +208,35 @@ class CheckoutReservationIntegrationTests {
         assertThat(result.shippingCost()).isEqualByComparingTo("10000");
         assertThat(result.total()).isEqualByComparingTo("10012.55");
         assertThat(result.couponValid()).isEqualTo(!"UNKNOWN".equals(coupon));
+    }
+
+    @ParameterizedTest
+    @org.junit.jupiter.params.provider.NullSource
+    @ValueSource(ints = {0, -1})
+    void cartRejectsInvalidQuantitiesWithoutChangingPersistedItems(Integer quantity) {
+        long product = item("Producto", "12.55", 5, 2);
+        long itemId = jdbc.queryForObject("SELECT id FROM cart_items", Long.class);
+        error(() -> cartService.addItem(new com.transformersas.marketplace.cart.dto.AddCartItemRequest(product, quantity)),
+                400, "mayor que cero");
+        error(() -> cartService.updateQuantity(itemId, new com.transformersas.marketplace.cart.dto.UpdateCartItemRequest(quantity)),
+                400, "mayor que cero");
+        assertThat(jdbc.queryForObject("SELECT quantity FROM cart_items WHERE id=?", Integer.class, itemId)).isEqualTo(2);
+        assertThat(stock(product)).isEqualTo(5);
+    }
+
+    @Test
+    void orderCreationRejectsEmptyAndMissingCartWithoutPersistingOrder() {
+        String hash = new org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder(4).encode("TestPassword!123");
+        jdbc.update("INSERT INTO user_accounts(email,password_hash,status) VALUES ('buyer@example.com',?,'ACTIVA')", hash);
+        long accountId = jdbc.queryForObject("SELECT id FROM user_accounts WHERE email='buyer@example.com'", Long.class);
+        int ordersBefore = jdbc.queryForObject("SELECT COUNT(*) FROM orders", Integer.class);
+        error(() -> createOrder.execute(accountId, addressId, "STANDARD", "transaction", new java.math.BigDecimal("10000")),
+                400, "vacío");
+        jdbc.update("DELETE FROM carts");
+        error(() -> createOrder.execute(accountId, addressId, "STANDARD", "transaction", new java.math.BigDecimal("10000")),
+                400, "No existe un carrito");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM orders", Integer.class)).isEqualTo(ordersBefore);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM cart_items", Integer.class)).isZero();
     }
 
     private CheckoutPreviewRequest request(String shipping, String coupon) {

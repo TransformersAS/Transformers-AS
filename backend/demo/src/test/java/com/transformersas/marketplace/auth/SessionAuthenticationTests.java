@@ -482,6 +482,22 @@ class SessionAuthenticationTests {
         } finally { start.countDown(); }
     }
 
+    @Test
+    void recoveryDeliveryFailureStillReturnsGenericResponseAndCommitsHashedToken() throws Exception {
+        org.mockito.Mockito.doThrow(new IllegalStateException("Delivery unavailable"))
+                .when(recoveryNotifier).notifyRecovery(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString());
+        var existing = requestRecovery("person@example.com");
+        var missing = requestRecovery("missing@example.com");
+        assertThat(existing.getResponse().getStatus()).isEqualTo(missing.getResponse().getStatus());
+        assertThat(existing.getResponse().getContentAsString()).isEqualTo(missing.getResponse().getContentAsString());
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM password_recovery_tokens WHERE used_at IS NULL", Integer.class)).isEqualTo(1);
+        String stored = jdbc.queryForObject("SELECT token_hash FROM password_recovery_tokens", String.class);
+        assertThat(stored).matches("[a-f0-9]{64}");
+        org.mockito.Mockito.verify(recoveryNotifier).notifyRecovery(org.mockito.ArgumentMatchers.eq("person@example.com"),
+                org.mockito.ArgumentMatchers.matches("[A-Za-z0-9_-]{43}"));
+        assertThat(accounts.findByEmail("person@example.com").orElseThrow().passwordHash()).isEqualTo(hash);
+    }
+
     private MvcResult requestRecovery(String email) throws Exception {
         Csrf csrf = csrf(null);
         return mvc.perform(post("/api/auth/password-recovery/request").cookie(csrf.cookie())
