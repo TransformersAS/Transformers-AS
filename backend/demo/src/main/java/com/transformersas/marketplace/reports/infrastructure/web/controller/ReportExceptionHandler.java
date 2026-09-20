@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 /** Traduce {@link ReportException} al formato de error con código; solo aplica a los controladores de CU-20. */
-@RestControllerAdvice(assignableTypes = ReportController.class)
+@RestControllerAdvice(assignableTypes = {ReportController.class, SupportEvidenceController.class})
 class ReportExceptionHandler {
 
     @ExceptionHandler(ReportException.class)
