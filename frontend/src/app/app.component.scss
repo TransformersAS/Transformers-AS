@@ -1834,3 +1834,13 @@ footer > div {
 .boton-tienda {
   bottom: 4.75rem;
 }
+
+/* "Mis reportes" (CU-20). Comprador: encima de "Mis reclamaciones" (1rem). Vendedor: quinto nivel de la pila, encima de
+   Pedidos recibidos (1rem), Mi tienda (4.75rem), Mis productos (8.5rem) y Reclamaciones (12.25rem). */
+.boton-reportes {
+  bottom: 4.75rem;
+}
+
+.boton-reportes-vendedor {
+  bottom: 16rem;
+}

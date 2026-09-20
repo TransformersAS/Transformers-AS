@@ -68,6 +68,9 @@ import { CatalogoAdminComponent } from './panel-admin-catalogo/components/catalo
 import { MisProductosComponent } from './panel-vendedor/components/mis-productos.component';
 import { MiTiendaComponent } from './panel-vendedor/components/mi-tienda.component';
 import { ReclamacionesComponent } from './reclamaciones-devoluciones/components/reclamaciones.component';
+import { MisReportesComponent } from './reportes/components/mis-reportes.component';
+import { ReportarContenidoComponent } from './reportes/components/reportar-contenido.component';
+import { ReportesService } from './reportes/services/reportes.service';
 
 import {
   CheckoutService
@@ -115,7 +118,9 @@ import {
     CatalogoAdminComponent,
     MisProductosComponent,
     MiTiendaComponent,
-    ReclamacionesComponent
+    ReclamacionesComponent,
+    MisReportesComponent,
+    ReportarContenidoComponent
   ],
 
   templateUrl: './app.component.html',
@@ -132,6 +137,9 @@ export class AppComponent {
 
   private readonly carrito =
     inject(CarritoService);
+
+  /** Panel "Mis reportes" (CU-20): su visibilidad y el reporte a mostrar viven en el servicio. */
+  protected readonly reportes = inject(ReportesService);
 
   private readonly auth =
     inject(AuthService);

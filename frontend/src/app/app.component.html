@@ -1192,6 +1192,8 @@
 
               </button>
 
+              <app-reportar-contenido tipo="PUBLICACION" [contenidoId]="producto.id"></app-reportar-contenido>
+
             </div>
 
           </article>
@@ -1385,6 +1387,21 @@
 
 <div class="panel-pedidos" *ngIf="(esComprador || esVendedor || esSoporte) && mostrarReclamaciones">
   <app-reclamaciones (cerrar)="mostrarReclamaciones = false"></app-reclamaciones>
+</div>
+
+<!-- Mis reportes (CU-20): con el rol activo COMPRADOR o VENDEDOR -->
+<button
+  *ngIf="(esComprador || esVendedor) && !reportes.panelAbierto()"
+  type="button"
+  class="boton-pedidos boton-reportes"
+  [class.boton-reportes-vendedor]="esVendedor"
+  (click)="reportes.abrirPanel()"
+>
+  Mis reportes
+</button>
+
+<div class="panel-pedidos" *ngIf="(esComprador || esVendedor) && reportes.panelAbierto()">
+  <app-mis-reportes (cerrar)="reportes.cerrarPanel()"></app-mis-reportes>
 </div>
 
 </ion-app>
