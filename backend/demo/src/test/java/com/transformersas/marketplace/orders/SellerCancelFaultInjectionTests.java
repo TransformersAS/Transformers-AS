@@ -42,8 +42,7 @@ class SellerCancelFaultInjectionTests extends AbstractIntegrationTest {
     @BeforeEach
     void setUp() throws Exception {
         jdbc.update("DELETE FROM notifications");
-        createAccount("seller@example.com", "VENDEDOR");
-        seller = login("seller@example.com");
+        seller = sellerOfStore("seller@example.com", 1);
         product = seedProduct(1, "Lámpara", 5, "100.00");
         other = seedProduct(1, "Mesa", 10, "50.00");
         order = seedOrder(1, "IN_PREPARATION", product, 2, "100.00");

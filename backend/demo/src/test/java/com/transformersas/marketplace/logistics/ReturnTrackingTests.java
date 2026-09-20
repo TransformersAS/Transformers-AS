@@ -48,14 +48,15 @@ class ReturnTrackingTests extends AbstractTrackingTest {
     private Long buyerId;
     private Session buyer;
     private Session seller;
+    private Session otherSeller;
 
     @BeforeEach
     void setUp() throws Exception {
         buyerId = createAccount("buyer@example.com", "COMPRADOR");
         buyer = login("buyer@example.com");
-        createAccount("seller@example.com", "VENDEDOR");
-        seller = login("seller@example.com");
         seedStore(2, "Otra tienda");
+        seller = sellerOfStore("seller@example.com", 1);
+        otherSeller = sellerOfStore("seller2@example.com", 2);
         register.execute(new RegisterReturnShipmentCommand(RETURN, buyerId, 1L, "SIM-return-" + RETURN, "TRK-R" + RETURN));
         // En producción el registro precede a lo que informa logística; las pruebas fechan las actualizaciones en el
         // pasado, así que se adelanta el registro para que la línea de tiempo conserve el orden real.
@@ -483,15 +484,17 @@ class ReturnTrackingTests extends AbstractTrackingTest {
         perform(seller, get("/api/returns/" + RETURN + "/tracking")).andExpect(status().isForbidden());
         perform(seller, post("/api/returns/" + RETURN + "/tracking/refresh")).andExpect(status().isForbidden());
         performAsSeller(buyer, 1, get("/api/seller/returns/" + RETURN + "/tracking")).andExpect(status().isForbidden());
-        perform(seller, get("/api/seller/returns/" + RETURN + "/tracking")).andExpect(status().isUnauthorized());
+        // Un vendedor sin tienda ni cabecera no tiene identidad de tienda.
+        perform(sessionWithRole("sintienda@example.com", "VENDEDOR"), get("/api/seller/returns/" + RETURN + "/tracking"))
+                .andExpect(status().isUnauthorized());
 
         createAccount("other-buyer@example.com", "COMPRADOR");
         Session otherBuyer = login("other-buyer@example.com");
         perform(otherBuyer, get("/api/returns/" + RETURN + "/tracking")).andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("RETURN_NOT_FOUND"));
         perform(otherBuyer, post("/api/returns/" + RETURN + "/tracking/refresh")).andExpect(status().isNotFound());
-        performAsSeller(seller, 2, get("/api/seller/returns/" + RETURN + "/tracking")).andExpect(status().isNotFound());
-        performAsSeller(seller, 2, post("/api/seller/returns/" + RETURN + "/tracking/refresh")).andExpect(status().isNotFound());
+        performAsSeller(otherSeller, 2, get("/api/seller/returns/" + RETURN + "/tracking")).andExpect(status().isNotFound());
+        performAsSeller(otherSeller, 2, post("/api/seller/returns/" + RETURN + "/tracking/refresh")).andExpect(status().isNotFound());
         perform(buyer, get("/api/returns/999999/tracking")).andExpect(status().isNotFound());
         assertThat(logistics.requestCount()).isZero();
     }

@@ -8,6 +8,8 @@ services:
       DB_PORT: "3306"
       DB_NAME: ${DB_NAME:-marketplace}
       DB_USER: ${DB_USER:-marketplace_app}
+      # Opcional: correo de la cuenta VENDEDOR que será dueña de la tienda principal (ver docs/swarm.md).
+      MAIN_STORE_OWNER_EMAIL: ${MAIN_STORE_OWNER_EMAIL:-}
       SPRING_CONFIG_IMPORT: configtree:/run/secrets/
     secrets:
       - source: db_password

@@ -36,15 +36,17 @@ class SellerStartPreparationTests extends AbstractIntegrationTest {
 
     private Long sellerAccountId;
     private Session seller;
+    private Session otherSeller;
     private long product;
 
     @BeforeEach
     void setUp() throws Exception {
         jdbc.update("DELETE FROM notifications");
         externalNotices.reset();
-        sellerAccountId = createAccount("seller@example.com", "VENDEDOR");
-        seller = login("seller@example.com");
         seedStore(2, "Otra tienda");
+        seller = sellerOfStore("seller@example.com", 1);
+        sellerAccountId = accountIdOf("seller@example.com");
+        otherSeller = sellerOfStore("seller2@example.com", 2);
         product = seedProduct(1, "Lámpara", 7, "100.00");
     }
 
@@ -131,7 +133,7 @@ class SellerStartPreparationTests extends AbstractIntegrationTest {
     void a1_orderOfAnotherStoreIsNotFoundAndStaysUnchanged() throws Exception {
         long order = seedOrder(1, "CONFIRMED", product, 1, "100.00");
 
-        performAsSeller(seller, 2, post("/api/seller/orders/" + order + "/start-preparation"))
+        performAsSeller(otherSeller, 2, post("/api/seller/orders/" + order + "/start-preparation"))
                 .andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("ORDER_NOT_FOUND"));
 
         assertNoEffects(order, "CONFIRMED");
@@ -287,8 +289,8 @@ class SellerStartPreparationTests extends AbstractIntegrationTest {
                         .cookie(anonymous.getResponse().getCookie("SESSION"))
                         .header(csrf.get("headerName").asString(), csrf.get("token").asString()))
                 .andExpect(status().isUnauthorized());
-        // Vendedor sin cabecera de tienda.
-        perform(seller, post("/api/seller/orders/" + order + "/start-preparation"))
+        // Vendedor sin tienda ni cabecera.
+        perform(sessionWithRole("sintienda@example.com", "VENDEDOR"), post("/api/seller/orders/" + order + "/start-preparation"))
                 .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("STORE_IDENTITY_MISSING"));
         // Comprador.
         Session buyer = sessionWithRole("buyer@example.com", "COMPRADOR");

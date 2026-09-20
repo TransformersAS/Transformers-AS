@@ -1806,9 +1806,9 @@ footer > div {
   cursor: pointer;
 }
 
-/* "Mis productos" (vendedor): se apila encima del botón de pedidos recibidos para que no se tapen. */
+/* "Mis productos" (vendedor): tercer nivel de la pila, encima de "Mi tienda", para que no se tapen. */
 .boton-productos {
-  bottom: 4.5rem;
+  bottom: 8.5rem;
 }
 
 .panel-pedidos {
@@ -1818,4 +1818,9 @@ footer > div {
   display: flex;
   flex-direction: column;
   background: #fff;
+}
+
+/* "Mi tienda" (CU-18): mismo botón flotante que "Pedidos recibidos", encima de él. */
+.boton-tienda {
+  bottom: 4.75rem;
 }

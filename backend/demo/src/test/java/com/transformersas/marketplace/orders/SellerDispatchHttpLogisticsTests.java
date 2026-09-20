@@ -64,8 +64,7 @@ class SellerDispatchHttpLogisticsTests extends AbstractIntegrationTest {
         jdbc.update("DELETE FROM notifications");
         WIREMOCK.resetAll();
         registry.circuitBreaker("logistics").reset();
-        createAccount("seller@example.com", "VENDEDOR");
-        seller = login("seller@example.com");
+        seller = sellerOfStore("seller@example.com", 1);
         product = seedProduct(1, "Lámpara", 7, "100.00");
     }
 
