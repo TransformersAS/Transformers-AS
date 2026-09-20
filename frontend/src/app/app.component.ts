@@ -223,7 +223,7 @@ export class AppComponent {
   /** Panel de pedidos recibidos del vendedor (CU-23); "mostrarPedidos" es el de "Mis pedidos" del comprador. */
   mostrarPedidosRecibidos = false;
 
-  /** Panel del administrador para configurar categorías, marcas y atributos (CU-06). */
+  /** Panel del administrador para configurar categorías, marcas y atributos (CU-17). */
   mostrarCatalogoAdmin = false;
 
   get esComprador(): boolean {
@@ -244,7 +244,7 @@ export class AppComponent {
     return this.auth.cuenta()?.activeRole === 'VENDEDOR';
   }
 
-  /** La configuración del catálogo (CU-06) solo se muestra con el rol activo ADMIN; el backend lo exige igualmente. */
+  /** La configuración del catálogo (CU-17) solo se muestra con el rol activo ADMIN; el backend lo exige igualmente. */
   get esAdmin(): boolean {
     return this.auth.cuenta()?.activeRole === 'ADMIN';
   }

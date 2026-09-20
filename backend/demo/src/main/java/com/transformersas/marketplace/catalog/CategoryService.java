@@ -10,7 +10,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.util.List;
 import java.util.Objects;
 
-/** Reglas de las categorías y subcategorías (CU-06). */
+/** Reglas de las categorías y subcategorías (CU-17). */
 @Service
 @Transactional
 public class CategoryService {

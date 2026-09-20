@@ -9,7 +9,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.util.List;
 
 /**
- * Reglas de las marcas (CU-06). Los productos todavía no guardan su marca, así que una marca
+ * Reglas de las marcas (CU-17). Los productos todavía no guardan su marca, así que una marca
  * se puede desactivar o eliminar libremente; cuando exista ese vínculo habrá que validar su uso.
  */
 @Service

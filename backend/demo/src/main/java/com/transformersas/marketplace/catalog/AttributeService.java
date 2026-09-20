@@ -9,7 +9,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.util.List;
 
 /**
- * Reglas de los atributos y sus valores permitidos (CU-06). Los productos todavía no usan
+ * Reglas de los atributos y sus valores permitidos (CU-17). Los productos todavía no usan
  * atributos, así que se pueden eliminar libremente; cuando existan habrá que validar su uso.
  */
 @Service

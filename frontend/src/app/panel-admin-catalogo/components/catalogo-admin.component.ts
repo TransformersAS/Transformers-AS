@@ -26,7 +26,7 @@ import { Atributo, FilaCategoria, Marca, NodoCategoria } from '../models/catalog
 type Pestana = 'categorias' | 'marcas' | 'atributos';
 
 /**
- * Administración de la estructura del catálogo (CU-06): categorías con subcategorías, marcas y
+ * Administración de la estructura del catálogo (CU-17): categorías con subcategorías, marcas y
  * atributos con sus valores permitidos. Las reglas las decide el backend; aquí solo se muestran
  * sus mensajes cuando rechaza una operación.
  */

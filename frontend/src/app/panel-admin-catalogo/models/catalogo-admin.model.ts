@@ -1,4 +1,4 @@
-/** Contratos de la API de administración del catálogo (CU-06). */
+/** Contratos de la API de administración del catálogo (CU-17). */
 
 /** Categoría con sus subcategorías, tal como la devuelve GET /api/admin/categories. */
 export interface NodoCategoria {

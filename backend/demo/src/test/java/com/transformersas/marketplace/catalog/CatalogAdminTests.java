@@ -15,7 +15,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/** CU-06: el administrador configura categorías, marcas y atributos. */
+/** CU-17: el administrador configura categorías, marcas y atributos. */
 class CatalogAdminTests extends AbstractIntegrationTest {
 
     private static final String CATEGORIES = "/api/admin/categories";

@@ -96,7 +96,7 @@ public class SecurityConfiguration {
                         // El servicio logístico no tiene sesión: se autentica con la firma HMAC del cuerpo.
                         .requestMatchers(HttpMethod.POST, "/api/logistics/webhooks/**").permitAll()
                         .requestMatchers("/api/support/**").hasRole("SOPORTE")
-                        // Administración del catálogo (CU-06): categorías, marcas y atributos.
+                        // Administración del catálogo (CU-17): categorías, marcas y atributos.
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/**").authenticated()
                         .anyRequest().denyAll())
