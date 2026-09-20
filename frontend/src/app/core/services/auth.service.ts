@@ -2,7 +2,7 @@ import { Injectable, computed, inject, signal } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable, catchError, map, of, switchMap, tap } from 'rxjs';
 
-export const API_BASE = 'http://localhost:8080/api';
+import { API_BASE } from '../config/api.config';
 
 export type Rol = 'COMPRADOR' | 'VENDEDOR' | 'ADMIN' | 'SOPORTE';
 

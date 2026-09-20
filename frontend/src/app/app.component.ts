@@ -436,7 +436,7 @@ export class AppComponent {
      */
     this.http
       .post<{ id: number }>(
-        'http://localhost:8080/api/addresses',
+        '/api/addresses',
         {
           recipientName: 'Comprador',
 

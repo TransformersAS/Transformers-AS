@@ -1,3 +1,4 @@
+import { API_BASE } from '../../core/config/api.config';
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
@@ -15,7 +16,7 @@ import {
 @Injectable({ providedIn: 'root' })
 export class AdminSoporteService {
     private http = inject(HttpClient);
-    private apiUrl = 'http://localhost:8080/api/support/moderation/cases';
+    private apiUrl = `${API_BASE}/support/moderation/cases`;
 
     // La identidad la aporta el interceptor de autenticación (token Bearer); solo el rol SOPORTE puede llamar.
 

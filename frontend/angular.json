@@ -9,7 +9,7 @@
       "prefix": "app",
       "architect": {
         "build": { "builder": "@angular-devkit/build-angular:application", "options": { "outputPath": "dist", "index": "src/index.html", "browser": "src/main.ts", "polyfills": ["zone.js"], "tsConfig": "tsconfig.app.json", "assets": [{ "glob": "**/*", "input": "src/assets", "output": "assets" }], "styles": ["src/global.scss"], "serviceWorker": "ngsw-config.json" } },
-        "serve": { "builder": "@angular-devkit/build-angular:dev-server", "options": { "buildTarget": "marketplace-integral:build" } }
+        "serve": { "builder": "@angular-devkit/build-angular:dev-server", "options": { "buildTarget": "marketplace-integral:build", "proxyConfig": "proxy.conf.json" } }
       }
     }
   },

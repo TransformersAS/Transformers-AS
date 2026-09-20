@@ -1,3 +1,4 @@
+import { API_BASE } from '../../core/config/api.config';
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
@@ -14,7 +15,7 @@ export class ReservationService {
   private readonly http = inject(HttpClient);
 
   private readonly apiUrl =
-    'http://localhost:8080/api/reservations';
+    `${API_BASE}/reservations`;
 
   reserveCart(): Observable<ReservationResponse[]> {
 

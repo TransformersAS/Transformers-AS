@@ -1,3 +1,4 @@
+import { API_BASE } from '../../core/config/api.config';
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
@@ -15,7 +16,7 @@ export class PaymentService {
   private readonly http = inject(HttpClient);
 
   private readonly apiUrl =
-    'http://localhost:8080/api/payments';
+    `${API_BASE}/payments`;
 
   process(
     request: PaymentRequest

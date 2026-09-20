@@ -1,17 +1,26 @@
 import { HttpErrorResponse, HttpInterceptorFn } from '@angular/common/http';
 import { inject } from '@angular/core';
 import { catchError, switchMap, throwError } from 'rxjs';
-import { API_BASE, AuthService } from '../services/auth.service';
+import { AuthService } from '../services/auth.service';
+import { API_BASE } from '../config/api.config';
 
 const METODOS_SEGUROS = ['GET', 'HEAD', 'OPTIONS'];
+const ENDPOINTS_SIN_LIMPIEZA_POR_401 = new Set([
+  `${API_BASE}/auth/csrf`,
+  `${API_BASE}/auth/login`,
+  `${API_BASE}/auth/logout`,
+  `${API_BASE}/auth/password-recovery/request`,
+  `${API_BASE}/auth/password-recovery/confirm`
+]);
 
 /**
  * Llamadas a la API con la cookie de sesión y, en las que modifican datos, el token CSRF. Solo
- * actúa sobre la API propia, nunca sobre terceros. Si el servidor responde 401 fuera del inicio de
- * sesión, la sesión local se olvida.
+ * actúa sobre rutas relativas de la API propia. Un 401 protegido limpia el estado local,
+ * sin iniciar peticiones adicionales ni reintentar login, logout o recuperación.
  */
 export const sessionInterceptor: HttpInterceptorFn = (req, next) => {
-  if (!req.url.startsWith(API_BASE)) {
+  const ruta = req.url.split(/[?#]/, 1)[0];
+  if (ruta !== API_BASE && !ruta.startsWith(`${API_BASE}/`)) {
     return next(req);
   }
   const auth = inject(AuthService);
@@ -25,7 +34,7 @@ export const sessionInterceptor: HttpInterceptorFn = (req, next) => {
 
   return enviar.pipe(
     catchError((error: HttpErrorResponse) => {
-      if (error.status === 401 && !req.url.startsWith(`${API_BASE}/auth/`)) {
+      if (error.status === 401 && !ENDPOINTS_SIN_LIMPIEZA_POR_401.has(ruta)) {
         auth.sesionExpirada();
       } else if (error.status === 403 && modifica) {
         // Un 403 al modificar suele ser un token CSRF vencido: la próxima vez se pide uno nuevo.
