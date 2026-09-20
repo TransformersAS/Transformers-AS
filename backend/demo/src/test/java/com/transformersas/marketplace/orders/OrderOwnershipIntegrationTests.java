@@ -59,7 +59,8 @@ class OrderOwnershipIntegrationTests {
 
     @BeforeEach
     void prepare() {
-        for (String table : List.of("order_items", "orders", "inventory_reservations", "cart_items", "carts",
+        for (String table : List.of("audit_events", "notifications", "refunds", "order_cancellations", "shipments",
+                "order_issues", "order_status_history", "order_items", "orders", "inventory_reservations", "cart_items", "carts",
                 "products", "addresses", "SPRING_SESSION", "user_account_roles", "user_accounts")) {
             jdbc.update("DELETE FROM " + table);
         }
@@ -101,8 +102,9 @@ class OrderOwnershipIntegrationTests {
     @Test
     void historicalOrdersWithNoOwnerCanBeLoadedAndMapped() {
         jdbc.update("""
-                INSERT INTO orders(status,total,address_id,shipping_method,transaction_id,created_at)
-                VALUES ('CONFIRMED',100,?,'STANDARD','historical',CURRENT_TIMESTAMP)
+                INSERT INTO orders(status,total,store_id,address_id,shipping_method,transaction_id,created_at,
+                                   delivery_recipient_name,delivery_street,delivery_city,delivery_department,delivery_phone)
+                VALUES ('CONFIRMED',100,1,?,'STANDARD','historical',CURRENT_TIMESTAMP,'Ana','Calle 1','Bogotá','Bogotá','1234567')
                 """, address);
         Long id = jdbc.queryForObject("SELECT id FROM orders", Long.class);
         jdbc.update("INSERT INTO order_items(order_id,product_id,product_name,quantity,unit_price,subtotal) VALUES (?,?,'Producto',1,100,100)", id, product);
@@ -110,7 +112,7 @@ class OrderOwnershipIntegrationTests {
         assertThat(historical.id()).isEqualTo(id);
         assertThat(historical.accountId()).isNull();
         assertThat(historical.items()).hasSize(1);
-        assertThat(OrderMapper.toEntity(historical).getAccountId()).isNull();
+        assertThat(OrderMapper.newEntity(historical).getAccountId()).isNull();
         new TransactionTemplate(transactions).executeWithoutResult(transaction -> {
             var entity = orders.findById(id).orElseThrow();
             var persistedItem = entity.getItems().getFirst();
@@ -349,8 +351,9 @@ class OrderOwnershipIntegrationTests {
 
     private Long seedOrder(Long accountId, String transactionId) {
         jdbc.update("""
-                INSERT INTO orders(account_id,status,total,address_id,shipping_method,transaction_id,created_at)
-                VALUES (?,'CONFIRMED',200,?,'STANDARD',?,'2026-01-01 12:00:00')
+                INSERT INTO orders(account_id,status,total,store_id,address_id,shipping_method,transaction_id,created_at,
+                                   delivery_recipient_name,delivery_street,delivery_city,delivery_department,delivery_phone)
+                VALUES (?,'CONFIRMED',200,1,?,'STANDARD',?,'2026-01-01 12:00:00','Ana','Calle 1','Bogotá','Bogotá','1234567')
                 """, accountId, address, transactionId);
         Long id = jdbc.queryForObject("SELECT id FROM orders WHERE transaction_id=?", Long.class, transactionId);
         jdbc.update("INSERT INTO order_items(order_id,product_id,product_name,quantity,unit_price,subtotal) VALUES (?,?,'Producto',2,100,200)", id, product);

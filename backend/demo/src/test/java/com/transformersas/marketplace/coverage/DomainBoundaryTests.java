@@ -53,7 +53,8 @@ class DomainBoundaryTests {
                 .hasMessage("Identificador de comprador inválido");
     }
     private static Order order(Long id, Long owner) {
-        return new Order(id, owner, OrderStatus.CONFIRMED, BigDecimal.TEN, 1L, "STANDARD", "tx", LocalDateTime.now(), List.of());
+        return new Order(id, owner, OrderStatus.CONFIRMED, OrderPaymentStatus.APPROVED, BigDecimal.TEN, 1L, 1L, "STANDARD",
+                new DeliverySnapshot("Ana", "Calle 1", "Bogotá", "Bogotá", null, "1234567"), "tx", LocalDateTime.now(), List.of());
     }
     static Stream<AccountPrincipal> invalidPrincipals() {
         return Stream.of(null, new AccountPrincipal(account(null)), new AccountPrincipal(account(0L)), new AccountPrincipal(account(-1L)));

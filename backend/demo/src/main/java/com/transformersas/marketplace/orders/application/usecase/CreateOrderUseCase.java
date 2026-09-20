@@ -1,16 +1,25 @@
 /** Orquestación de los casos de uso de pedidos. */
 package com.transformersas.marketplace.orders.application.usecase;
 
+import com.transformersas.marketplace.address.Address;
+import com.transformersas.marketplace.address.AddressRepository;
 import com.transformersas.marketplace.cart.Cart;
 import com.transformersas.marketplace.cart.CartItem;
 import com.transformersas.marketplace.cart.CartItemRepository;
 import com.transformersas.marketplace.cart.CartRepository;
 
 import com.transformersas.marketplace.orders.application.dto.OrderConfirmation;
+import com.transformersas.marketplace.orders.domain.model.DeliverySnapshot;
 import com.transformersas.marketplace.orders.domain.model.Order;
 import com.transformersas.marketplace.orders.domain.model.OrderItem;
+import com.transformersas.marketplace.orders.domain.model.OrderPaymentStatus;
 import com.transformersas.marketplace.orders.domain.model.OrderStatus;
+import com.transformersas.marketplace.orders.domain.model.OrderStatusHistoryEntry;
 import com.transformersas.marketplace.orders.domain.repository.OrderRepository;
+import com.transformersas.marketplace.orders.domain.repository.OrderStatusHistoryRepository;
+import com.transformersas.marketplace.shared.audit.ActorType;
+import com.transformersas.marketplace.shared.error.BusinessException;
+import com.transformersas.marketplace.shared.web.CorrelationContext;
 import com.transformersas.marketplace.users.domain.repository.UserAccountRepository;
 
 import org.springframework.http.HttpStatus;
@@ -21,37 +30,34 @@ import org.springframework.web.server.ResponseStatusException;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 public class CreateOrderUseCase {
 
     private final OrderRepository orderRepository;
-    private final UserAccountRepository accounts;
-
+    private final OrderStatusHistoryRepository historyRepository;
     private final CartRepository cartRepository;
-
     private final CartItemRepository cartItemRepository;
-
+    private final AddressRepository addressRepository;
+    private final UserAccountRepository accounts;
 
     public CreateOrderUseCase(
             OrderRepository orderRepository,
+            OrderStatusHistoryRepository historyRepository,
             CartRepository cartRepository,
             CartItemRepository cartItemRepository,
+            AddressRepository addressRepository,
             UserAccountRepository accounts
     ) {
-
+        this.orderRepository = orderRepository;
+        this.historyRepository = historyRepository;
+        this.cartRepository = cartRepository;
+        this.cartItemRepository = cartItemRepository;
+        this.addressRepository = addressRepository;
         this.accounts = accounts;
-
-        this.orderRepository =
-                orderRepository;
-
-        this.cartRepository =
-                cartRepository;
-
-        this.cartItemRepository =
-                cartItemRepository;
     }
-
 
     @Transactional
     public OrderConfirmation execute(
@@ -61,99 +67,49 @@ public class CreateOrderUseCase {
             String transactionId,
             BigDecimal total
     ) {
-
         if (accountId == null || accountId <= 0 || accounts.findById(accountId).isEmpty()) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Se requiere un comprador válido");
         }
 
-        Cart cart =
-                cartRepository
-                        .findAll()
-                        .stream()
-                        .findFirst()
-                        .orElseThrow(
-                                () ->
-                                        new ResponseStatusException(
-                                                HttpStatus.BAD_REQUEST,
-                                                "No existe un carrito"
-                                        )
-                        );
+        Cart cart = cartRepository.findAll().stream().findFirst()
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "No existe un carrito"));
 
-
-        List<CartItem> cartItems =
-                cartItemRepository
-                        .findByCartId(
-                                cart.getId()
-                        );
-
+        List<CartItem> cartItems = cartItemRepository.findByCartId(cart.getId());
 
         if (cartItems.isEmpty()) {
-
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "El carrito está vacío"
-            );
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El carrito está vacío");
         }
 
+        Long storeId = resolveStore(cartItems);
+        DeliverySnapshot delivery = snapshotOf(addressId);
 
-        List<OrderItem> orderItems =
-                cartItems
-                        .stream()
-                        .map(
-                                item -> {
+        List<OrderItem> orderItems = cartItems.stream()
+                .map(item -> {
+                    BigDecimal subtotal = item.getProduct().getPrice()
+                            .multiply(BigDecimal.valueOf(item.getQuantity()));
+                    return new OrderItem(
+                            item.getProduct().getId(),
+                            item.getProduct().getName(),
+                            item.getQuantity(),
+                            item.getProduct().getPrice(),
+                            subtotal
+                    );
+                })
+                .toList();
 
-                                    BigDecimal subtotal =
-                                            item.getProduct()
-                                                    .getPrice()
-                                                    .multiply(
-                                                            BigDecimal.valueOf(
-                                                                    item.getQuantity()
-                                                            )
-                                                    );
+        LocalDateTime now = LocalDateTime.now();
 
+        // El checkout solo llega aquí con el pago aprobado (D4); el comprador es la cuenta autenticada.
+        Order order = new Order(null, accountId, OrderStatus.CONFIRMED, OrderPaymentStatus.APPROVED, total, storeId,
+                addressId, shippingMethod, delivery, transactionId, now, orderItems);
 
-                                    return new OrderItem(
-                                            item.getProduct().getId(),
-                                            item.getProduct().getName(),
-                                            item.getQuantity(),
-                                            item.getProduct().getPrice(),
-                                            subtotal
-                                    );
-                                }
-                        )
-                        .toList();
+        Order saved = orderRepository.save(order);
 
+        historyRepository.append(new OrderStatusHistoryEntry(null, saved.id(), null, OrderStatus.CONFIRMED,
+                ActorType.BUYER, accountId, "Compra confirmada", CorrelationContext.current(), now));
 
-        Order order =
-                new Order(
-                        null,
-                        accountId,
-                        OrderStatus.CONFIRMED,
-                        total,
-                        addressId,
-                        shippingMethod,
-                        transactionId,
-                        LocalDateTime.now(),
-                        orderItems
-                );
-
-
-        Order saved =
-                orderRepository.save(
-                        order
-                );
-
-
-        /*
-         * La compra ya quedó convertida
-         * en pedido.
-         *
-         * Ahora sí vaciamos el carrito.
-         */
-        cartItemRepository.deleteAll(
-                cartItems
-        );
-
+        // La compra ya quedó convertida en pedido: ahora sí se vacía el carrito.
+        cartItemRepository.deleteAll(cartItems);
 
         return new OrderConfirmation(
                 saved.id(),
@@ -162,5 +118,26 @@ public class CreateOrderUseCase {
                 saved.total(),
                 saved.createdAt()
         );
+    }
+
+    /** El pedido pertenece a una sola tienda; un carrito multi-tienda se rechaza (dividirlo es de CU-03). */
+    private Long resolveStore(List<CartItem> cartItems) {
+        Set<Long> stores = cartItems.stream()
+                .map(item -> item.getProduct().getStoreId())
+                .collect(Collectors.toSet());
+        if (stores.size() > 1) {
+            throw BusinessException.conflict("MULTI_STORE_CART",
+                    "El carrito contiene productos de varias tiendas; compra cada tienda por separado");
+        }
+        return stores.iterator().next();
+    }
+
+    /** Copia los datos de entrega vigentes: desde aquí el pedido no vuelve a leer la dirección del comprador. */
+    private DeliverySnapshot snapshotOf(Long addressId) {
+        Address address = addressRepository.findById(addressId)
+                .orElseThrow(() -> BusinessException.notFound("ADDRESS_NOT_FOUND",
+                        "La dirección seleccionada no existe"));
+        return new DeliverySnapshot(address.getRecipientName(), address.getStreet(), address.getCity(),
+                address.getDepartment(), address.getPostalCode(), address.getPhone());
     }
 }

@@ -1315,4 +1315,18 @@
   <app-cola-soporte></app-cola-soporte>
 </div>
 
+<!-- Pedidos recibidos (CU-23): solo con el rol activo VENDEDOR -->
+<button
+  *ngIf="esVendedor && !mostrarPedidosRecibidos"
+  type="button"
+  class="boton-pedidos"
+  (click)="mostrarPedidosRecibidos = true"
+>
+  Pedidos recibidos
+</button>
+
+<div class="panel-pedidos" *ngIf="esVendedor && mostrarPedidosRecibidos">
+  <app-pedidos-recibidos (cerrar)="mostrarPedidosRecibidos = false"></app-pedidos-recibidos>
+</div>
+
 </ion-app>

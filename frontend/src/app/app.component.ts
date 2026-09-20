@@ -63,6 +63,7 @@ import { MisPedidosComponent } from './pedidos/components/mis-pedidos.component'
 import { AccesoComponent } from './core/components/acceso.component';
 
 import { ColaSoporteComponent } from './panel-admin-soporte/components/cola-soporte.component';
+import { PedidosRecibidosComponent } from './panel-vendedor/components/pedidos-recibidos.component';
 
 import {
   CheckoutService
@@ -105,7 +106,8 @@ import {
     FormsModule,
     AccesoComponent,
     MisPedidosComponent,
-    ColaSoporteComponent
+    ColaSoporteComponent,
+    PedidosRecibidosComponent
   ],
 
   templateUrl: './app.component.html',
@@ -216,6 +218,9 @@ export class AppComponent {
 
   mostrarPedidos = false;
 
+  /** Panel de pedidos recibidos del vendedor (CU-23); "mostrarPedidos" es el de "Mis pedidos" del comprador. */
+  mostrarPedidosRecibidos = false;
+
   get esComprador(): boolean {
     return this.auth.cuenta()?.activeRole === 'COMPRADOR';
   }
@@ -227,6 +232,11 @@ export class AppComponent {
   /** La cola de moderación solo se muestra con el rol activo SOPORTE; el backend lo exige igualmente. */
   get esSoporte(): boolean {
     return this.auth.cuenta()?.activeRole === 'SOPORTE';
+  }
+
+  /** Los pedidos recibidos (CU-23) solo se muestran con el rol activo VENDEDOR; el backend lo exige igualmente. */
+  get esVendedor(): boolean {
+    return this.auth.cuenta()?.activeRole === 'VENDEDOR';
   }
 
 
