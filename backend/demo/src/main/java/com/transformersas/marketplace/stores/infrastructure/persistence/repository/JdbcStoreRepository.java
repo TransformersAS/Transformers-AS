@@ -6,10 +6,15 @@ import com.transformersas.marketplace.stores.domain.model.StoreProfile;
 import com.transformersas.marketplace.stores.domain.model.StoreStatus;
 import com.transformersas.marketplace.stores.domain.repository.StoreRepository;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -66,6 +71,40 @@ public class JdbcStoreRepository implements StoreRepository {
                     "La tienda se modificó desde que la consultó; vuelva a cargarla e intente de nuevo");
         }
         return findById(store.id()).orElseThrow();
+    }
+
+    @Override
+    public Store insert(Long ownerAccountId, StoreProfile profile) {
+        var keys = new GeneratedKeyHolder();
+        try {
+            jdbc.sql("INSERT INTO stores (name, description, owner_account_id) VALUES (?, ?, ?)")
+                    .params(profile.name(), profile.description(), ownerAccountId).update(keys);
+        } catch (DuplicateKeyException duplicate) {
+            throw String.valueOf(duplicate.getMessage()).contains("uk_stores_owner")
+                    ? BusinessException.conflict("STORE_OWNER_ALREADY_HAS_STORE", "La cuenta ya es dueña de otra tienda")
+                    : BusinessException.conflict("STORE_NAME_TAKEN", "Ya existe otra tienda con ese nombre");
+        } catch (DataIntegrityViolationException integrity) {
+            if (String.valueOf(integrity.getMessage()).contains("fk_stores_owner")) {
+                throw BusinessException.invalid("STORE_OWNER_NOT_FOUND", "La cuenta dueña no existe");
+            }
+            throw integrity;
+        }
+        return findById(keys.getKey().longValue()).orElseThrow();
+    }
+
+    @Override
+    public List<String> findShippingMethods(Long storeId) {
+        return jdbc.sql("SELECT method FROM store_shipping_methods WHERE store_id = ? ORDER BY method")
+                .param(storeId).query(String.class).list();
+    }
+
+    @Override
+    @Transactional
+    public void replaceShippingMethods(Long storeId, Collection<String> methods) {
+        jdbc.sql("DELETE FROM store_shipping_methods WHERE store_id = ?").param(storeId).update();
+        methods.stream().distinct().forEach(method ->
+                jdbc.sql("INSERT INTO store_shipping_methods (store_id, method) VALUES (?, ?)")
+                        .params(storeId, method).update());
     }
 
     @Override

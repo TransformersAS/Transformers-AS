@@ -2,7 +2,10 @@
 package com.transformersas.marketplace.stores.domain.repository;
 
 import com.transformersas.marketplace.stores.domain.model.Store;
+import com.transformersas.marketplace.stores.domain.model.StoreProfile;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 public interface StoreRepository {
@@ -22,6 +25,19 @@ public interface StoreRepository {
      * versión.
      */
     Store save(Store store);
+
+    /**
+     * Crea una tienda activa con su dueña. Lanza BusinessException CONFLICT STORE_NAME_TAKEN si el nombre ya existe,
+     * CONFLICT STORE_OWNER_ALREADY_HAS_STORE si la cuenta ya es dueña de otra tienda e INVALID STORE_OWNER_NOT_FOUND
+     * si la cuenta no existe.
+     */
+    Store insert(Long ownerAccountId, StoreProfile profile);
+
+    /** Métodos de envío habilitados de la tienda, en orden alfabético. */
+    List<String> findShippingMethods(Long storeId);
+
+    /** Reemplaza los métodos de envío habilitados por exactamente los indicados. */
+    void replaceShippingMethods(Long storeId, Collection<String> methods);
 
     /**
      * Hace de la cuenta la dueña de una tienda que aún no tiene. Devuelve false, sin cambios, si la tienda no existe,
