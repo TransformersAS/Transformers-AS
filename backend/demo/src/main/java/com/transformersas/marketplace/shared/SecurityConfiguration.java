@@ -84,6 +84,8 @@ public class SecurityConfiguration {
                         .requestMatchers(HttpMethod.GET, "/api/auth/validation/vendedor").hasRole("VENDEDOR")
                         .requestMatchers(HttpMethod.HEAD, "/api/auth/validation/comprador").hasRole("COMPRADOR")
                         .requestMatchers(HttpMethod.HEAD, "/api/auth/validation/vendedor").hasRole("VENDEDOR")
+                        .requestMatchers(HttpMethod.GET, "/api/orders", "/api/orders/{id}").hasRole("COMPRADOR")
+                        .requestMatchers(HttpMethod.HEAD, "/api/orders", "/api/orders/{id}").hasRole("COMPRADOR")
                         .requestMatchers("/api/support/**").hasRole("SOPORTE")
                         .requestMatchers("/api/**").authenticated()
                         .anyRequest().denyAll())

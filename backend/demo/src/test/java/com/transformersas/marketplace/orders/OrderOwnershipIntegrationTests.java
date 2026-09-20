@@ -142,6 +142,108 @@ class OrderOwnershipIntegrationTests {
                 .isEqualTo(method.equals("TEST_REJECT") ? "RELEASED" : "ACTIVE");
     }
 
+    @Test
+    void listIncludesOnlyOwnOrdersAndIgnoresClientAccountSelectors() throws Exception {
+        Long older = seedOrder(firstAccount, "own-older");
+        Long newer = seedOrder(firstAccount, "own-newer");
+        seedOrder(secondAccount, "foreign");
+        seedOrder(null, "historical");
+        Session first = login("first@example.com");
+        mvc.perform(get("/api/orders").cookie(first.cookie()).param("accountId", secondAccount.toString())
+                        .param("buyerId", secondAccount.toString()).header("X-Account-Id", secondAccount)
+                        .contentType("application/json").content("{\"accountId\":" + secondAccount + "}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].id").value(newer)).andExpect(jsonPath("$[1].id").value(older))
+                .andExpect(jsonPath("$[0].status").value("CONFIRMED"))
+                .andExpect(jsonPath("$[0].total").value(200))
+                .andExpect(jsonPath("$[0].shippingMethod").value("STANDARD"))
+                .andExpect(jsonPath("$[0].createdAt").value("2026-01-01T12:00:00"))
+                .andExpect(jsonPath("$[0].items").doesNotExist());
+        Session second = login("second@example.com");
+        mvc.perform(get("/api/orders").cookie(second.cookie())).andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1));
+    }
+
+    @Test
+    void listIsEmptyWhenAccountHasNoOrders() throws Exception {
+        seedOrder(secondAccount, "foreign");
+        seedOrder(null, "historical");
+        mvc.perform(get("/api/orders").cookie(login("first@example.com").cookie()))
+                .andExpect(status().isOk()).andExpect(content().json("[]"));
+    }
+
+    @Test
+    void ownOrderDetailMapsAllMainFieldsAndItems() throws Exception {
+        Long id = seedOrder(firstAccount, "own-detail");
+        Session session = login("first@example.com");
+        mvc.perform(get("/api/orders/{id}", id).cookie(session.cookie()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.id").value(id))
+                .andExpect(jsonPath("$.status").value("CONFIRMED"))
+                .andExpect(jsonPath("$.total").value(200))
+                .andExpect(jsonPath("$.addressId").value(address))
+                .andExpect(jsonPath("$.shippingMethod").value("STANDARD"))
+                .andExpect(jsonPath("$.transactionId").value("own-detail"))
+                .andExpect(jsonPath("$.createdAt").value("2026-01-01T12:00:00"))
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].productId").value(product))
+                .andExpect(jsonPath("$.items[0].productName").value("Producto"))
+                .andExpect(jsonPath("$.items[0].quantity").value(2))
+                .andExpect(jsonPath("$.items[0].unitPrice").value(100))
+                .andExpect(jsonPath("$.items[0].subtotal").value(200));
+        mvc.perform(head("/api/orders/{id}", id).cookie(session.cookie())).andExpect(status().isOk());
+        mvc.perform(head("/api/orders").cookie(session.cookie())).andExpect(status().isOk());
+    }
+
+    @Test
+    void foreignHistoricalAndMissingOrdersAllReturn404() throws Exception {
+        Long foreign = seedOrder(secondAccount, "foreign");
+        Long historical = seedOrder(null, "historical");
+        Session session = login("first@example.com");
+        for (Long id : List.of(foreign, historical, Long.MAX_VALUE)) {
+            mvc.perform(get("/api/orders/{id}", id).cookie(session.cookie())
+                            .param("accountId", secondAccount.toString()).header("X-Account-Id", secondAccount))
+                    .andExpect(status().isNotFound()).andExpect(jsonPath("$.message").value("Pedido no encontrado"));
+            mvc.perform(head("/api/orders/{id}", id).cookie(session.cookie())).andExpect(status().isNotFound());
+        }
+    }
+
+    @Test
+    void onlyActiveBuyerRoleAllowsBothGetAndHead() throws Exception {
+        var account = accounts.findById(firstAccount).orElseThrow();
+        accounts.save(new UserAccount(account.id(), account.email(), account.passwordHash(), account.status(),
+                Set.of(Role.COMPRADOR, Role.VENDEDOR)));
+        Long id = seedOrder(firstAccount, "own");
+        Session session = login("first@example.com");
+        for (String activeRole : List.of("VENDEDOR", "COMPRADOR")) {
+            mvc.perform(put("/api/auth/active-role").cookie(session.cookie()).header(session.header(), session.token())
+                            .contentType("application/json").content("{\"role\":\"" + activeRole + "\"}"))
+                    .andExpect(status().isOk());
+            int expected = activeRole.equals("COMPRADOR") ? 200 : 403;
+            for (String path : List.of("/api/orders", "/api/orders/" + id)) {
+                mvc.perform(get(path).cookie(session.cookie())).andExpect(status().is(expected));
+                mvc.perform(head(path).cookie(session.cookie())).andExpect(status().is(expected));
+            }
+        }
+    }
+
+    @Test
+    void orderQueriesRequireAuthentication() throws Exception {
+        for (String path : List.of("/api/orders", "/api/orders/1")) {
+            mvc.perform(get(path)).andExpect(status().isUnauthorized());
+            mvc.perform(head(path)).andExpect(status().isUnauthorized());
+        }
+    }
+
+    private Long seedOrder(Long accountId, String transactionId) {
+        jdbc.update("""
+                INSERT INTO orders(account_id,status,total,address_id,shipping_method,transaction_id,created_at)
+                VALUES (?,'CONFIRMED',200,?,'STANDARD',?,'2026-01-01 12:00:00')
+                """, accountId, address, transactionId);
+        Long id = jdbc.queryForObject("SELECT id FROM orders WHERE transaction_id=?", Long.class, transactionId);
+        jdbc.update("INSERT INTO order_items(order_id,product_id,product_name,quantity,unit_price,subtotal) VALUES (?,?,'Producto',2,100,200)", id, product);
+        return id;
+    }
+
     private Long pay(Session session, String method, Long spoofedOwner) throws Exception {
         jdbc.update("INSERT INTO cart_items(cart_id,product_id,quantity) VALUES (?,?,2)", cart, product);
         jdbc.update("""
