@@ -1819,3 +1819,9 @@ footer > div {
 .boton-tienda {
   bottom: 4.75rem;
 }
+
+/* "Mis reportes" (CU-20): el comprador solo tiene este botón flotante (abajo). El vendedor lo tiene en el cuarto nivel
+   de la pila, encima de "Pedidos recibidos" (1rem), "Mi tienda" (4.75rem) y "Mis productos" (8.5rem). */
+.boton-reportes-vendedor {
+  bottom: 12.25rem;
+}

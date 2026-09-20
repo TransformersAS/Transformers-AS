@@ -65,6 +65,9 @@ import { AccesoComponent } from './core/components/acceso.component';
 import { ColaSoporteComponent } from './panel-admin-soporte/components/cola-soporte.component';
 import { PedidosRecibidosComponent } from './panel-vendedor/components/pedidos-recibidos.component';
 import { MiTiendaComponent } from './panel-vendedor/components/mi-tienda.component';
+import { MisReportesComponent } from './reportes/components/mis-reportes.component';
+import { ReportarContenidoComponent } from './reportes/components/reportar-contenido.component';
+import { ReportesService } from './reportes/services/reportes.service';
 
 import {
   CheckoutService
@@ -109,7 +112,9 @@ import {
     MisPedidosComponent,
     ColaSoporteComponent,
     PedidosRecibidosComponent,
-    MiTiendaComponent
+    MiTiendaComponent,
+    MisReportesComponent,
+    ReportarContenidoComponent
   ],
 
   templateUrl: './app.component.html',
@@ -126,6 +131,9 @@ export class AppComponent {
 
   private readonly carrito =
     inject(CarritoService);
+
+  /** Panel "Mis reportes" (CU-20): su visibilidad y el reporte a mostrar viven en el servicio. */
+  protected readonly reportes = inject(ReportesService);
 
   private readonly auth =
     inject(AuthService);
