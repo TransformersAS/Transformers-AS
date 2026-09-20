@@ -1329,6 +1329,34 @@
   <app-pedidos-recibidos (cerrar)="mostrarPedidosRecibidos = false"></app-pedidos-recibidos>
 </div>
 
+<!-- Mis productos (CU-14): solo con el rol activo VENDEDOR -->
+<button
+  *ngIf="esVendedor && !mostrarMisProductos"
+  type="button"
+  class="boton-pedidos boton-productos"
+  (click)="mostrarMisProductos = true"
+>
+  Mis productos
+</button>
+
+<div class="panel-pedidos" *ngIf="esVendedor && mostrarMisProductos">
+  <app-mis-productos (cerrar)="mostrarMisProductos = false"></app-mis-productos>
+</div>
+
+<!-- Estructura del catálogo (CU-17): solo con el rol activo ADMIN -->
+<button
+  *ngIf="esAdmin && !mostrarCatalogoAdmin"
+  type="button"
+  class="boton-pedidos"
+  (click)="mostrarCatalogoAdmin = true"
+>
+  Configurar catálogo
+</button>
+
+<div class="panel-pedidos" *ngIf="esAdmin && mostrarCatalogoAdmin">
+  <app-catalogo-admin (cerrar)="mostrarCatalogoAdmin = false"></app-catalogo-admin>
+</div>
+
 <!-- Mi tienda (CU-18): solo con el rol activo VENDEDOR -->
 <button
   *ngIf="esVendedor && !mostrarMiTienda"
@@ -1341,6 +1369,22 @@
 
 <div class="panel-pedidos" *ngIf="esVendedor && mostrarMiTienda">
   <app-mi-tienda (cerrar)="mostrarMiTienda = false"></app-mi-tienda>
+</div>
+
+<!-- Reclamaciones de compra (CU-13): comprador, vendedor y soporte -->
+<button
+  *ngIf="(esComprador || esVendedor || esSoporte) && !mostrarReclamaciones"
+  type="button"
+  class="boton-pedidos"
+  [class.boton-reclamaciones-soporte]="esSoporte"
+  [class.boton-reclamaciones-vendedor]="esVendedor"
+  (click)="mostrarReclamaciones = true"
+>
+  {{ esVendedor ? 'Reclamaciones' : esSoporte ? 'Reclamaciones escaladas' : 'Mis reclamaciones' }}
+</button>
+
+<div class="panel-pedidos" *ngIf="(esComprador || esVendedor || esSoporte) && mostrarReclamaciones">
+  <app-reclamaciones (cerrar)="mostrarReclamaciones = false"></app-reclamaciones>
 </div>
 
 </ion-app>
