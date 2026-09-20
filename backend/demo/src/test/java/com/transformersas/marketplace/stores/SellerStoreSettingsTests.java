@@ -248,6 +248,25 @@ class SellerStoreSettingsTests extends AbstractIntegrationTest {
     }
 
     @Test
+    void a9_abandoningAnEditKeepsTheStoredDataUntouched() throws Exception {
+        save(settings(0)).andExpect(status().isOk());
+        String before = perform(seller, get("/api/seller/store")).andExpect(status().isOk()).andReturn()
+                .getResponse().getContentAsString();
+        Map<String, Object> abandoned = settings(1);
+        abandoned.put("name", "Cambio que se abandona");
+        abandoned.put("returnWindowDays", 90);
+
+        preview(abandoned).andExpect(status().isOk()).andExpect(jsonPath("$.name").value("Cambio que se abandona"));
+        abandoned.put("name", "   ");
+        save(abandoned).andExpect(status().isBadRequest());
+
+        String after = perform(seller, get("/api/seller/store")).andExpect(status().isOk()).andReturn()
+                .getResponse().getContentAsString();
+        assertThat(after).isEqualTo(before);
+        assertThat(count("audit_events")).isEqualTo(1);
+    }
+
+    @Test
     void theSellerOnlyEditsHisOwnStoreEvenIfAnotherStoreExists() throws Exception {
         Session other = sellerOfStore("otro@example.com", 2);
 
