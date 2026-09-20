@@ -42,8 +42,8 @@ Nunca la justificación, el agente ni otros reportantes; el propietario del cont
   asignado cuando el reportante responde una solicitud.
 - **Tipos de contenido.** Solo `PUBLICACION`. Reseñas, respuestas, mensajes y tiendas responden 422 hasta que su módulo
   registre un `ReportableContentVerifier` y un `ContentOwnerResolver`.
-- **Migración.** `V25__create_report_evidence_files.sql` es provisional: `origin/Alejandro` ya usa V23 y V24 y CU-19
-  reservaba V23, así que puede que haya que renumerarla al integrar.
+- **Migración.** `V26__create_report_evidence_files.sql`. Al integrar `main` ya existían V23 y V24 (catálogo) y V25
+  (reclamaciones, CU-13); si CU-19 reserva V23 u otra, puede que haya que renumerarla otra vez.
 - **Multipart.** El tope de 16 MB es global y lo necesita también CU-19; está en su propio commit para poder revertirlo.
 
 ## Datos de demostración
