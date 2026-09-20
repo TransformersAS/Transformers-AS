@@ -2,6 +2,7 @@ package com.transformersas.marketplace.stores.infrastructure.web.response;
 
 import com.transformersas.marketplace.stores.application.dto.StoreSettingsView;
 import com.transformersas.marketplace.stores.domain.model.Store;
+import com.transformersas.marketplace.stores.domain.model.StoreImageSummary;
 
 import java.util.List;
 
@@ -22,10 +23,15 @@ public record StoreSettingsResponse(
         String statusReason,
         boolean canModify,
         long version,
-        ShippingMethods shippingMethods
+        ShippingMethods shippingMethods,
+        List<ImageInfo> images
 ) {
 
     public record ShippingMethods(List<String> enabled, List<String> available) {
+    }
+
+    /** Metadatos de una imagen; el contenido se pide a url, cuya versión (sha256) cambia con la imagen. */
+    public record ImageInfo(String kind, String contentType, long sizeBytes, String sha256, String url) {
     }
 
     public static StoreSettingsResponse from(StoreSettingsView view) {
@@ -34,6 +40,12 @@ public record StoreSettingsResponse(
                 store.profile().contactEmail(), store.profile().contactPhone(), store.profile().businessHours(),
                 store.policy().returnWindowDays(), store.policy().text(), store.status().name(), store.statusReason(),
                 view.canModify(), store.version(),
-                new ShippingMethods(view.enabledShippingMethods(), view.availableShippingMethods()));
+                new ShippingMethods(view.enabledShippingMethods(), view.availableShippingMethods()),
+                view.images().stream().map(image -> imageInfo(store.id(), image)).toList());
+    }
+
+    public static ImageInfo imageInfo(Long storeId, StoreImageSummary image) {
+        return new ImageInfo(image.kind().name(), image.contentType(), image.sizeBytes(), image.sha256(),
+                "/api/stores/" + storeId + "/images/" + image.kind().path() + "?v=" + image.sha256());
     }
 }

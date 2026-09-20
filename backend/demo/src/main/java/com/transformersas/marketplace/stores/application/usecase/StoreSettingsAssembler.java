@@ -32,6 +32,6 @@ class StoreSettingsAssembler {
     /** Con los métodos habilitados indicados, para la vista previa de una configuración aún no guardada. */
     StoreSettingsView assemble(Store store, List<String> enabledShippingMethods) {
         return new StoreSettingsView(store, modification.permissionFor(store.id()).allowed(),
-                enabledShippingMethods, shippingMethods.availableMethods());
+                enabledShippingMethods, shippingMethods.availableMethods(), stores.findImageSummaries(store.id()));
     }
 }

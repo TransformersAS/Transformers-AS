@@ -3,6 +3,9 @@ package com.transformersas.marketplace.stores.infrastructure.persistence.reposit
 import com.transformersas.marketplace.shared.error.BusinessException;
 import com.transformersas.marketplace.stores.domain.model.Store;
 import com.transformersas.marketplace.stores.domain.model.StorePolicy;
+import com.transformersas.marketplace.stores.domain.model.StoreImage;
+import com.transformersas.marketplace.stores.domain.model.StoreImageKind;
+import com.transformersas.marketplace.stores.domain.model.StoreImageSummary;
 import com.transformersas.marketplace.stores.domain.model.StoreProfile;
 import com.transformersas.marketplace.stores.domain.model.StoreStatus;
 import com.transformersas.marketplace.stores.domain.repository.StoreRepository;
@@ -112,6 +115,48 @@ public class JdbcStoreRepository implements StoreRepository {
         methods.stream().distinct().forEach(method ->
                 jdbc.sql("INSERT INTO store_shipping_methods (store_id, method) VALUES (?, ?)")
                         .params(storeId, method).update());
+    }
+
+    @Override
+    public void saveImage(Long storeId, StoreImage image) {
+        jdbc.sql("""
+                        INSERT INTO store_images (store_id, kind, content_type, size_bytes, sha256, data)
+                        VALUES (?, ?, ?, ?, ?, ?) AS new_image
+                        ON DUPLICATE KEY UPDATE content_type = new_image.content_type,
+                                                size_bytes = new_image.size_bytes, sha256 = new_image.sha256,
+                                                data = new_image.data""")
+                .params(storeId, image.kind().name(), image.contentType(), image.sizeBytes(), image.sha256(),
+                        image.data())
+                .update();
+    }
+
+    @Override
+    public Optional<StoreImage> findImage(Long storeId, StoreImageKind kind) {
+        return jdbc.sql("""
+                        SELECT kind, content_type, size_bytes, sha256, data
+                        FROM store_images WHERE store_id = ? AND kind = ?""")
+                .params(storeId, kind.name())
+                .query((rs, row) -> new StoreImage(StoreImageKind.valueOf(rs.getString("kind")),
+                        rs.getString("content_type"), rs.getLong("size_bytes"), rs.getString("sha256"),
+                        rs.getBytes("data")))
+                .optional();
+    }
+
+    @Override
+    public List<StoreImageSummary> findImageSummaries(Long storeId) {
+        return jdbc.sql("""
+                        SELECT kind, content_type, size_bytes, sha256
+                        FROM store_images WHERE store_id = ? ORDER BY kind""")
+                .param(storeId)
+                .query((rs, row) -> new StoreImageSummary(StoreImageKind.valueOf(rs.getString("kind")),
+                        rs.getString("content_type"), rs.getLong("size_bytes"), rs.getString("sha256")))
+                .list();
+    }
+
+    @Override
+    public boolean deleteImage(Long storeId, StoreImageKind kind) {
+        return jdbc.sql("DELETE FROM store_images WHERE store_id = ? AND kind = ?")
+                .params(storeId, kind.name()).update() == 1;
     }
 
     @Override

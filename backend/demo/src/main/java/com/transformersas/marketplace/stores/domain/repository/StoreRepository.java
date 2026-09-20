@@ -2,6 +2,9 @@
 package com.transformersas.marketplace.stores.domain.repository;
 
 import com.transformersas.marketplace.stores.domain.model.Store;
+import com.transformersas.marketplace.stores.domain.model.StoreImage;
+import com.transformersas.marketplace.stores.domain.model.StoreImageKind;
+import com.transformersas.marketplace.stores.domain.model.StoreImageSummary;
 import com.transformersas.marketplace.stores.domain.model.StoreProfile;
 
 import java.util.Collection;
@@ -38,6 +41,18 @@ public interface StoreRepository {
 
     /** Reemplaza los métodos de envío habilitados por exactamente los indicados. */
     void replaceShippingMethods(Long storeId, Collection<String> methods);
+
+    /** Reemplaza la imagen de ese tipo o la crea. Una sola sentencia: nunca queda la tienda sin imagen a medias. */
+    void saveImage(Long storeId, StoreImage image);
+
+    /** La imagen con su contenido, para servirla. */
+    Optional<StoreImage> findImage(Long storeId, StoreImageKind kind);
+
+    /** Las imágenes de la tienda sin su contenido, ordenadas por tipo. */
+    List<StoreImageSummary> findImageSummaries(Long storeId);
+
+    /** Elimina la imagen de ese tipo. Devuelve false si no existía. */
+    boolean deleteImage(Long storeId, StoreImageKind kind);
 
     /**
      * Hace de la cuenta la dueña de una tienda que aún no tiene. Devuelve false, sin cambios, si la tienda no existe,
