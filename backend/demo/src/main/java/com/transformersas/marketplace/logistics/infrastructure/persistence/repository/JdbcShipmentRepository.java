@@ -23,10 +23,24 @@ public class JdbcShipmentRepository implements ShipmentRepository {
 
     @Override
     public Optional<Shipment> findByOrderId(Long orderId) {
+        return find("order_id = ?", orderId);
+    }
+
+    @Override
+    public Optional<Shipment> findById(Long id) {
+        return find("id = ?", id);
+    }
+
+    @Override
+    public Optional<Shipment> findByProviderShipmentId(String providerShipmentId) {
+        return find("provider_shipment_id = ?", providerShipmentId);
+    }
+
+    private Optional<Shipment> find(String condition, Object value) {
         return jdbc.sql("""
                         SELECT id, order_id, provider_shipment_id, tracking_code, idempotency_key, status, created_at
-                        FROM shipments WHERE order_id = ?""")
-                .param(orderId)
+                        FROM shipments WHERE\s""" + condition)
+                .param(value)
                 .query((rs, row) -> new Shipment(rs.getLong("id"), rs.getLong("order_id"),
                         rs.getString("provider_shipment_id"), rs.getString("tracking_code"),
                         rs.getString("idempotency_key"), ShipmentStatus.valueOf(rs.getString("status")),

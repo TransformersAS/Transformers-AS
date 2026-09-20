@@ -55,4 +55,20 @@ class OrderChangeRecorder {
                 "ORDER_" + event, title, message, "ORDER", String.valueOf(order.id()),
                 "order-" + order.id() + "-" + event + "-STORE"));
     }
+
+    /**
+     * Variante para eventos que pueden repetirse (novedades e intentos fallidos de entrega): la clave lleva el id del
+     * evento del proveedor, así cada uno se notifica una vez y solo una.
+     */
+    void notifyBuyer(Order order, String event, String eventId, String title, String message) {
+        notifications.execute(new PublishNotificationCommand(RecipientType.BUYER, order.accountId(),
+                "ORDER_" + event, title, message, "ORDER", String.valueOf(order.id()),
+                "order-" + order.id() + "-" + event + "-" + eventId));
+    }
+
+    void notifyStore(Order order, String event, String eventId, String title, String message) {
+        notifications.execute(new PublishNotificationCommand(RecipientType.STORE, order.storeId(),
+                "ORDER_" + event, title, message, "ORDER", String.valueOf(order.id()),
+                "order-" + order.id() + "-" + event + "-" + eventId + "-STORE"));
+    }
 }

@@ -23,6 +23,9 @@ import {
 } from '@ionic/angular/standalone';
 
 import { PedidosVendedorService } from '../services/pedidos-vendedor.service';
+import { SeguimientoLogisticoComponent } from '../../seguimiento/components/seguimiento-logistico.component';
+import { ConsultaDevolucionComponent } from '../../seguimiento/components/consulta-devolucion.component';
+import { estadoConSeguimiento } from '../../seguimiento/models/seguimiento.model';
 import {
     ErrorApi,
     EstadoPagoPedido,
@@ -33,18 +36,18 @@ import {
     TipoNovedad
 } from '../models/pedido-vendedor.model';
 
-type FiltroClave = 'POR_ATENDER' | 'LISTOS' | 'CANCELADOS' | 'SOLICITUDES' | 'TODOS';
+type FiltroClave = 'POR_ATENDER' | 'LISTOS' | 'EN_TRANSPORTE' | 'ENTREGADOS' | 'RETORNADOS' | 'CANCELADOS' | 'SOLICITUDES' | 'TODOS';
 
 const ETIQUETA_ESTADO: Record<EstadoPedido, string> = {
     CONFIRMED: 'Confirmado',
     IN_PREPARATION: 'En preparación',
     READY_FOR_DISPATCH: 'Listo para despacho',
     PICKED_UP: 'Recogido',
-    IN_TRANSIT: 'En tránsito',
+    IN_TRANSIT: 'En camino',
     DELIVERED: 'Entregado',
     DELIVERY_EXCEPTION: 'Novedad de entrega',
-    DELIVERY_ATTEMPT_FAILED: 'Entrega fallida',
-    RETURNED_TO_SELLER: 'Devuelto al vendedor',
+    DELIVERY_ATTEMPT_FAILED: 'Intento de entrega fallido',
+    RETURNED_TO_SELLER: 'Retornado al vendedor',
     CANCELLED: 'Cancelado',
     CANCELLATION_REQUESTED: 'Cancelación solicitada'
 };
@@ -81,7 +84,7 @@ const TODOS_LOS_ESTADOS = Object.keys(ETIQUETA_ESTADO) as EstadoPedido[];
     imports: [
         CurrencyPipe, DatePipe, FormsModule, IonBadge, IonButton, IonButtons, IonContent, IonHeader, IonInput,
         IonItem, IonLabel, IonList, IonListHeader, IonSelect, IonSelectOption, IonText, IonTextarea, IonTitle,
-        IonToolbar
+        IonToolbar, SeguimientoLogisticoComponent, ConsultaDevolucionComponent
     ],
     template: `
     <ion-header>
@@ -112,6 +115,9 @@ const TODOS_LOS_ESTADOS = Object.keys(ETIQUETA_ESTADO) as EstadoPedido[];
             <ion-select label="Mostrar" [(ngModel)]="filtro" (ionChange)="cambiarFiltro()">
               <ion-select-option value="POR_ATENDER">Por atender</ion-select-option>
               <ion-select-option value="LISTOS">Listos para despacho</ion-select-option>
+              <ion-select-option value="EN_TRANSPORTE">En transporte</ion-select-option>
+              <ion-select-option value="ENTREGADOS">Entregados</ion-select-option>
+              <ion-select-option value="RETORNADOS">Retornados al vendedor</ion-select-option>
               <ion-select-option value="SOLICITUDES">Cancelación solicitada</ion-select-option>
               <ion-select-option value="CANCELADOS">Cancelados</ion-select-option>
               <ion-select-option value="TODOS">Todos</ion-select-option>
@@ -153,6 +159,8 @@ const TODOS_LOS_ESTADOS = Object.keys(ETIQUETA_ESTADO) as EstadoPedido[];
             <ion-button fill="clear" [disabled]="pagina + 1 >= totalPaginas || cargandoLista" (click)="irAPagina(pagina + 1)">Siguiente</ion-button>
           </div>
         }
+
+        <app-consulta-devolucion rol="vendedor"></app-consulta-devolucion>
       }
 
       @if (cargandoDetalle) {
@@ -207,6 +215,11 @@ const TODOS_LOS_ESTADOS = Object.keys(ETIQUETA_ESTADO) as EstadoPedido[];
             <h3>Envío pendiente</h3>
             <p>El pedido está listo, pero todavía no se creó el envío con el proveedor logístico.</p>
           </section>
+        }
+
+        @if (conSeguimiento(pedido.status)) {
+          <app-seguimiento-logistico tipo="pedido" rol="vendedor" [id]="pedido.id"
+            (estadoCambio)="alCambiarEstadoLogistico()"></app-seguimiento-logistico>
         }
 
         @if (pedido.openIssues.length > 0) {
@@ -401,6 +414,9 @@ export class PedidosRecibidosComponent implements OnInit {
     private estadosDelFiltro(): EstadoPedido[] | undefined {
         switch (this.filtro) {
             case 'LISTOS': return ['READY_FOR_DISPATCH'];
+            case 'EN_TRANSPORTE': return ['PICKED_UP', 'IN_TRANSIT', 'DELIVERY_EXCEPTION', 'DELIVERY_ATTEMPT_FAILED'];
+            case 'ENTREGADOS': return ['DELIVERED'];
+            case 'RETORNADOS': return ['RETURNED_TO_SELLER'];
             case 'CANCELADOS': return ['CANCELLED'];
             case 'SOLICITUDES': return ['CANCELLATION_REQUESTED'];
             case 'TODOS': return TODOS_LOS_ESTADOS;
@@ -426,6 +442,11 @@ export class PedidosRecibidosComponent implements OnInit {
         this.detalle = null;
         this.limpiarMensajes();
         this.cargarLista();
+    }
+
+    /** Logística informó un estado nuevo: se relee el pedido para que el estado y el historial queden al día. */
+    alCambiarEstadoLogistico(): void {
+        this.recargarDetalle();
     }
 
     private recargarDetalle(): void {
@@ -511,6 +532,11 @@ export class PedidosRecibidosComponent implements OnInit {
         return pedido.status === 'CONFIRMED' || pedido.status === 'IN_PREPARATION';
     }
 
+    /** Desde que el pedido queda listo para despacho hay un envío que seguir (CU-24). */
+    conSeguimiento(estado: EstadoPedido): boolean {
+        return estadoConSeguimiento(estado);
+    }
+
     permiteCancelar(pedido: PedidoDetalle): boolean {
         return (pedido.status === 'CONFIRMED' || pedido.status === 'IN_PREPARATION') && !pedido.shipment;
     }
@@ -538,6 +564,10 @@ export class PedidosRecibidosComponent implements OnInit {
             case 'CONFIRMED': return 'primary';
             case 'IN_PREPARATION': return 'warning';
             case 'READY_FOR_DISPATCH': return 'success';
+            case 'DELIVERED': return 'success';
+            case 'DELIVERY_EXCEPTION':
+            case 'DELIVERY_ATTEMPT_FAILED': return 'warning';
+            case 'RETURNED_TO_SELLER':
             case 'CANCELLED': return 'medium';
             case 'CANCELLATION_REQUESTED': return 'danger';
             default: return 'tertiary';

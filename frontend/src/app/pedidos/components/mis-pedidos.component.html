@@ -17,6 +17,7 @@
             [attr.aria-label]="'Ver detalle del pedido ' + pedido.id">Ver detalle</button>
         </li>
       </ul>
+      <app-consulta-devolucion rol="comprador"></app-consulta-devolucion>
     </ng-container>
     <ng-container *ngIf="detalle as pedido">
       <button type="button" [disabled]="ocupada" (click)="cargarLista()">Volver a mis pedidos</button>
@@ -31,6 +32,8 @@
           <p>Subtotal: {{ item.subtotal | number:'1.2-2' }}</p>
         </li>
       </ul>
+      <app-seguimiento-logistico *ngIf="conSeguimiento(pedido.status)" tipo="pedido" rol="comprador"
+        [id]="pedido.id" (estadoCambio)="estadoActualizado($event)"></app-seguimiento-logistico>
       <p *ngIf="pedido.status === 'CANCELLATION_REQUESTED'">La cancelación de este pedido ya fue solicitada.</p>
       <button *ngIf="conflicto" type="button" [disabled]="ocupada" (click)="verDetalle(pedido.id)">Actualizar detalle</button>
       <button *ngIf="pedido.status === 'CONFIRMED' && !confirmar && !conflicto" type="button"

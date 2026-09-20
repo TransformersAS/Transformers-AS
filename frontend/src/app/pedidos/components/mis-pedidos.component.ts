@@ -4,12 +4,15 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Subscription, finalize } from 'rxjs';
 import { AuthService } from '../../core/services/auth.service';
 import { PedidosService } from '../services/pedidos.service';
-import { DetallePedido, Pedido } from '../models/pedido.model';
+import { DetallePedido, EstadoPedido, Pedido } from '../models/pedido.model';
 import { ResumenPedidoComponent } from './resumen-pedido.component';
+import { SeguimientoLogisticoComponent } from '../../seguimiento/components/seguimiento-logistico.component';
+import { ConsultaDevolucionComponent } from '../../seguimiento/components/consulta-devolucion.component';
+import { estadoConSeguimiento } from '../../seguimiento/models/seguimiento.model';
 
 @Component({
   selector: 'app-mis-pedidos', standalone: true,
-  imports: [CommonModule, ResumenPedidoComponent],
+  imports: [CommonModule, ResumenPedidoComponent, SeguimientoLogisticoComponent, ConsultaDevolucionComponent],
   templateUrl: './mis-pedidos.component.html',
   styleUrl: './mis-pedidos.component.scss'
 })
@@ -97,6 +100,18 @@ export class MisPedidosComponent {
         if (error.status === 409) this.conflicto = true;
       }
     }));
+  }
+
+  /** El envío ya existe (o debería) desde que el pedido queda listo para despacho: ahí aparece el seguimiento. */
+  conSeguimiento(estado: EstadoPedido): boolean { return estadoConSeguimiento(estado); }
+
+  /** El seguimiento detectó un estado nuevo informado por logística: el detalle y la lista quedan al día. */
+  estadoActualizado(estado: string): void {
+    const pedido = this.detalle;
+    if (!pedido) return;
+    const nuevo = estado as EstadoPedido;
+    this.detalle = { ...pedido, status: nuevo };
+    this.pedidos = this.pedidos.map(p => p.id === pedido.id ? { ...p, status: nuevo } : p);
   }
 
   private mensaje(error: HttpErrorResponse): string {

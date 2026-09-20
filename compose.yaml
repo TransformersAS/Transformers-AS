@@ -21,6 +21,11 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
       # Opcional, solo desarrollo: SPRING_PROFILES_ACTIVE=local crea la cuenta y el producto demo (ver .env.example).
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-}
+      # Seguimiento logístico (CU-24/CU-25). Sin secreto el webhook del proveedor queda cerrado; en demostración,
+      # LOGISTICS_SIMULATED_SCRIPT=HAPPY_PATH hace avanzar cada envío por sí solo cada LOGISTICS_SIMULATED_STEP.
+      LOGISTICS_WEBHOOK_SECRET: ${LOGISTICS_WEBHOOK_SECRET:-}
+      LOGISTICS_SIMULATED_SCRIPT: ${LOGISTICS_SIMULATED_SCRIPT:-NONE}
+      LOGISTICS_SIMULATED_STEP: ${LOGISTICS_SIMULATED_STEP:-15s}
     ports:
       - "127.0.0.1:${BACKEND_HOST_PORT:-8080}:8080"
     depends_on:
