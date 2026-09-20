@@ -1814,3 +1814,8 @@ footer > div {
   flex-direction: column;
   background: #fff;
 }
+
+/* "Mi tienda" (CU-18): mismo botón flotante que "Pedidos recibidos", encima de él. */
+.boton-tienda {
+  bottom: 4.75rem;
+}
