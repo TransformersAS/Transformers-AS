@@ -5,6 +5,10 @@ import com.transformersas.marketplace.payments.application.usecase.ProcessPaymen
 import com.transformersas.marketplace.payments.infrastructure.web.request.PaymentRequest;
 import com.transformersas.marketplace.payments.infrastructure.web.response.PaymentResponse;
 
+import com.transformersas.marketplace.auth.infrastructure.security.AccountPrincipal;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -27,11 +31,17 @@ public class PaymentController {
 
     @PostMapping("/process")
     public ResponseEntity<PaymentResponse> process(
-            @RequestBody PaymentRequest request
+            @RequestBody PaymentRequest request,
+            @AuthenticationPrincipal AccountPrincipal principal
     ) {
+
+        if (principal == null || principal.accountId() == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Se requiere un comprador autenticado");
+        }
 
         PaymentProcessResult result =
                 processPaymentUseCase.execute(
+                        principal.accountId(),
                         request.paymentMethod(),
                         request.reservationIds(),
                         request.addressId(),

@@ -17,9 +17,17 @@ public class OrderEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    // Nullable only for historical orders whose owner is unknown.
+    @Column(name = "account_id")
+    private Long accountId;
+
+    public Long getAccountId() { return accountId; }
+
+    public void setAccountId(Long accountId) { this.accountId = accountId; }
+
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
+    @Column(nullable = false, length = 32)
     private OrderStatus status;
 
 

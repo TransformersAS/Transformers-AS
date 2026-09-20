@@ -22,6 +22,8 @@ public final class OrderMapper {
                 new OrderEntity();
 
 
+        entity.setAccountId(order.accountId());
+
         entity.setStatus(
                 order.status()
         );
@@ -106,6 +108,7 @@ public final class OrderMapper {
 
         return new Order(
                 entity.getId(),
+                entity.getAccountId(),
                 entity.getStatus(),
                 entity.getTotal(),
                 entity.getAddressId(),

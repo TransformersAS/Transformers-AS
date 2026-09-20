@@ -1,3 +1,4 @@
+import { API_BASE } from '../../core/config/api.config';
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { BehaviorSubject } from 'rxjs';
@@ -27,7 +28,7 @@ export class CarritoService {
   private readonly http = inject(HttpClient);
 
   private readonly apiUrl =
-    'http://localhost:8080/api/cart';
+    `${API_BASE}/cart`;
 
   private readonly itemsSubject =
     new BehaviorSubject<ItemCarrito[]>([]);

@@ -42,6 +42,9 @@ class SessionAuthenticationTests {
     @Autowired UserAccountRepository accounts;
     @Autowired PasswordEncoder encoder;
     @Autowired ObjectMapper json;
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    com.transformersas.marketplace.auth.application.port.PasswordRecoveryNotifier recoveryNotifier;
+    private final java.util.List<String> recoveryTokens = new java.util.ArrayList<>();
     private String hash;
 
     @BeforeEach
@@ -49,6 +52,10 @@ class SessionAuthenticationTests {
         jdbc.update("DELETE FROM SPRING_SESSION");
         jdbc.update("DELETE FROM user_account_roles");
         jdbc.update("DELETE FROM user_accounts");
+        org.mockito.Mockito.doAnswer(invocation -> {
+            recoveryTokens.add(invocation.getArgument(1));
+            return null;
+        }).when(recoveryNotifier).notifyRecovery(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString());
         hash = encoder.encode("TestPassword!123");
         accounts.save(new UserAccount(null, "person@example.com", hash, AccountStatus.ACTIVA, Set.of(Role.COMPRADOR)));
     }
@@ -156,6 +163,23 @@ class SessionAuthenticationTests {
                 .andExpect(jsonPath("$.activeRole").value(org.hamcrest.Matchers.nullValue()));
         assertThat(accounts.findByEmail("multi@example.com").orElseThrow().roles())
                 .containsExactlyInAnyOrder(Role.COMPRADOR, Role.VENDEDOR);
+    }
+
+    @ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({
+            "comprador, COMPRADOR, 204",
+            "comprador, VENDEDOR, 403",
+            "vendedor, VENDEDOR, 204",
+            "vendedor, COMPRADOR, 403"
+    })
+    void headValidationUsesTheSameActiveRoleAuthorizationAsGet(String endpoint, Role activeRole, int expectedStatus) throws Exception {
+        accounts.save(new UserAccount(null, "multi@example.com", hash, AccountStatus.ACTIVA,
+                Set.of(Role.COMPRADOR, Role.VENDEDOR)));
+        Cookie cookie = login(csrf(null), "multi@example.com", "TestPassword!123", 204);
+        selectRole(cookie, activeRole.name(), 200);
+        String path = "/api/auth/validation/" + endpoint;
+        mvc.perform(head(path).cookie(cookie)).andExpect(status().is(expectedStatus));
+        mvc.perform(get(path).cookie(cookie)).andExpect(status().is(expectedStatus));
     }
 
     @Test
@@ -269,6 +293,232 @@ class SessionAuthenticationTests {
         mvc.perform(delete("/api/auth/sessions/{id}", currentManagementId(own)).cookie(own))
                 .andExpect(status().isForbidden());
         mvc.perform(get("/api/auth/me").cookie(own)).andExpect(status().isOk());
+    }
+
+    @Test
+    void passwordChangeStoresBcryptAndRevokesOnlyOtherSessionsOfTheAccount() throws Exception {
+        Cookie current = login(csrf(null), "person@example.com", "TestPassword!123", 204);
+        Cookie second = login(csrf(null), "person@example.com", "TestPassword!123", 204);
+        Cookie third = login(csrf(null), "person@example.com", "TestPassword!123", 204);
+        accounts.save(new UserAccount(null, "other@example.com", hash, AccountStatus.ACTIVA, Set.of(Role.VENDEDOR)));
+        Cookie other = login(csrf(null), "other@example.com", "TestPassword!123", 204);
+        var before = accounts.findByEmail("person@example.com").orElseThrow();
+        changePassword(current, "TestPassword!123", "NewPassword!456", 204);
+        var after = accounts.findById(before.id()).orElseThrow();
+        assertThat(after.passwordHash()).startsWith("$2").isNotEqualTo(hash).isNotEqualTo("NewPassword!456");
+        assertThat(encoder.matches("NewPassword!456", after.passwordHash())).isTrue();
+        assertThat(encoder.matches("TestPassword!123", after.passwordHash())).isFalse();
+        assertThat(after.email()).isEqualTo(before.email());
+        assertThat(after.status()).isEqualTo(before.status());
+        assertThat(after.roles()).isEqualTo(before.roles());
+        mvc.perform(get("/api/auth/me").cookie(current)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.activeRole").value("COMPRADOR"));
+        mvc.perform(get("/api/auth/me").cookie(second)).andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/auth/me").cookie(third)).andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/auth/me").cookie(other)).andExpect(status().isOk());
+        assertThat(accounts.findByEmail("other@example.com").orElseThrow().passwordHash()).isEqualTo(hash);
+        mvc.perform(get("/api/auth/sessions").cookie(current)).andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].current").value(true));
+        login(csrf(null), "person@example.com", "TestPassword!123", 401);
+        Cookie fresh = login(csrf(null), "person@example.com", "NewPassword!456", 204);
+        mvc.perform(get("/api/auth/me").cookie(fresh)).andExpect(status().isOk());
+        for (byte[] bytes : jdbc.query("SELECT ATTRIBUTE_BYTES FROM SPRING_SESSION_ATTRIBUTES",
+                (rs, row) -> rs.getBytes(1))) {
+            assertThat(new String(bytes, StandardCharsets.ISO_8859_1))
+                    .doesNotContain("NewPassword!456", "TestPassword!123", after.passwordHash());
+        }
+    }
+
+    @Test
+    void wrongCurrentPasswordDoesNotChangeCredentialsOrRevokeSessions() throws Exception {
+        Cookie current = login(csrf(null), "person@example.com", "TestPassword!123", 204);
+        Cookie other = login(csrf(null), "person@example.com", "TestPassword!123", 204);
+        changePassword(current, "WrongPassword!", "NewPassword!456", 403);
+        assertThat(accounts.findByEmail("person@example.com").orElseThrow().passwordHash()).isEqualTo(hash);
+        mvc.perform(get("/api/auth/me").cookie(current)).andExpect(status().isOk());
+        mvc.perform(get("/api/auth/me").cookie(other)).andExpect(status().isOk());
+        login(csrf(null), "person@example.com", "TestPassword!123", 204);
+        login(csrf(null), "person@example.com", "NewPassword!456", 401);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"", "            ", "short", "TestPassword!123",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "ééééééééééééééééééééééééééééééééééééé"})
+    void invalidNewPasswordDoesNotChangeCredentialsOrRevokeSessions(String password) throws Exception {
+        Cookie current = login(csrf(null), "person@example.com", "TestPassword!123", 204);
+        Cookie other = login(csrf(null), "person@example.com", "TestPassword!123", 204);
+        changePassword(current, "TestPassword!123", password, 400);
+        assertThat(accounts.findByEmail("person@example.com").orElseThrow().passwordHash()).isEqualTo(hash);
+        mvc.perform(get("/api/auth/me").cookie(current)).andExpect(status().isOk());
+        mvc.perform(get("/api/auth/me").cookie(other)).andExpect(status().isOk());
+    }
+
+    @Test
+    void passwordChangeRequiresAuthenticationCsrfAndBothFields() throws Exception {
+        Csrf anonymous = csrf(null);
+        mvc.perform(put("/api/auth/password").cookie(anonymous.cookie()).header(anonymous.header(), anonymous.token())
+                .contentType("application/json").content("{}")) .andExpect(status().isUnauthorized());
+        Cookie current = login(csrf(null), "person@example.com", "TestPassword!123", 204);
+        mvc.perform(put("/api/auth/password").cookie(current).contentType("application/json").content("{}"))
+                .andExpect(status().isForbidden());
+        Csrf token = csrf(current);
+        for (String body : new String[]{"{}", "{\"currentPassword\":\"TestPassword!123\"}",
+                "{\"newPassword\":\"NewPassword!456\"}"}) {
+            mvc.perform(put("/api/auth/password").cookie(current).header(token.header(), token.token())
+                    .contentType("application/json").content(body)).andExpect(status().isBadRequest());
+        }
+        assertThat(accounts.findByEmail("person@example.com").orElseThrow().passwordHash()).isEqualTo(hash);
+        mvc.perform(get("/api/auth/me").cookie(current)).andExpect(status().isOk());
+    }
+
+    @Test
+    void recoveryRequestIsGenericAndStoresOnlyHashWithExpiry() throws Exception {
+        var existing = requestRecovery(" PERSON@example.com ");
+        var missing = requestRecovery("missing@example.com");
+        accounts.save(new UserAccount(null, "inactive@example.com", hash, AccountStatus.INACTIVA, Set.of(Role.COMPRADOR)));
+        var inactive = requestRecovery("inactive@example.com");
+        assertThat(existing.getResponse().getContentAsString()).isEqualTo(missing.getResponse().getContentAsString())
+                .isEqualTo(inactive.getResponse().getContentAsString());
+        assertThat(recoveryTokens).hasSize(1);
+        String token = recoveryTokens.getFirst();
+        assertThat(token).matches("[A-Za-z0-9_-]{43}");
+        assertThat(existing.getResponse().getContentAsString()).doesNotContain(token);
+        String stored = jdbc.queryForObject("SELECT token_hash FROM password_recovery_tokens", String.class);
+        assertThat(stored).isEqualTo(java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
+                .digest(token.getBytes(StandardCharsets.UTF_8)))).isNotEqualTo(token);
+        assertThat(jdbc.queryForObject("SELECT TIMESTAMPDIFF(SECOND, created_at, expires_at) FROM password_recovery_tokens", Long.class))
+                .isEqualTo(900);
+        org.mockito.Mockito.verify(recoveryNotifier).notifyRecovery("person@example.com", token);
+    }
+
+    @Test
+    void recoveryResetsPasswordAndRevokesAllOwnSessionsOnly() throws Exception {
+        Cookie first = login(csrf(null), "person@example.com", "TestPassword!123", 204);
+        Cookie second = login(csrf(null), "person@example.com", "TestPassword!123", 204);
+        accounts.save(new UserAccount(null, "other@example.com", hash, AccountStatus.ACTIVA, Set.of(Role.COMPRADOR)));
+        Cookie other = login(csrf(null), "other@example.com", "TestPassword!123", 204);
+        requestRecovery("person@example.com");
+        String token = recoveryTokens.getFirst();
+        confirmRecovery(token, "RecoveredPassword!123", 204);
+        var account = accounts.findByEmail("person@example.com").orElseThrow();
+        assertThat(account.passwordHash()).startsWith("$2").isNotEqualTo("RecoveredPassword!123");
+        assertThat(encoder.matches("RecoveredPassword!123", account.passwordHash())).isTrue();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM password_recovery_tokens WHERE used_at IS NOT NULL", Integer.class)).isEqualTo(1);
+        mvc.perform(get("/api/auth/me").cookie(first)).andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/auth/me").cookie(second)).andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/auth/me").cookie(other)).andExpect(status().isOk());
+        assertThat(accounts.findByEmail("other@example.com").orElseThrow().passwordHash()).isEqualTo(hash);
+        login(csrf(null), "person@example.com", "TestPassword!123", 401);
+        Cookie fresh = login(csrf(null), "person@example.com", "RecoveredPassword!123", 204);
+        mvc.perform(get("/api/auth/me").cookie(fresh)).andExpect(status().isOk());
+        confirmRecovery(token, "AnotherPassword!123", 400);
+        mvc.perform(get("/api/auth/me").cookie(fresh)).andExpect(status().isOk());
+    }
+
+    @Test
+    void recoveryRejectsInvalidExpiredAndSupersededTokens() throws Exception {
+        requestRecovery("person@example.com");
+        String previous = recoveryTokens.getFirst();
+        requestRecovery("person@example.com");
+        String latest = recoveryTokens.getLast();
+        assertThat(latest).isNotEqualTo(previous);
+        confirmRecovery(previous, "RecoveredPassword!123", 400);
+        confirmRecovery("A".repeat(43), "RecoveredPassword!123", 400);
+        confirmRecovery("bad-token", "RecoveredPassword!123", 400);
+        jdbc.update("UPDATE password_recovery_tokens SET expires_at = CURRENT_TIMESTAMP - INTERVAL 1 MINUTE WHERE used_at IS NULL");
+        confirmRecovery(latest, "RecoveredPassword!123", 400);
+        assertThat(accounts.findByEmail("person@example.com").orElseThrow().passwordHash()).isEqualTo(hash);
+    }
+
+    @Test
+    void recoveryRejectsWeakPasswordsWithoutConsumingTokenAndRequiresCsrf() throws Exception {
+        mvc.perform(post("/api/auth/password-recovery/request").contentType("application/json")
+                .content("{\"email\":\"person@example.com\"}")).andExpect(status().isForbidden());
+        requestRecovery("person@example.com");
+        String token = recoveryTokens.getFirst();
+        mvc.perform(post("/api/auth/password-recovery/confirm").contentType("application/json")
+                .content(json.writeValueAsString(java.util.Map.of("token", token, "newPassword", "RecoveredPassword!123"))))
+                .andExpect(status().isForbidden());
+        for (String password : new String[]{"", "            ", "short", "TestPassword!123", "a".repeat(73), "é".repeat(37)}) {
+            confirmRecovery(token, password, 400);
+        }
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM password_recovery_tokens WHERE used_at IS NULL", Integer.class)).isEqualTo(1);
+        confirmRecovery(token, "RecoveredPassword!123", 204);
+    }
+
+    @Test
+    void recoveryRejectsAccountDeactivatedAfterIssuance() throws Exception {
+        requestRecovery("person@example.com");
+        jdbc.update("UPDATE user_accounts SET status='INACTIVA'");
+        confirmRecovery(recoveryTokens.getFirst(), "RecoveredPassword!123", 400);
+        assertThat(accounts.findByEmail("person@example.com").orElseThrow().passwordHash()).isEqualTo(hash);
+    }
+
+    @Test
+    void concurrentConfirmationsConsumeTokenOnlyOnce() throws Exception {
+        requestRecovery("person@example.com");
+        String token = recoveryTokens.getFirst();
+        Csrf first = csrf(null);
+        Csrf second = csrf(null);
+        var ready = new java.util.concurrent.CountDownLatch(2);
+        var start = new java.util.concurrent.CountDownLatch(1);
+        try (var executor = java.util.concurrent.Executors.newFixedThreadPool(2)) {
+            java.util.List<java.util.concurrent.Future<Integer>> results = new java.util.ArrayList<>();
+            for (Csrf csrf : java.util.List.of(first, second)) {
+                results.add(executor.submit(() -> {
+                    ready.countDown();
+                    start.await();
+                    return mvc.perform(post("/api/auth/password-recovery/confirm").cookie(csrf.cookie())
+                            .header(csrf.header(), csrf.token()).contentType("application/json")
+                            .content(json.writeValueAsString(java.util.Map.of("token", token, "newPassword", "RecoveredPassword!123"))))
+                            .andReturn().getResponse().getStatus();
+                }));
+            }
+            assertThat(ready.await(10, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+            start.countDown();
+            assertThat(java.util.List.of(results.get(0).get(20, java.util.concurrent.TimeUnit.SECONDS),
+                    results.get(1).get(20, java.util.concurrent.TimeUnit.SECONDS))).containsExactlyInAnyOrder(204, 400);
+        } finally { start.countDown(); }
+    }
+
+    @Test
+    void recoveryDeliveryFailureStillReturnsGenericResponseAndCommitsHashedToken() throws Exception {
+        org.mockito.Mockito.doThrow(new IllegalStateException("Delivery unavailable"))
+                .when(recoveryNotifier).notifyRecovery(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString());
+        var existing = requestRecovery("person@example.com");
+        var missing = requestRecovery("missing@example.com");
+        assertThat(existing.getResponse().getStatus()).isEqualTo(missing.getResponse().getStatus());
+        assertThat(existing.getResponse().getContentAsString()).isEqualTo(missing.getResponse().getContentAsString());
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM password_recovery_tokens WHERE used_at IS NULL", Integer.class)).isEqualTo(1);
+        String stored = jdbc.queryForObject("SELECT token_hash FROM password_recovery_tokens", String.class);
+        assertThat(stored).matches("[a-f0-9]{64}");
+        org.mockito.Mockito.verify(recoveryNotifier).notifyRecovery(org.mockito.ArgumentMatchers.eq("person@example.com"),
+                org.mockito.ArgumentMatchers.matches("[A-Za-z0-9_-]{43}"));
+        assertThat(accounts.findByEmail("person@example.com").orElseThrow().passwordHash()).isEqualTo(hash);
+    }
+
+    private MvcResult requestRecovery(String email) throws Exception {
+        Csrf csrf = csrf(null);
+        return mvc.perform(post("/api/auth/password-recovery/request").cookie(csrf.cookie())
+                .header(csrf.header(), csrf.token()).contentType("application/json")
+                .content(json.writeValueAsString(java.util.Map.of("email", email))))
+                .andExpect(status().isAccepted()).andReturn();
+    }
+
+    private void confirmRecovery(String token, String password, int status) throws Exception {
+        Csrf csrf = csrf(null);
+        mvc.perform(post("/api/auth/password-recovery/confirm").cookie(csrf.cookie()).header(csrf.header(), csrf.token())
+                .contentType("application/json").content(json.writeValueAsString(java.util.Map.of("token", token, "newPassword", password))))
+                .andExpect(status().is(status));
+    }
+
+    private void changePassword(Cookie cookie, String currentPassword, String newPassword, int expectedStatus) throws Exception {
+        Csrf token = csrf(cookie);
+        mvc.perform(put("/api/auth/password").cookie(cookie).header(token.header(), token.token())
+                .contentType("application/json").content(json.writeValueAsString(java.util.Map.of(
+                        "currentPassword", currentPassword, "newPassword", newPassword))))
+                .andExpect(status().is(expectedStatus));
     }
 
     private String currentManagementId(Cookie cookie) throws Exception {

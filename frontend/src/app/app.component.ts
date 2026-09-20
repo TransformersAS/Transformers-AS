@@ -58,6 +58,10 @@ import {
   AuthService
 } from './core/services/auth.service';
 
+import { AccesoComponent } from './core/components/acceso.component';
+
+import { ColaSoporteComponent } from './panel-admin-soporte/components/cola-soporte.component';
+
 import {
   CheckoutService
 } from './checkout/services/checkout.service';
@@ -103,7 +107,9 @@ import {
     CurrencyPipe,
     NgFor,
     NgIf,
-    FormsModule
+    FormsModule,
+    AccesoComponent,
+    ColaSoporteComponent
   ],
 
   templateUrl: './app.component.html',
@@ -218,8 +224,18 @@ export class AppComponent {
   // USUARIO
   // =========================================================
 
-  readonly nombre =
-    this.auth.obtenerNombreVisible();
+  mostrarAcceso = false;
+
+  mostrarModeracion = false;
+
+  get nombre(): string {
+    return this.auth.obtenerNombreVisible();
+  }
+
+  /** La cola de moderación solo se muestra con el rol activo SOPORTE; el backend lo exige igualmente. */
+  get esSoporte(): boolean {
+    return this.auth.cuenta()?.activeRole === 'SOPORTE';
+  }
 
 
   // =========================================================
@@ -227,6 +243,8 @@ export class AppComponent {
   // =========================================================
 
   constructor() {
+
+    this.auth.restaurar();
 
     addIcons({
       bagHandleOutline,
@@ -521,7 +539,7 @@ buscarProductos(): void {
      */
     this.http
       .post<{ id: number }>(
-        'http://localhost:8080/api/addresses',
+        '/api/addresses',
         {
           recipientName: 'Comprador',
 

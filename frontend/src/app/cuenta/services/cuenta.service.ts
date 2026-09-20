@@ -1,6 +1,14 @@
-import { Injectable } from '@angular/core';
-import { Observable, of } from 'rxjs';
+import { Injectable, inject } from '@angular/core';
+import { Observable } from 'rxjs';
+import { AuthService } from '../../core/services/auth.service';
 import { Usuario } from '../models/usuario.model';
-/** Centraliza la obtención de perfil para no dispersar detalles de API en las vistas. */
+
+/** Fachada de compatibilidad: devuelve la cuenta real de /me, no un perfil ampliado. */
 @Injectable({ providedIn: 'root' })
-export class CuentaService { /** El valor nulo expresa una sesión aún no autenticada. */ obtenerPerfil(): Observable<Usuario | null> { return of(null); } }
+export class CuentaService {
+  private readonly auth = inject(AuthService);
+
+  obtenerPerfil(): Observable<Usuario | null> {
+    return this.auth.obtenerCuentaActual();
+  }
+}

@@ -12,6 +12,8 @@ import com.transformersas.marketplace.orders.domain.model.OrderItem;
 import com.transformersas.marketplace.orders.domain.model.OrderStatus;
 import com.transformersas.marketplace.orders.domain.repository.OrderRepository;
 
+import com.transformersas.marketplace.users.domain.repository.UserAccountRepository;
+
 import com.transformersas.marketplace.recommendation.interaction.InteractionService;
 
 import org.springframework.http.HttpStatus;
@@ -27,104 +29,90 @@ import java.util.List;
 public class CreateOrderUseCase {
 
     private final OrderRepository orderRepository;
-
+    private final UserAccountRepository accounts;
     private final CartRepository cartRepository;
-
     private final CartItemRepository cartItemRepository;
-
     private final InteractionService interactionService;
-
 
     public CreateOrderUseCase(
             OrderRepository orderRepository,
             CartRepository cartRepository,
             CartItemRepository cartItemRepository,
+            UserAccountRepository accounts,
             InteractionService interactionService
     ) {
-
-        this.orderRepository =
-                orderRepository;
-
-        this.cartRepository =
-                cartRepository;
-
-        this.cartItemRepository =
-                cartItemRepository;
-
-        this.interactionService =
-                interactionService;
+        this.orderRepository = orderRepository;
+        this.cartRepository = cartRepository;
+        this.cartItemRepository = cartItemRepository;
+        this.accounts = accounts;
+        this.interactionService = interactionService;
     }
-
 
     @Transactional
     public OrderConfirmation execute(
+            Long accountId,
             Long addressId,
             String shippingMethod,
             String transactionId,
             BigDecimal total
     ) {
 
-        Cart cart =
-                cartRepository
-                        .findAll()
-                        .stream()
-                        .findFirst()
-                        .orElseThrow(
-                                () ->
-                                        new ResponseStatusException(
-                                                HttpStatus.BAD_REQUEST,
-                                                "No existe un carrito"
-                                        )
-                        );
+        if (accountId == null || accountId <= 0 || accounts.findById(accountId).isEmpty()) {
+            throw new ResponseStatusException(
+                    HttpStatus.UNAUTHORIZED,
+                    "Se requiere un comprador válido"
+            );
+        }
 
+        Cart cart = cartRepository
+                .findAll()
+                .stream()
+                .findFirst()
+                .orElseThrow(
+                        () -> new ResponseStatusException(
+                                HttpStatus.BAD_REQUEST,
+                                "No existe un carrito"
+                        )
+                );
 
         List<CartItem> cartItems =
-                cartItemRepository
-                        .findByCartId(
-                                cart.getId()
-                        );
-
+                cartItemRepository.findByCartId(cart.getId());
 
         if (cartItems.isEmpty()) {
-
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
                     "El carrito está vacío"
             );
         }
 
-
         List<OrderItem> orderItems =
                 cartItems
                         .stream()
-                        .map(
-                                item -> {
+                        .map(item -> {
 
-                                    BigDecimal subtotal =
-                                            item.getProduct()
-                                                    .getPrice()
-                                                    .multiply(
-                                                            BigDecimal.valueOf(
-                                                                    item.getQuantity()
-                                                            )
-                                                    );
+                            BigDecimal subtotal =
+                                    item.getProduct()
+                                            .getPrice()
+                                            .multiply(
+                                                    BigDecimal.valueOf(
+                                                            item.getQuantity()
+                                                    )
+                                            );
 
-
-                                    return new OrderItem(
-                                            item.getProduct().getId(),
-                                            item.getProduct().getName(),
-                                            item.getQuantity(),
-                                            item.getProduct().getPrice(),
-                                            subtotal
-                                    );
-                                }
-                        )
+                            return new OrderItem(
+                                    item.getProduct().getId(),
+                                    item.getProduct().getName(),
+                                    item.getQuantity(),
+                                    item.getProduct().getPrice(),
+                                    subtotal
+                            );
+                        })
                         .toList();
-
 
         Order order =
                 new Order(
                         null,
+                        accountId,
                         OrderStatus.CONFIRMED,
                         total,
                         addressId,
@@ -134,37 +122,26 @@ public class CreateOrderUseCase {
                         orderItems
                 );
 
-
         Order saved =
-                orderRepository.save(
-                        order
-                );
-
+                orderRepository.save(order);
 
         /*
-         * El pedido ya fue creado correctamente.
-         *
-         * Registramos cada producto comprado
-         * como una interacción PURCHASE
-         * para el sistema de recomendaciones.
+         * CU-02:
+         * Registramos los productos comprados como interacciones PURCHASE
+         * para alimentar las futuras recomendaciones del comprador.
          */
         for (CartItem cartItem : cartItems) {
-
             interactionService.registerPurchase(
-                    1L,
+                    accountId,
                     cartItem.getProduct().getId()
             );
         }
 
-
         /*
-         * Después de registrar la compra,
-         * vaciamos el carrito.
+         * La compra ya quedó convertida en pedido.
+         * Ahora sí vaciamos el carrito.
          */
-        cartItemRepository.deleteAll(
-                cartItems
-        );
-
+        cartItemRepository.deleteAll(cartItems);
 
         return new OrderConfirmation(
                 saved.id(),

@@ -81,6 +81,7 @@
         <button
           type="button"
           aria-label="Ver cuenta"
+          (click)="mostrarAcceso = true"
         >
 
           <ion-icon
@@ -98,6 +99,11 @@
     <!-- ===================================================== -->
     <!-- OVERLAY CARRITO -->
     <!-- ===================================================== -->
+
+    <app-acceso
+      *ngIf="mostrarAcceso"
+      (cerrar)="mostrarAcceso = false"
+    ></app-acceso>
 
     <div
       class="cart-overlay"
@@ -1363,5 +1369,27 @@
 
 
   </ion-content>
+
+<!-- Moderación de reportes (CU-21): solo con el rol activo SOPORTE -->
+<button
+  *ngIf="esSoporte && !mostrarModeracion"
+  type="button"
+  class="boton-moderacion"
+  (click)="mostrarModeracion = true"
+>
+  Moderación de reportes
+</button>
+
+<div class="panel-moderacion" *ngIf="esSoporte && mostrarModeracion">
+  <button
+    type="button"
+    class="cerrar-moderacion"
+    aria-label="Cerrar moderación"
+    (click)="mostrarModeracion = false"
+  >
+    ×
+  </button>
+  <app-cola-soporte></app-cola-soporte>
+</div>
 
 </ion-app>
