@@ -7,6 +7,7 @@ import {
     IonBadge,
     IonButton,
     IonButtons,
+    IonCheckbox,
     IonContent,
     IonHeader,
     IonInput,
@@ -52,8 +53,8 @@ type Modo = 'lectura' | 'edicion' | 'vista-previa';
     selector: 'app-mi-tienda',
     standalone: true,
     imports: [
-        FormsModule, IonBadge, IonButton, IonButtons, IonContent, IonHeader, IonInput, IonItem, IonTextarea, IonTitle,
-        IonToolbar, TarjetaTiendaComponent
+        FormsModule, IonBadge, IonButton, IonButtons, IonCheckbox, IonContent, IonHeader, IonInput, IonItem, IonTextarea,
+        IonTitle, IonToolbar, TarjetaTiendaComponent
     ],
     template: `
     <ion-header>
@@ -206,6 +207,47 @@ type Modo = 'lectura' | 'edicion' | 'vista-previa';
                       [errorText]="errores.businessHours"></ion-textarea>
                   </ion-item>
 
+                  <h3>Política de devoluciones</h3>
+                  <p class="nota">Las políticas de tu tienda no pueden contradecir las reglas obligatorias del
+                    marketplace. Por ejemplo, el plazo de devolución no puede ser menor a
+                    {{ tienda.minReturnWindowDays }} días.</p>
+
+                  <ion-item>
+                    <ion-input label="Plazo de devolución (días)" labelPlacement="stacked" name="plazo" type="number"
+                      inputmode="numeric" step="1" [min]="tienda.minReturnWindowDays" [max]="limites.plazoMaximo"
+                      [value]="borrador.returnWindowDays" (ionInput)="cambiarPlazo($event)"
+                      [helperText]="'Mínimo ' + tienda.minReturnWindowDays + ' días, máximo ' + limites.plazoMaximo + '.'"
+                      [class.ion-invalid]="!!errores.returnWindowDays" [class.ion-touched]="!!errores.returnWindowDays"
+                      [errorText]="errores.returnWindowDays"></ion-input>
+                  </ion-item>
+
+                  <ion-item>
+                    <ion-textarea label="Texto de la política" labelPlacement="stacked" name="politica" [rows]="4"
+                      [(ngModel)]="borrador.policyText" [counter]="true" [maxlength]="limites.politica"
+                      helperText="Opcional. Condiciones adicionales de cambios y devoluciones."
+                      [class.ion-invalid]="!!errores.policyText" [class.ion-touched]="!!errores.policyText"
+                      [errorText]="errores.policyText"></ion-textarea>
+                  </ion-item>
+
+                  <fieldset class="envios" [class.con-error]="!!errores.shippingMethods">
+                    <legend>Métodos de envío</legend>
+                    <p class="nota">Elige entre los métodos que ofrece el marketplace. Tu tienda debe ofrecer al menos uno.</p>
+                    @for (metodo of metodosMostrados(); track metodo) {
+                      <ion-item lines="none">
+                        <ion-checkbox labelPlacement="end" [checked]="metodoElegido(metodo)"
+                          (ionChange)="alternarMetodo(metodo, $event.detail.checked)">
+                          {{ etiquetaMetodo(metodo) }}
+                          @if (!estaDisponible(metodo)) {
+                            <span class="tenue"> (ya no está disponible: desmárcalo para poder guardar)</span>
+                          }
+                        </ion-checkbox>
+                      </ion-item>
+                    }
+                    @if (errores.shippingMethods) {
+                      <p class="error-campo" role="alert">{{ errores.shippingMethods }}</p>
+                    }
+                  </fieldset>
+
                   <div class="acciones">
                     <ion-button type="submit" [disabled]="ocupado">
                       {{ ocupado ? 'Comprobando…' : 'Ver vista previa' }}
@@ -274,6 +316,12 @@ type Modo = 'lectura' | 'edicion' | 'vista-previa';
     .cambios li { margin: 0.35rem 0; overflow-wrap: anywhere; white-space: pre-line; }
     .antes { color: #8a5a00; text-decoration: line-through; }
     .despues { color: #17692f; font-weight: 600; }
+    h3 { margin: 1.25rem 0 0.25rem; font-size: 1rem; }
+    .envios { margin: 1rem 0; padding: 0.5rem 0.75rem; border: 1px solid #d8dee4; border-radius: 0.5rem; }
+    .envios.con-error { border-color: #b3261e; }
+    .envios legend { padding: 0 0.25rem; font-weight: 600; }
+    .error-campo { margin: 0.25rem 0 0; color: #b3261e; font-size: 0.85rem; }
+    .tenue { color: #667b80; font-size: 0.85rem; }
   `]
 })
 export class MiTiendaComponent implements OnInit {
@@ -303,6 +351,9 @@ export class MiTiendaComponent implements OnInit {
     ocupado = false;
     /** Otra sesión guardó antes: hasta recargar no se puede confirmar (STORE_CONCURRENT_UPDATE). */
     conflicto = false;
+
+    /** Métodos que el marketplace permite habilitar; se refresca si el backend informa que cambiaron (A6). */
+    disponibles: string[] = [];
 
     /** Respuesta de POST /preview: cómo quedaría la tienda ya normalizada por el backend. */
     vistaPrevia: VistaTienda | null = null;
@@ -341,7 +392,7 @@ export class MiTiendaComponent implements OnInit {
             return;
         }
         this.limpiarMensajes();
-        const locales = validarBorrador(this.borrador);
+        const locales = validarBorrador(this.borrador, this.tienda.minReturnWindowDays, this.disponibles);
         if (Object.keys(locales).length > 0) {
             this.mostrarErrores(locales);
             return;
@@ -407,6 +458,36 @@ export class MiTiendaComponent implements OnInit {
         this.cargar();
     }
 
+    // ---------- Política y métodos de envío ----------
+
+    /** Los disponibles, más los que la tienda tiene habilitados aunque el marketplace ya no los ofrezca (A6). */
+    metodosMostrados(): string[] {
+        const retirados = this.borrador.shippingMethods.filter(metodo => !this.disponibles.includes(metodo));
+        return [...this.disponibles, ...retirados];
+    }
+
+    metodoElegido(metodo: string): boolean {
+        return this.borrador.shippingMethods.includes(metodo);
+    }
+
+    estaDisponible(metodo: string): boolean {
+        return this.disponibles.includes(metodo);
+    }
+
+    alternarMetodo(metodo: string, marcado: boolean): void {
+        const elegidos = this.borrador.shippingMethods.filter(elegido => elegido !== metodo);
+        this.borrador.shippingMethods = marcado ? [...elegidos, metodo] : elegidos;
+        delete this.errores.shippingMethods;
+    }
+
+    /** El plazo se lee del evento (no de ngModel) para no depender de cómo convierta Ionic los campos numéricos. */
+    cambiarPlazo(evento: Event): void {
+        const valor = (evento as CustomEvent<{ value?: string | number | null }>).detail.value;
+        this.borrador.returnWindowDays =
+            valor === undefined || valor === null || `${valor}`.trim() === '' ? null : Number(valor);
+        delete this.errores.returnWindowDays;
+    }
+
     // ---------- Presentación ----------
 
     etiquetaEstado(estado: EstadoTienda): string {
@@ -436,6 +517,7 @@ export class MiTiendaComponent implements OnInit {
         this.tienda = tienda;
         this.vista = vistaDeConfiguracion(tienda);
         this.borrador = borradorDe(tienda);
+        this.disponibles = [...tienda.shippingMethods.available];
         this.limpiarMensajes();
         this.conflicto = false;
         this.descartarVistaPrevia();
@@ -468,6 +550,9 @@ export class MiTiendaComponent implements OnInit {
     private alFallar(error: ErrorInterpretado): void {
         switch (error.tipo) {
             case 'campo':
+                if (error.disponibles) {
+                    this.disponibles = [...error.disponibles];
+                }
                 this.mostrarErrores({ [error.campo]: error.mensaje });
                 break;
             case 'concurrencia':

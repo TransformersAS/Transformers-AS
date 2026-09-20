@@ -8,7 +8,7 @@ import { ErrorTienda, EstadoTienda, LIMITES_TIENDA, TipoImagen } from './mi-tien
  * campo y a un mensaje que explica cómo corregirlo (RNF-027).
  */
 export type ErrorInterpretado =
-    | { tipo: 'campo'; campo: CampoTienda; mensaje: string }
+    | { tipo: 'campo'; campo: CampoTienda; mensaje: string; /** Métodos que el marketplace ofrece hoy (A6), para refrescar la lista. */ disponibles?: string[] }
     | { tipo: 'bloqueada'; mensaje: string; estado?: EstadoTienda; motivo?: string }
     | { tipo: 'concurrencia'; mensaje: string; }
     | { tipo: 'sin-tienda' | 'sin-rol' | 'no-autorizada' | 'sesion' | 'conexion' | 'general'; mensaje: string };
@@ -126,7 +126,8 @@ export function interpretarError(e: HttpErrorResponse, imagen?: TipoImagen): Err
             mensaje: (no.length > 0
                 ? `El marketplace ya no ofrece: ${no.join(', ')}. `
                 : 'Hay métodos de envío que el marketplace no ofrece. ') +
-                'Quítalos y elige entre los métodos disponibles.'
+                'Quítalos y elige entre los métodos disponibles.',
+            disponibles: detalles?.available
         };
     }
     if (codigo && MENSAJE_POR_CODIGO[codigo]) {

@@ -73,7 +73,7 @@ const CARACTERES_TELEFONO = /^\+?[0-9 ()\-.]+$/;
  * Comprobaciones locales, solo como ayuda: evitan enviar lo que se sabe que se rechazará y dicen cómo corregirlo
  * (RNF-027). El backend es la autoridad y vuelve a validar todo.
  */
-export function validarBorrador(borrador: BorradorTienda): ErroresTienda {
+export function validarBorrador(borrador: BorradorTienda, minimoPlazo: number, disponibles: string[]): ErroresTienda {
     const errores: ErroresTienda = {};
 
     const nombre = borrador.name.trim();
@@ -103,6 +103,31 @@ export function validarBorrador(borrador: BorradorTienda): ErroresTienda {
 
     if (borrador.businessHours.trim().length > LIMITES_TIENDA.horarios) {
         errores.businessHours = `Los horarios son demasiado largos: usa hasta ${LIMITES_TIENDA.horarios} caracteres.`;
+    }
+
+    const plazo = borrador.returnWindowDays;
+    if (plazo === null || Number.isNaN(plazo)) {
+        errores.returnWindowDays = `Escribe el plazo de devolución en días (mínimo ${minimoPlazo}).`;
+    } else if (!Number.isInteger(plazo)) {
+        errores.returnWindowDays = 'El plazo de devolución debe ser un número entero de días.';
+    } else if (plazo < minimoPlazo) {
+        errores.returnWindowDays =
+            `El plazo de devolución no puede ser menor a ${minimoPlazo} días: es una regla obligatoria del marketplace. ` +
+            `Sube el plazo a ${minimoPlazo} días o más.`;
+    } else if (plazo > LIMITES_TIENDA.plazoMaximo) {
+        errores.returnWindowDays = `El plazo de devolución no puede superar ${LIMITES_TIENDA.plazoMaximo} días.`;
+    }
+
+    if (borrador.policyText.trim().length > LIMITES_TIENDA.politica) {
+        errores.policyText = `El texto de la política es demasiado largo: usa hasta ${LIMITES_TIENDA.politica} caracteres.`;
+    }
+
+    const noDisponibles = borrador.shippingMethods.filter(metodo => !disponibles.includes(metodo));
+    if (borrador.shippingMethods.length === 0) {
+        errores.shippingMethods = 'Elige al menos un método de envío: la tienda debe ofrecer alguno.';
+    } else if (noDisponibles.length > 0) {
+        errores.shippingMethods =
+            `El marketplace ya no ofrece: ${noDisponibles.join(', ')}. Quítalos y elige entre los métodos disponibles.`;
     }
 
     return errores;
