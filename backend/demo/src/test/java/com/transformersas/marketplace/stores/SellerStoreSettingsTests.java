@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.test.web.servlet.ResultActions;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -37,6 +38,7 @@ class SellerStoreSettingsTests extends AbstractIntegrationTest {
         body.put("businessHours", "Lun-Vie 8-18");
         body.put("returnWindowDays", 45);
         body.put("policyText", "Devoluciones sin costo");
+        body.put("shippingMethods", List.of("STANDARD", "EXPRESS"));
         body.put("version", version);
         return body;
     }
@@ -123,7 +125,8 @@ class SellerStoreSettingsTests extends AbstractIntegrationTest {
     void savingWithOptionalDataOmittedClearsItAndAppliesTheDefaultPolicy() throws Exception {
         save(settings(0)).andExpect(status().isOk());
 
-        save(Map.of("name", "Solo nombre", "version", 1)).andExpect(status().isOk())
+        save(Map.of("name", "Solo nombre", "shippingMethods", List.of("STANDARD"), "version", 1))
+                .andExpect(status().isOk())
                 .andExpect(jsonPath("$.description").value(nullValue()))
                 .andExpect(jsonPath("$.contactEmail").value(nullValue()))
                 .andExpect(jsonPath("$.businessHours").value(nullValue()))
@@ -292,5 +295,95 @@ class SellerStoreSettingsTests extends AbstractIntegrationTest {
 
         preview(settings(null)).andExpect(status().isOk()).andExpect(jsonPath("$.canModify").value(false))
                 .andExpect(jsonPath("$.statusReason").value("Reclamaciones pendientes"));
+    }
+
+    // ---------- RF-061 ----------
+
+    private List<String> storedMethods(long storeId) {
+        return jdbc.queryForList("SELECT method FROM store_shipping_methods WHERE store_id = ? ORDER BY method",
+                String.class, storeId);
+    }
+
+    @Test
+    void rf061_theSellerChoosesWhichAvailableMethodsHeOffersAndTheyAreNormalized() throws Exception {
+        Map<String, Object> body = settings(0);
+        body.put("shippingMethods", List.of(" express ", "EXPRESS"));
+
+        save(body).andExpect(status().isOk()).andExpect(jsonPath("$.shippingMethods.enabled", contains("EXPRESS")))
+                .andExpect(jsonPath("$.shippingMethods.available", contains("STANDARD", "EXPRESS")));
+
+        assertThat(storedMethods(1)).containsExactly("EXPRESS");
+        perform(seller, get("/api/seller/store")).andExpect(jsonPath("$.shippingMethods.enabled", contains("EXPRESS")));
+    }
+
+    @Test
+    void a6_aMethodTheMarketplaceDoesNotOfferIsRejectedAndNothingChanges() throws Exception {
+        Map<String, Object> body = settings(0);
+        body.put("shippingMethods", List.of("STANDARD", "DRONE"));
+
+        save(body).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("STORE_SHIPPING_METHOD_UNAVAILABLE"))
+                .andExpect(jsonPath("$.details.unavailable", contains("DRONE")))
+                .andExpect(jsonPath("$.details.available", contains("STANDARD", "EXPRESS")));
+
+        assertThat(storedName()).isEqualTo("Tienda principal");
+        assertThat(storedMethods(1)).containsExactly("EXPRESS", "STANDARD");
+    }
+
+    @Test
+    void a2_theStoreMustKeepAtLeastOneShippingMethod() throws Exception {
+        Map<String, Object> empty = settings(0);
+        empty.put("shippingMethods", List.of());
+        save(empty).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("STORE_SHIPPING_METHODS_REQUIRED"));
+
+        Map<String, Object> blank = settings(0);
+        blank.put("shippingMethods", List.of("  "));
+        save(blank).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("STORE_SHIPPING_METHODS_REQUIRED"));
+
+        Map<String, Object> missing = settings(0);
+        missing.remove("shippingMethods");
+        save(missing).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("STORE_SHIPPING_METHODS_REQUIRED"));
+
+        assertThat(storedMethods(1)).containsExactly("EXPRESS", "STANDARD");
+    }
+
+    @Test
+    void thePreviewShowsTheChosenMethodsWithoutSavingThemAndRejectsUnavailableOnes() throws Exception {
+        Map<String, Object> body = settings(null);
+        body.put("shippingMethods", List.of("EXPRESS"));
+        preview(body).andExpect(status().isOk()).andExpect(jsonPath("$.shippingMethods.enabled", contains("EXPRESS")));
+        assertThat(storedMethods(1)).containsExactly("EXPRESS", "STANDARD");
+
+        body.put("shippingMethods", List.of("DRONE"));
+        preview(body).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("STORE_SHIPPING_METHOD_UNAVAILABLE"));
+    }
+
+    @Test
+    void theAuditListsShippingMethodsAsChangedOnlyWhenTheSetReallyChanged() throws Exception {
+        save(settings(0)).andExpect(status().isOk());
+        Map<String, Object> onlyExpress = settings(1);
+        onlyExpress.put("shippingMethods", List.of("EXPRESS"));
+        save(onlyExpress).andExpect(status().isOk());
+
+        List<String> details = jdbc.queryForList(
+                "SELECT details FROM audit_events WHERE action = 'STORE_SETTINGS_UPDATED' ORDER BY id", String.class);
+        assertThat(details).hasSize(2);
+        assertThat(details.get(0)).doesNotContain("shippingMethods");
+        assertThat(details.get(1)).contains("shippingMethods");
+    }
+
+    @Test
+    void a8_aRestrictedStoreCannotChangeItsShippingMethods() throws Exception {
+        setStatus("RESTRICTED", "Reclamaciones pendientes");
+        Map<String, Object> body = settings(0);
+        body.put("shippingMethods", List.of("EXPRESS"));
+
+        save(body).andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("STORE_MODIFICATION_BLOCKED"));
+
+        assertThat(storedMethods(1)).containsExactly("EXPRESS", "STANDARD");
     }
 }

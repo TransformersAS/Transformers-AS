@@ -8,6 +8,8 @@ import com.transformersas.marketplace.stores.domain.repository.StoreRepository;
 
 import org.springframework.stereotype.Component;
 
+import java.util.List;
+
 /** Arma la vista de configuración de una tienda: sus datos, si puede modificarse y sus métodos de envío. */
 @Component
 class StoreSettingsAssembler {
@@ -24,7 +26,12 @@ class StoreSettingsAssembler {
     }
 
     StoreSettingsView assemble(Store store) {
+        return assemble(store, stores.findShippingMethods(store.id()));
+    }
+
+    /** Con los métodos habilitados indicados, para la vista previa de una configuración aún no guardada. */
+    StoreSettingsView assemble(Store store, List<String> enabledShippingMethods) {
         return new StoreSettingsView(store, modification.permissionFor(store.id()).allowed(),
-                stores.findShippingMethods(store.id()), shippingMethods.availableMethods());
+                enabledShippingMethods, shippingMethods.availableMethods());
     }
 }

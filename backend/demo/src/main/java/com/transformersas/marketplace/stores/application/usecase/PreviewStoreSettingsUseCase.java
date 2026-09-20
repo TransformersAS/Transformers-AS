@@ -32,7 +32,7 @@ public class PreviewStoreSettingsUseCase {
     public StoreSettingsView execute(UpdateStoreSettingsCommand command) {
         Store current = stores.findById(command.storeId())
                 .orElseThrow(() -> BusinessException.notFound("STORE_NOT_FOUND", "La tienda no existe"));
-        validator.validate(command.storeId(), command.profile(), command.policy());
-        return assembler.assemble(current.withSettings(command.profile(), command.policy()));
+        validator.validate(command);
+        return assembler.assemble(current.withSettings(command.profile(), command.policy()), command.shippingMethods());
     }
 }

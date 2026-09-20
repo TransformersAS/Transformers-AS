@@ -47,14 +47,20 @@ public class UpdateStoreSettingsUseCase {
         Store current = stores.findById(command.storeId())
                 .orElseThrow(() -> BusinessException.notFound("STORE_NOT_FOUND", "La tienda no existe"));
         modification.permissionFor(command.storeId()).requireAllowed();
-        validator.validate(command.storeId(), command.profile(), command.policy());
+        validator.validate(command);
 
         Store edited = new Store(current.id(), current.ownerAccountId(), command.profile(), command.policy(),
                 current.status(), current.statusReason(), command.expectedVersion());
         Store saved = stores.save(edited);
+        List<String> previousMethods = stores.findShippingMethods(saved.id());
+        stores.replaceShippingMethods(saved.id(), command.shippingMethods());
 
+        List<String> changed = changedFields(current, saved);
+        if (!previousMethods.equals(command.shippingMethods())) {
+            changed.add("shippingMethods");
+        }
         audit.record(ActorType.SELLER, command.actorId(), "STORE_SETTINGS_UPDATED", "STORE", saved.id(),
-                AuditOutcome.SUCCESS, Map.of("changed", changedFields(current, saved)));
+                AuditOutcome.SUCCESS, Map.of("changed", changed));
         return assembler.assemble(saved);
     }
 

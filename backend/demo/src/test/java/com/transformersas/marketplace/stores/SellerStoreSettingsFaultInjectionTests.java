@@ -25,7 +25,7 @@ class SellerStoreSettingsFaultInjectionTests extends AbstractIntegrationTest {
     @MockitoSpyBean AuditRecorder audit;
 
     private static final String BODY =
-            "{\"name\":\"Nombre que no debe quedar\",\"returnWindowDays\":60,\"version\":0}";
+            "{\"name\":\"Nombre que no debe quedar\",\"returnWindowDays\":60,\"shippingMethods\":[\"EXPRESS\"],\"version\":0}";
 
     private Session seller;
 
@@ -46,6 +46,8 @@ class SellerStoreSettingsFaultInjectionTests extends AbstractIntegrationTest {
         assertThat(row).containsEntry("name", "Tienda principal").containsEntry("return_window_days", 30)
                 .containsEntry("version", 0L);
         assertThat(count("audit_events")).isZero();
+        assertThat(jdbc.queryForList("SELECT method FROM store_shipping_methods WHERE store_id = 1 ORDER BY method",
+                String.class)).containsExactly("EXPRESS", "STANDARD");
 
         reset(audit);
         perform(seller, put("/api/seller/store").contentType("application/json").content(BODY))

@@ -66,6 +66,11 @@ public class SellerStoreController {
                 request.contactPhone(), request.businessHours());
         StorePolicy policy = new StorePolicy(request.returnWindowDays() == null
                 ? StorePolicy.DEFAULT_RETURN_WINDOW_DAYS : request.returnWindowDays(), request.policyText());
-        return new UpdateStoreSettingsCommand(storeId, actor.actorId(), expectedVersion, profile, policy);
+        if (request.shippingMethods() == null) {
+            throw BusinessException.invalid("STORE_SHIPPING_METHODS_REQUIRED",
+                    "La tienda debe habilitar al menos un método de envío");
+        }
+        return new UpdateStoreSettingsCommand(storeId, actor.actorId(), expectedVersion, profile, policy,
+                request.shippingMethods());
     }
 }
