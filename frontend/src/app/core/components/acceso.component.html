@@ -1,0 +1,89 @@
+<div class="fondo" (click)="cerrarPanel()"></div>
+<section class="panel" role="dialog" aria-modal="true" aria-labelledby="titulo-cuenta" [attr.aria-busy]="enviando">
+  <button type="button" class="cerrar" aria-label="Cerrar panel" [disabled]="enviando" (click)="cerrarPanel()">×</button>
+  <h2 id="titulo-cuenta">{{ auth.autenticada() ? 'Seguridad de tu cuenta' : 'Acceso a tu cuenta' }}</h2>
+  @if (auth.cuenta(); as cuenta) {
+    <app-perfil-resumen [usuario]="cuenta"></app-perfil-resumen>
+    <p class="ayuda">Roles disponibles: {{ cuenta.roles.join(', ') || 'Sin roles asignados' }}</p>
+    <p>Rol activo: <strong>{{ cuenta.activeRole || 'Sin seleccionar' }}</strong></p>
+    @if (cuenta.roles.length > 1) {
+      <ion-item><ion-select label="Cambiar rol activo" placeholder="Selecciona un rol" [ngModel]="cuenta.activeRole" (ionChange)="cambiarRol($event.detail.value)" [disabled]="enviando">
+        @for (rol of cuenta.roles; track rol) { <ion-select-option [value]="rol">{{ rol }}</ion-select-option> }
+      </ion-select></ion-item>
+    }
+    <nav aria-label="Seguridad de la cuenta" class="acciones">
+      <ion-button size="small" [fill]="vista === 'sesiones' ? 'solid' : 'outline'" [disabled]="enviando" (click)="cambiarVista('sesiones')">Sesiones activas</ion-button>
+      <ion-button size="small" [fill]="vista === 'password' ? 'solid' : 'outline'" [disabled]="enviando" (click)="cambiarVista('password')">Cambiar contraseña</ion-button>
+    </nav>
+    @if (vista === 'sesiones') {
+      <h3>Sesiones activas</h3>
+      <ion-button size="small" fill="clear" [disabled]="enviando" (click)="cargarSesiones()">Actualizar</ion-button>
+      @if (sesionesCargadas && !sesiones.length && !enviando) { <p>No hay sesiones activas para mostrar.</p> }
+      <ul class="sesiones">
+        @for (sesion of sesiones; track sesion.id) {
+          <li>
+            <strong>{{ sesion.current ? 'Esta es tu sesión actual' : 'Otra sesión' }}</strong>
+            <dl>
+              <dt>Identificador</dt><dd class="identificador">{{ sesion.id }}</dd>
+              <dt>Creada</dt><dd>{{ sesion.createdAt | date:'dd/MM/yyyy HH:mm:ss' }}</dd>
+              <dt>Último acceso</dt><dd>{{ sesion.lastAccessedAt | date:'dd/MM/yyyy HH:mm:ss' }}</dd>
+              <dt>Expiración</dt><dd>{{ sesion.expiresAt ? (sesion.expiresAt | date:'dd/MM/yyyy HH:mm:ss') : 'Sin expiración por inactividad' }}</dd>
+            </dl>
+            <ion-button size="small" color="danger" fill="outline" [disabled]="enviando" (click)="pedirRevocacion(sesion)">{{ sesion.current ? 'Revocar esta sesión' : 'Revocar sesión' }}</ion-button>
+          </li>
+        }
+      </ul>
+      @if (pendiente; as sesion) {
+        <div class="confirmacion" role="group" aria-label="Confirmar revocación">
+          <p>{{ sesion.current ? '¿Revocar tu sesión actual? Se cerrará tu acceso en este navegador.' : '¿Revocar esta sesión? Ese acceso dejará de funcionar.' }}</p>
+          <p class="identificador">{{ sesion.id }}</p>
+          <ion-button color="danger" [disabled]="enviando" (click)="revocar()">Sí, revocar</ion-button>
+          <ion-button fill="clear" [disabled]="enviando" (click)="pendiente = null">Cancelar</ion-button>
+        </div>
+      }
+    }
+    <ion-button expand="block" color="medium" [disabled]="enviando" (click)="salir()">Cerrar sesión</ion-button>
+  } @else {
+    @if (vista !== 'solicitar' && vista !== 'confirmar') {
+      <h3>Iniciar sesión</h3>
+      <form (ngSubmit)="enviar()" novalidate>
+        <ion-item><ion-input label="Correo" labelPlacement="stacked" type="email" name="correo" [(ngModel)]="correo" required autocomplete="email" [disabled]="enviando"></ion-input></ion-item>
+        <ion-item><ion-input label="Contraseña" labelPlacement="stacked" type="password" name="clave" [(ngModel)]="clave" required autocomplete="current-password" [disabled]="enviando"></ion-input></ion-item>
+        <ion-button type="submit" expand="block" [disabled]="enviando || !datosValidos()">Iniciar sesión</ion-button>
+      </form>
+      <ion-button expand="block" fill="clear" [disabled]="enviando" (click)="cambiarVista('solicitar')">Olvidé mi contraseña</ion-button>
+      <ion-button expand="block" fill="clear" [disabled]="enviando" (click)="cambiarVista('confirmar')">Ya tengo un token de recuperación</ion-button>
+    } @else {
+      <ion-button fill="clear" size="small" [disabled]="enviando" (click)="cambiarVista('cuenta')">Volver al inicio de sesión</ion-button>
+      @if (vista === 'solicitar') {
+        <h3>Solicitar recuperación</h3>
+        <form (ngSubmit)="solicitarRecuperacion()" novalidate>
+          <ion-item><ion-input label="Correo de la cuenta" labelPlacement="stacked" type="email" name="correoRecuperacion" [(ngModel)]="correo" required autocomplete="email" [disabled]="enviando"></ion-input></ion-item>
+          @if (correo && !correoValido()) { <p class="ayuda">Escribe un correo válido de hasta 254 caracteres.</p> }
+          <ion-button type="submit" expand="block" [disabled]="enviando || !correoValido()">Solicitar instrucciones</ion-button>
+        </form>
+        <ion-button expand="block" fill="clear" [disabled]="enviando" (click)="cambiarVista('confirmar')">Ingresar token recibido</ion-button>
+      }
+    }
+  }
+  @if ((auth.autenticada() && vista === 'password') || (!auth.autenticada() && vista === 'confirmar')) {
+    <h3>{{ vista === 'password' ? 'Cambiar contraseña' : 'Confirmar recuperación' }}</h3>
+    <form (ngSubmit)="vista === 'password' ? cambiarContrasena() : confirmarRecuperacion()" novalidate>
+      @if (vista === 'password') {
+        <ion-item><ion-input label="Contraseña actual" labelPlacement="stacked" type="password" name="actual" [(ngModel)]="actual" required autocomplete="current-password" [disabled]="enviando"></ion-input></ion-item>
+      } @else {
+        <ion-item><ion-input label="Token de recuperación recibido" labelPlacement="stacked" type="password" name="token" [(ngModel)]="token" required autocomplete="off" [disabled]="enviando"></ion-input></ion-item>
+      }
+      <ion-item><ion-input label="Nueva contraseña" labelPlacement="stacked" type="password" name="nueva" [(ngModel)]="nueva" required autocomplete="new-password" [disabled]="enviando"></ion-input></ion-item>
+      <ion-item><ion-input label="Confirmar nueva contraseña" labelPlacement="stacked" type="password" name="confirmacion" [(ngModel)]="confirmacion" required autocomplete="new-password" [disabled]="enviando"></ion-input></ion-item>
+      <p class="ayuda">Mínimo 12 caracteres y máximo 72 bytes UTF-8. Algunos caracteres, como emojis, ocupan varios bytes.</p>
+      @if ((actual || nueva || confirmacion) && errorContrasena(vista === 'password')) {
+        <p class="ayuda" aria-live="polite">{{ errorContrasena(vista === 'password') }}</p>
+      }
+      <ion-button type="submit" expand="block" [disabled]="enviando || !!errorContrasena(vista === 'password') || (vista === 'confirmar' && !token.trim())">{{ vista === 'password' ? 'Guardar nueva contraseña' : 'Recuperar contraseña' }}</ion-button>
+    </form>
+  }
+  @if (enviando) { <p role="status">Procesando…</p> }
+  @if (error) { <ion-text color="danger"><p role="alert">{{ error }}</p></ion-text> }
+  @if (exito) { <ion-text color="success"><p role="status">{{ exito }}</p></ion-text> }
+</section>

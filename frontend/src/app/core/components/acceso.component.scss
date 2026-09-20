@@ -1,0 +1,19 @@
+.fondo { position: fixed; inset: 0; background: rgba(7, 59, 76, 0.45); z-index: 1000; }
+.panel {
+  position: fixed; z-index: 1001; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  width: min(92vw, 30rem); max-height: 90vh; overflow: auto; padding: 1.25rem;
+  background: #fff; border-radius: 1rem; box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.25);
+}
+h2 { margin: 0 1.5rem 0.75rem 0; }
+h3 { margin-top: 1rem; }
+.cerrar { position: absolute; top: 0.5rem; right: 0.75rem; border: 0; background: none; font-size: 1.5rem; cursor: pointer; }
+.ayuda { font-size: 0.85rem; color: #555; }
+.acciones { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+.sesiones { list-style: none; padding: 0; }
+.sesiones li, .confirmacion { margin: 0.75rem 0; padding: 0.75rem; border: 1px solid #d5e2e5; border-radius: 0.75rem; }
+.confirmacion { background: #fff4ee; }
+dl { font-size: 0.85rem; }
+dt { margin-top: 0.5rem; color: #555; }
+dd { margin: 0.15rem 0; }
+.identificador { overflow-wrap: anywhere; font-size: 0.8rem; }
+button:disabled { cursor: default; opacity: 0.6; }
