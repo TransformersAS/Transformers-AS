@@ -1,5 +1,6 @@
 package com.transformersas.marketplace.catalog;
 
+import com.transformersas.marketplace.product.ProductRepository;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -8,18 +9,17 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 
-/**
- * Reglas de los atributos y sus valores permitidos (CU-17). Los productos todavía no usan
- * atributos, así que se pueden eliminar libremente; cuando existan habrá que validar su uso.
- */
+/** Reglas de los atributos y sus valores permitidos (CU-17). Un valor que ya usan productos no se puede quitar. */
 @Service
 @Transactional
 public class AttributeService {
 
     private final AttributeRepository attributes;
+    private final ProductRepository products;
 
-    public AttributeService(AttributeRepository attributes) {
+    public AttributeService(AttributeRepository attributes, ProductRepository products) {
         this.attributes = attributes;
+        this.products = products;
     }
 
     @Transactional(readOnly = true)
@@ -42,7 +42,12 @@ public class AttributeService {
     }
 
     public void delete(Long id) {
-        attributes.delete(find(id));
+        Attribute attribute = find(id);
+        boolean inUse = attribute.getValues().stream().anyMatch(value -> products.existsByAttributeValueId(value.getId()));
+        if (inUse) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "No se puede eliminar un atributo que tiene productos");
+        }
+        attributes.delete(attribute);
     }
 
     public Attribute addValue(Long id, String value) {
@@ -58,10 +63,14 @@ public class AttributeService {
 
     public Attribute deleteValue(Long id, Long valueId) {
         Attribute attribute = find(id);
-        boolean removed = attribute.getValues().removeIf(value -> value.getId().equals(valueId));
-        if (!removed) {
+        boolean exists = attribute.getValues().stream().anyMatch(value -> value.getId().equals(valueId));
+        if (!exists) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Valor no encontrado");
         }
+        if (products.existsByAttributeValueId(valueId)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "No se puede quitar un valor que tiene productos");
+        }
+        attribute.getValues().removeIf(value -> value.getId().equals(valueId));
         return attributes.save(attribute);
     }
 

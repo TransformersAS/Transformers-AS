@@ -1,5 +1,6 @@
 package com.transformersas.marketplace.catalog;
 
+import com.transformersas.marketplace.product.ProductRepository;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -8,18 +9,17 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 
-/**
- * Reglas de las marcas (CU-17). Los productos todavía no guardan su marca, así que una marca
- * se puede desactivar o eliminar libremente; cuando exista ese vínculo habrá que validar su uso.
- */
+/** Reglas de las marcas (CU-17). Una marca que ya usan productos no se puede desactivar ni eliminar. */
 @Service
 @Transactional
 public class BrandService {
 
     private final BrandRepository brands;
+    private final ProductRepository products;
 
-    public BrandService(BrandRepository brands) {
+    public BrandService(BrandRepository brands, ProductRepository products) {
         this.brands = brands;
+        this.products = products;
     }
 
     @Transactional(readOnly = true)
@@ -43,12 +43,19 @@ public class BrandService {
 
     public Brand setActive(Long id, boolean active) {
         Brand brand = find(id);
+        if (!active && products.existsByBrandId(id)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "No se puede desactivar una marca que tiene productos");
+        }
         brand.setActive(active);
         return brands.save(brand);
     }
 
     public void delete(Long id) {
-        brands.delete(find(id));
+        Brand brand = find(id);
+        if (products.existsByBrandId(id)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "No se puede eliminar una marca que tiene productos");
+        }
+        brands.delete(brand);
     }
 
     private Brand find(Long id) {

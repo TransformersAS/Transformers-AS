@@ -46,7 +46,8 @@ public abstract class AbstractIntegrationTest {
     private static final List<String> TABLES_TO_CLEAR = List.of(
             "audit_events", "notifications", "refunds", "order_cancellations", "return_tracking_events", "return_shipments",
             "shipment_tracking_events", "shipments", "order_issues", "order_status_history", "order_items", "orders",
-            "inventory_reservations", "cart_items", "carts", "products", "addresses");
+            "inventory_reservations", "cart_items", "carts", "product_variants", "product_attribute_values",
+            "product_images", "products", "addresses");
 
     @Autowired protected MockMvc mvc;
     @Autowired protected JdbcTemplate jdbc;
