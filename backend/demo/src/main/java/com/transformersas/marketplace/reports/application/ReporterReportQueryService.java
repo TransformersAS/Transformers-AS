@@ -5,6 +5,7 @@ import com.transformersas.marketplace.reports.application.dto.ReporterReportDeta
 import com.transformersas.marketplace.reports.application.dto.ReporterReportDetail.EvidenceView;
 import com.transformersas.marketplace.reports.application.dto.ReporterReportDetail.InformationRequestView;
 import com.transformersas.marketplace.reports.application.dto.ReporterReportSummary;
+import com.transformersas.marketplace.reports.domain.model.ContentModerationState;
 import com.transformersas.marketplace.reports.domain.model.InfoRequestStatus;
 import com.transformersas.marketplace.reports.domain.model.InfoRequestTarget;
 import com.transformersas.marketplace.reports.domain.model.ReportReason;
@@ -52,13 +53,15 @@ public class ReporterReportQueryService {
     private final InformationRequestRepository requests;
     private final ModerationActionRepository actions;
     private final InformationRequestService informationRequests;
+    private final ContentVisibility contentVisibility;
     private final Clock clock;
 
     public ReporterReportQueryService(ReporterAccess access, ReporterReportRepository reports,
                                       ModerationCaseRepository cases, ReportEvidenceRepository evidences,
                                       ReportEvidenceStorage evidenceStorage, InformationRequestRepository requests,
                                       ModerationActionRepository actions,
-                                      InformationRequestService informationRequests, Clock clock) {
+                                      InformationRequestService informationRequests, ContentVisibility contentVisibility,
+                                      Clock clock) {
         this.access = access;
         this.reports = reports;
         this.cases = cases;
@@ -67,6 +70,7 @@ public class ReporterReportQueryService {
         this.requests = requests;
         this.actions = actions;
         this.informationRequests = informationRequests;
+        this.contentVisibility = contentVisibility;
         this.clock = clock;
     }
 
@@ -86,7 +90,7 @@ public class ReporterReportQueryService {
                     report.getContentId(), report.getReason(), reasonLabel(report),
                     ReporterStatus.from(moderationCase.getStatus()).name(), report.getCreatedAt(),
                     evidenceCount.getOrDefault(report.getId(), 0L).intValue(),
-                    awaiting(report.getCaseId(), reporter, now));
+                    awaiting(report.getCaseId(), reporter, now), provisionalMeasure(report, moderationCase));
         }).toList();
     }
 
@@ -105,7 +109,7 @@ public class ReporterReportQueryService {
         return new ReporterReportDetail(report.getId(), report.getCaseId(), report.getContentType().name(),
                 report.getContentId(), report.getReason(), reasonLabel(report), report.getDescription(),
                 ReporterStatus.from(moderationCase.getStatus()).name(), result(moderationCase),
-                report.getCreatedAt(), moderationCase.getResolvedAt(), images, asked);
+                provisionalMeasure(report, moderationCase), report.getCreatedAt(), moderationCase.getResolvedAt(), images, asked);
     }
 
     /** Responde una solicitud del agente dirigida a este reportante (RF-148); el plazo y sus reglas son los de CU-21. */
@@ -153,6 +157,13 @@ public class ReporterReportQueryService {
         List<ModerationActionEntity> decisions = actions.findByCaseIdOrderByCreatedAtAscIdAsc(moderationCase.getId());
         return decisions.isEmpty() ? null
                 : ReporterOutcome.from(decisions.get(decisions.size() - 1).getDecision()).name();
+    }
+
+    /** OCULTO solo mientras el caso está abierto y la moderación mantiene el contenido oculto por precaución. */
+    private String provisionalMeasure(ReportEntity report, ModerationCaseEntity moderationCase) {
+        boolean hidden = moderationCase.isOpen() && contentVisibility.stateOf(report.getContentType(),
+                report.getContentId()) == ContentModerationState.OCULTO_TEMPORAL;
+        return hidden ? ReporterOutcome.OCULTO.name() : null;
     }
 
     private static InformationRequestView view(InformationRequestEntity request, LocalDateTime now) {

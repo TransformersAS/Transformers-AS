@@ -295,13 +295,16 @@ class ContentReportIntegrationTests extends ContentReportSupport {
                 .content("{\"decision\":\"OCULTAR_TEMPORALMENTE\",\"justification\":\"Se oculta mientras se revisa.\"}"))
                 .andExpect(status().isCreated());
         perform(buyer, get(REPORTS + "/" + reportId)).andExpect(jsonPath("$.status", is("EN_REVISION")))
-                .andExpect(jsonPath("$.result").doesNotExist());
+                .andExpect(jsonPath("$.result").doesNotExist())
+                .andExpect(jsonPath("$.medidaProvisional", is("OCULTO")));
+        perform(buyer, get(REPORTS + "/mine")).andExpect(jsonPath("$[0].medidaProvisional", is("OCULTO")));
 
         perform(agent, post(CASES + "/" + caseId + "/decisions").contentType("application/json")
                 .content("{\"decision\":\"MANTENER\",\"justification\":\"Se revisó y cumple las normas.\"}"))
                 .andExpect(status().isCreated());
         perform(buyer, get(REPORTS + "/" + reportId)).andExpect(jsonPath("$.status", is("RESUELTO")))
-                .andExpect(jsonPath("$.result", is("MANTENIDO"))).andExpect(jsonPath("$.resolvedAt").exists());
+                .andExpect(jsonPath("$.result", is("MANTENIDO"))).andExpect(jsonPath("$.resolvedAt").exists())
+                .andExpect(jsonPath("$.medidaProvisional").doesNotExist());
     }
 
     // ---------- Responder solicitudes de información (RF-148) ----------

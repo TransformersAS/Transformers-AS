@@ -5,10 +5,12 @@ import java.util.List;
 
 /**
  * Detalle de un reporte propio (RF-149): estado, solicitudes de información dirigidas al reportante y, si el caso se
- * resolvió, solo el resultado. No trae justificación, agente ni datos de otros reportantes o del propietario.
+ * resolvió, solo el resultado. Mientras el caso está abierto y el contenido oculto por precaución,
+ * {@code medidaProvisional} es OCULTO. No trae justificación, agente ni datos de otros reportantes o del propietario.
  */
 public record ReporterReportDetail(Long id, Long caseId, String contentType, String contentId, String reason,
                                    String reasonLabel, String description, String status, String result,
+                                   String medidaProvisional,
                                    LocalDateTime createdAt, LocalDateTime resolvedAt, List<EvidenceView> evidences,
                                    List<InformationRequestView> informationRequests) {
 
