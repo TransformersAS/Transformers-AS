@@ -8,8 +8,9 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Una publicación se puede reportar si existe, está activa y la moderación no la ha ocultado ni retirado, es decir,
- * si el catálogo se la mostraría al reportante.
+ * Una publicación se puede reportar si existe, está activa, no es un borrador ni está retirada por su vendedor (CU-14) y
+ * la moderación no la ha ocultado ni retirado, es decir, si el catálogo se la mostraría al reportante. Un borrador
+ * responde igual que un producto inexistente, para no revelar que existe.
  */
 @Component
 class ProductReportableContentVerifier implements ReportableContentVerifier {
@@ -32,7 +33,12 @@ class ProductReportableContentVerifier implements ReportableContentVerifier {
         Long id = ProductIds.parse(contentId);
         return id != null
                 && contentVisibility.stateOf(ReportContentType.PUBLICACION, contentId) == ContentModerationState.VISIBLE
-                && productRepository.findById(id).map(product -> Boolean.TRUE.equals(product.getActive()))
+                && productRepository.findById(id).map(ProductReportableContentVerifier::isPublic)
                 .orElse(false);
+    }
+
+    private static boolean isPublic(Product product) {
+        return Boolean.TRUE.equals(product.getActive()) && product.getStatus() != ProductStatus.DRAFT
+                && product.getStatus() != ProductStatus.RETIRED;
     }
 }

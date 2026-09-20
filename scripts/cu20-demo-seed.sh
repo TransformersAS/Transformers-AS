@@ -4,7 +4,9 @@
 #
 #   soporte.demo@example.com   SOPORTE   agente que revisa el caso y ve las evidencias (CU-21)
 #   comprador.demo@example.com COMPRADOR compradora distinta de la dueña de la tienda 1
-#   vendedor.demo@example.com  VENDEDOR  dueña de la tienda 1 (no puede reportar sus propias publicaciones)
+#   vendedor.demo@example.com  VENDEDOR  dueña de la tienda 1 solo si esa tienda aún no tenía dueña. Con el perfil
+#                                        `local` la tienda 1 ya es de demo@marketplace.local, que es quien no puede
+#                                        reportar «Camiseta demo»
 #   vecino.demo@example.com    VENDEDOR  dueña de la "Tienda vecina demo" (tienda 2), para que un vendedor
 #                                        reporte la publicación de otra tienda
 #
@@ -84,7 +86,7 @@ sql | docker exec -i -e MYSQL_PWD="$DB_PASSWORD" "$MYSQL_CONTAINER" mysql --defa
 echo "Listo. Cuentas de prueba (misma contraseña DEMO_PASSWORD):"
 echo "  soporte:    soporte.demo@example.com     (rol SOPORTE)"
 echo "  comprador:  comprador.demo@example.com   (rol COMPRADOR)"
-echo "  vendedor:   vendedor.demo@example.com    (rol VENDEDOR, dueña de la tienda 1)"
+echo "  vendedor:   vendedor.demo@example.com    (rol VENDEDOR; dueña de la tienda 1 solo si no tenía dueña)"
 echo "  vecino:     vecino.demo@example.com      (rol VENDEDOR, dueña de la tienda 2)"
 [ "$RESET_REPORTS" = "1" ] && echo "Reportes, casos y evidencias borrados."
 exit 0
