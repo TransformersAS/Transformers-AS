@@ -1,4 +1,4 @@
--- CU-06: estructura del catálogo (categorías, marcas y atributos con sus valores permitidos).
+-- CU-17: estructura del catálogo (categorías, marcas y atributos con sus valores permitidos).
 -- products.category sigue siendo texto: por ahora se compara por nombre para saber si una categoría está en uso.
 
 CREATE TABLE categories (
