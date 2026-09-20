@@ -19,7 +19,7 @@ public interface StoreRepository {
     boolean existsByName(String name, Long excludingStoreId);
 
     /**
-     * Guarda el perfil de una tienda existente; no toca la dueña ni el estado. Si otra tienda ganó el mismo nombre
+     * Guarda el perfil y la política de una tienda existente; no toca la dueña ni el estado. Si otra tienda ganó el mismo nombre
      * lanza BusinessException CONFLICT STORE_NAME_TAKEN, si la versión ya no es la guardada, CONFLICT
      * STORE_CONCURRENT_UPDATE, y si la tienda no existe, NOT_FOUND STORE_NOT_FOUND. Devuelve la tienda con su nueva
      * versión.

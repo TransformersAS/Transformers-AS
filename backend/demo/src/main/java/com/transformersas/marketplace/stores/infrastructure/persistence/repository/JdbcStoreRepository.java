@@ -2,6 +2,7 @@ package com.transformersas.marketplace.stores.infrastructure.persistence.reposit
 
 import com.transformersas.marketplace.shared.error.BusinessException;
 import com.transformersas.marketplace.stores.domain.model.Store;
+import com.transformersas.marketplace.stores.domain.model.StorePolicy;
 import com.transformersas.marketplace.stores.domain.model.StoreProfile;
 import com.transformersas.marketplace.stores.domain.model.StoreStatus;
 import com.transformersas.marketplace.stores.domain.repository.StoreRepository;
@@ -25,7 +26,8 @@ import java.util.Optional;
 public class JdbcStoreRepository implements StoreRepository {
 
     private static final String SELECT_STORE =
-            "SELECT id, owner_account_id, name, description, status, status_reason, version FROM stores";
+            "SELECT id, owner_account_id, name, description, contact_email, contact_phone, business_hours,"
+                    + " return_window_days, policy_text, status, status_reason, version FROM stores";
 
     private final JdbcClient jdbc;
 
@@ -56,10 +58,15 @@ public class JdbcStoreRepository implements StoreRepository {
     public Store save(Store store) {
         int updated;
         try {
+            StoreProfile profile = store.profile();
             updated = jdbc.sql("""
-                            UPDATE stores SET name = ?, description = ?, version = version + 1
+                            UPDATE stores SET name = ?, description = ?, contact_email = ?, contact_phone = ?,
+                                              business_hours = ?, return_window_days = ?, policy_text = ?,
+                                              version = version + 1
                             WHERE id = ? AND version = ?""")
-                    .params(store.profile().name(), store.profile().description(), store.id(), store.version())
+                    .params(profile.name(), profile.description(), profile.contactEmail(), profile.contactPhone(),
+                            profile.businessHours(), store.policy().returnWindowDays(), store.policy().text(),
+                            store.id(), store.version())
                     .update();
         } catch (DuplicateKeyException duplicate) {
             throw BusinessException.conflict("STORE_NAME_TAKEN", "Ya existe otra tienda con ese nombre");
@@ -119,7 +126,9 @@ public class JdbcStoreRepository implements StoreRepository {
 
     private Store toStore(java.sql.ResultSet rs, int row) throws java.sql.SQLException {
         return new Store(rs.getLong("id"), rs.getObject("owner_account_id", Long.class),
-                new StoreProfile(rs.getString("name"), rs.getString("description")),
+                new StoreProfile(rs.getString("name"), rs.getString("description"), rs.getString("contact_email"),
+                        rs.getString("contact_phone"), rs.getString("business_hours")),
+                new StorePolicy(rs.getInt("return_window_days"), rs.getString("policy_text")),
                 StoreStatus.valueOf(rs.getString("status")), rs.getString("status_reason"), rs.getLong("version"));
     }
 }

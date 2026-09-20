@@ -3,6 +3,7 @@ package com.transformersas.marketplace.stores;
 import com.transformersas.marketplace.shared.error.BusinessException;
 import com.transformersas.marketplace.stores.application.usecase.AssignStoreOwnerUseCase;
 import com.transformersas.marketplace.stores.domain.model.Store;
+import com.transformersas.marketplace.stores.domain.model.StorePolicy;
 import com.transformersas.marketplace.stores.domain.model.StoreProfile;
 import com.transformersas.marketplace.stores.domain.model.StoreStatus;
 import com.transformersas.marketplace.stores.domain.repository.StoreModificationPolicy;
@@ -153,5 +154,29 @@ class JdbcStoreRepositoryTests extends AbstractIntegrationTest {
         var permission = policy.permissionFor(1L);
         assertThat(permission.allowed()).isFalse();
         assertThat(permission.reason()).isEqualTo("Reclamaciones pendientes");
+    }
+
+    @Test
+    void savePersistsContactHoursAndPolicyAndTheyRoundTrip() {
+        Store loaded = stores.findById(1L).orElseThrow();
+        StoreProfile profile = new StoreProfile("Tienda completa", "Descripción", "ventas@tienda.co",
+                "+57 300 123-4567", "Lun-Vie 8-18");
+        StorePolicy policy = new StorePolicy(45, "Devoluciones sin costo en 45 días");
+
+        Store saved = stores.save(loaded.withSettings(profile, policy));
+
+        assertThat(saved.profile()).isEqualTo(profile);
+        assertThat(saved.policy()).isEqualTo(policy);
+        assertThat(stores.findById(1L)).contains(saved);
+    }
+
+    @Test
+    void aMigratedStoreStartsWithNoContactAndTheDefaultPolicy() {
+        Store store = stores.findById(1L).orElseThrow();
+
+        assertThat(store.profile().contactEmail()).isNull();
+        assertThat(store.profile().contactPhone()).isNull();
+        assertThat(store.profile().businessHours()).isNull();
+        assertThat(store.policy()).isEqualTo(StorePolicy.DEFAULT);
     }
 }
