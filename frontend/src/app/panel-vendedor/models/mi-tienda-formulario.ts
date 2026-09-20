@@ -1,5 +1,6 @@
 import {
     ConfiguracionTienda,
+    IMAGEN_TIENDA,
     LIMITES_TIENDA,
     SolicitudTienda
 } from './mi-tienda.model';
@@ -131,6 +132,34 @@ export function validarBorrador(borrador: BorradorTienda, minimoPlazo: number, d
     }
 
     return errores;
+}
+
+/** Tamaño legible de un archivo, por ejemplo "230 KB" o "4,2 MB". */
+export function formatearTamano(bytes: number): string {
+    return bytes < 1024 * 1024
+        ? `${Math.max(1, Math.round(bytes / 1024))} KB`
+        : `${(bytes / (1024 * 1024)).toFixed(1).replace('.', ',')} MB`;
+}
+
+/**
+ * Ayuda para no subir un archivo que se sabe que será rechazado: formato (JPG o PNG) y tamaño (máx. 5 MB). Solo mira
+ * el nombre, el tipo declarado y el tamaño; el backend valida el contenido real y es quien decide (A4).
+ */
+export function validarArchivoImagen(archivo: { name: string; type: string; size: number }): string | null {
+    const nombre = archivo.name.toLowerCase();
+    const tipoValido = (IMAGEN_TIENDA.tiposPermitidos as readonly string[]).includes(archivo.type);
+    const extensionValida = IMAGEN_TIENDA.extensionesPermitidas.some(extension => nombre.endsWith(extension));
+    if (!tipoValido || !extensionValida) {
+        return `«${archivo.name}» no es una imagen JPG o PNG. Elige un archivo de esos formatos.`;
+    }
+    if (archivo.size === 0) {
+        return `«${archivo.name}» está vacío. Elige otra imagen.`;
+    }
+    if (archivo.size > IMAGEN_TIENDA.tamanoMaximoBytes) {
+        return `«${archivo.name}» pesa ${formatearTamano(archivo.size)} y el máximo es 5 MB. ` +
+            'Reduce su tamaño o elige otra imagen.';
+    }
+    return null;
 }
 
 /** Un cambio entre lo guardado y lo que se va a guardar, para mostrarlo en la vista previa. */

@@ -2,7 +2,7 @@ import { Component, DestroyRef, EventEmitter, OnInit, Output, ViewChild, inject 
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { HttpErrorResponse } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
-import { finalize, switchMap } from 'rxjs';
+import { Observable, catchError, concat, defer, finalize, map, of, switchMap, tap, throwError, toArray } from 'rxjs';
 import {
     IonBadge,
     IonButton,
@@ -21,10 +21,14 @@ import { VendedorService } from '../services/vendedor.service';
 import {
     ConfiguracionTienda,
     ETIQUETA_ESTADO_TIENDA,
+    ETIQUETA_TIPO_IMAGEN,
     EstadoTienda,
+    ImagenTienda,
     LIMITES_TIENDA,
+    TipoImagen,
     VistaTienda,
     etiquetaMetodoEnvio,
+    urlImagen,
     vistaDeConfiguracion
 } from '../models/mi-tienda.model';
 import {
@@ -34,9 +38,11 @@ import {
     aSolicitud,
     borradorDe,
     cambiosEntre,
+    formatearTamano,
+    validarArchivoImagen,
     validarBorrador
 } from '../models/mi-tienda-formulario';
-import { ErrorInterpretado, interpretarError } from '../models/mi-tienda-errores';
+import { ErrorInterpretado, ImagenRechazada, interpretarError } from '../models/mi-tienda-errores';
 import { TarjetaTiendaComponent } from './tarjeta-tienda.component';
 
 /**
@@ -47,6 +53,16 @@ type Pantalla = 'cargando' | 'lista' | 'sin-tienda' | 'sin-rol' | 'no-autorizada
 
 /** Lectura de lo guardado, edición del borrador local, o vista previa de ese borrador antes de confirmar. */
 type Modo = 'lectura' | 'edicion' | 'vista-previa';
+
+/**
+ * Cambio de imagen pendiente en el borrador. Elegir o quitar una imagen no llama al backend: se aplica al confirmar.
+ * `vistaLocal` es una URL de objeto del archivo elegido, solo para mostrarlo mientras tanto.
+ */
+interface CambioImagen {
+    archivo: File | null;
+    vistaLocal: string | null;
+    quitar: boolean;
+}
 
 /** "Mi tienda" (CU-18): configuración de la tienda del vendedor y una vista previa de cómo la ven los compradores. */
 @Component({
@@ -248,6 +264,43 @@ type Modo = 'lectura' | 'edicion' | 'vista-previa';
                     }
                   </fieldset>
 
+                  <fieldset class="imagenes">
+                    <legend>Imágenes</legend>
+                    <p class="nota">Logo y portada en JPG o PNG, de hasta 5 MB. Los cambios de imagen se aplican cuando
+                      confirmas; si cancelas, no se envía nada.</p>
+                    @for (tipo of tiposImagen; track tipo) {
+                      <div class="imagen" [class.con-error]="!!errores[claveError(tipo)]">
+                        <div class="miniatura">
+                          @if (urlDeImagen(tipo); as url) {
+                            <img [src]="url" [alt]="etiquetaImagen(tipo)" loading="lazy" decoding="async" />
+                          } @else {
+                            <span class="tenue">Sin imagen</span>
+                          }
+                        </div>
+                        <div class="detalle">
+                          <strong>{{ etiquetaImagen(tipo) }}</strong>
+                          @if (estadoImagen(tipo); as estado) {
+                            <span class="pendiente">{{ estado }}</span>
+                          }
+                          <div class="acciones">
+                            <input type="file" accept=".jpg,.jpeg,.png,image/jpeg,image/png"
+                              [attr.aria-label]="'Elegir archivo para ' + etiquetaImagen(tipo).toLowerCase()"
+                              (change)="elegirImagen(tipo, $event)" />
+                            @if (puedeQuitar(tipo)) {
+                              <ion-button size="small" fill="outline" type="button" (click)="quitarImagen(tipo)">Quitar</ion-button>
+                            }
+                            @if (pendientes[tipo]) {
+                              <ion-button size="small" fill="clear" type="button" (click)="deshacerImagen(tipo)">Deshacer</ion-button>
+                            }
+                          </div>
+                          @if (errores[claveError(tipo)]; as mensaje) {
+                            <p class="error-campo" role="alert">{{ mensaje }}</p>
+                          }
+                        </div>
+                      </div>
+                    }
+                  </fieldset>
+
                   <div class="acciones">
                     <ion-button type="submit" [disabled]="ocupado">
                       {{ ocupado ? 'Comprobando…' : 'Ver vista previa' }}
@@ -322,6 +375,16 @@ type Modo = 'lectura' | 'edicion' | 'vista-previa';
     .envios legend { padding: 0 0.25rem; font-weight: 600; }
     .error-campo { margin: 0.25rem 0 0; color: #b3261e; font-size: 0.85rem; }
     .tenue { color: #667b80; font-size: 0.85rem; }
+    .imagenes { margin: 1rem 0; padding: 0.5rem 0.75rem; border: 1px solid #d8dee4; border-radius: 0.5rem; }
+    .imagenes legend { padding: 0 0.25rem; font-weight: 600; }
+    .imagen { display: flex; gap: 0.75rem; align-items: flex-start; padding: 0.5rem 0; }
+    .imagen.con-error .miniatura { outline: 2px solid #b3261e; }
+    .miniatura { flex: none; width: 6rem; height: 4rem; border-radius: 0.5rem; overflow: hidden; background: #eef1f3;
+      display: flex; align-items: center; justify-content: center; }
+    .miniatura img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .detalle { flex: 1; min-width: 0; }
+    .detalle .acciones { margin: 0.35rem 0 0; }
+    .pendiente { margin-left: 0.5rem; color: #8a5a00; font-size: 0.85rem; overflow-wrap: anywhere; }
   `]
 })
 export class MiTiendaComponent implements OnInit {
@@ -355,11 +418,20 @@ export class MiTiendaComponent implements OnInit {
     /** Métodos que el marketplace permite habilitar; se refresca si el backend informa que cambiaron (A6). */
     disponibles: string[] = [];
 
+    readonly tiposImagen: TipoImagen[] = ['LOGO', 'PORTADA'];
+    /** Cambios de imagen pendientes: nada se envía hasta confirmar, y cancelar los descarta sin llamar al backend (A9). */
+    pendientes: Partial<Record<TipoImagen, CambioImagen>> = {};
+    /** Copia local de la última imagen subida en esta sesión: se reutiliza en lugar de volver a descargarla (RNF-047). */
+    private subidas: Partial<Record<TipoImagen, { sha256: string; url: string }>> = {};
+    /** Imágenes que ya se aplicaron en la confirmación en curso, por si otra falla después. */
+    private aplicadas: TipoImagen[] = [];
+
     /** Respuesta de POST /preview: cómo quedaría la tienda ya normalizada por el backend. */
     vistaPrevia: VistaTienda | null = null;
     cambios: CambioTienda[] = [];
 
     ngOnInit(): void {
+        this.destruido.onDestroy(() => this.liberarVistasLocales());
         this.cargar();
     }
 
@@ -403,8 +475,12 @@ export class MiTiendaComponent implements OnInit {
             takeUntilDestroyed(this.destruido)
         ).subscribe({
             next: previa => {
-                this.vistaPrevia = vistaDeConfiguracion(previa);
-                this.cambios = cambiosEntre(this.tienda as ConfiguracionTienda, previa);
+                this.vistaPrevia = {
+                    ...vistaDeConfiguracion(previa),
+                    logoUrl: this.urlDeImagen('LOGO'),
+                    portadaUrl: this.urlDeImagen('PORTADA')
+                };
+                this.cambios = [...cambiosEntre(this.tienda as ConfiguracionTienda, previa), ...this.cambiosDeImagenes()];
                 this.modo = 'vista-previa';
             },
             error: (e: HttpErrorResponse) => this.alFallar(interpretarError(e))
@@ -428,7 +504,10 @@ export class MiTiendaComponent implements OnInit {
         this.ocupado = true;
         const solicitud = this.solicitud();
         const version = this.tienda.version;
+        this.aplicadas = [];
         this.servicio.previsualizar(solicitud).pipe(
+            // Con la validación previa aprobada: primero las imágenes cambiadas y por último el texto.
+            switchMap(() => this.aplicarImagenes()),
             switchMap(() => this.servicio.guardar(solicitud, version)),
             finalize(() => (this.ocupado = false)),
             takeUntilDestroyed(this.destruido)
@@ -438,7 +517,7 @@ export class MiTiendaComponent implements OnInit {
                 this.aviso = 'Cambios guardados. Tus compradores ya ven la tienda actualizada.';
                 this.desplazarArriba();
             },
-            error: (e: HttpErrorResponse) => this.alFallar(interpretarError(e))
+            error: (e: unknown) => this.alFallarLaConfirmacion(e)
         });
     }
 
@@ -449,6 +528,7 @@ export class MiTiendaComponent implements OnInit {
         }
         this.limpiarMensajes();
         this.borrador = borradorDe(this.tienda);
+        this.descartarImagenesPendientes();
         this.descartarVistaPrevia();
         this.modo = 'lectura';
     }
@@ -488,6 +568,199 @@ export class MiTiendaComponent implements OnInit {
         delete this.errores.returnWindowDays;
     }
 
+    // ---------- Imágenes (cambios pendientes en el borrador) ----------
+
+    /** La que se ve ahora: el cambio pendiente si lo hay y, si no, la guardada. El <img> la pide bajo demanda. */
+    urlDeImagen(tipo: TipoImagen): string | null {
+        const pendiente = this.pendientes[tipo];
+        if (pendiente) {
+            return pendiente.quitar ? null : pendiente.vistaLocal;
+        }
+        return this.tienda ? this.urlGuardada(this.tienda, tipo) : null;
+    }
+
+    etiquetaImagen(tipo: TipoImagen): string {
+        return ETIQUETA_TIPO_IMAGEN[tipo];
+    }
+
+    claveError(tipo: TipoImagen): 'logo' | 'portada' {
+        return tipo === 'LOGO' ? 'logo' : 'portada';
+    }
+
+    estadoImagen(tipo: TipoImagen): string | null {
+        const pendiente = this.pendientes[tipo];
+        if (!pendiente) {
+            return null;
+        }
+        return pendiente.quitar
+            ? 'Se quitará al guardar'
+            : `Se subirá al guardar: ${pendiente.archivo?.name} (${formatearTamano(pendiente.archivo?.size ?? 0)})`;
+    }
+
+    /** Se puede quitar una imagen guardada que aún no está marcada para quitar. */
+    puedeQuitar(tipo: TipoImagen): boolean {
+        return !!this.tienda && urlImagen(this.tienda.images, tipo) !== null && !this.pendientes[tipo]?.quitar;
+    }
+
+    /**
+     * Elegir un archivo solo lo deja como cambio pendiente con una vista local: se valida en el cliente como ayuda y no
+     * se envía nada. Un archivo que no pasa la ayuda no toca lo que ya había (A4).
+     */
+    elegirImagen(tipo: TipoImagen, evento: Event): void {
+        const entrada = evento.target as HTMLInputElement;
+        const archivo = entrada.files?.[0];
+        entrada.value = '';
+        if (!archivo) {
+            return;
+        }
+        delete this.errores[this.claveError(tipo)];
+        const problema = validarArchivoImagen(archivo);
+        if (problema) {
+            this.errores[this.claveError(tipo)] = problema;
+            return;
+        }
+        this.liberarPendiente(tipo);
+        this.pendientes = {
+            ...this.pendientes,
+            [tipo]: { archivo, vistaLocal: URL.createObjectURL(archivo), quitar: false }
+        };
+    }
+
+    /** Marca la imagen guardada para quitarla al confirmar. */
+    quitarImagen(tipo: TipoImagen): void {
+        delete this.errores[this.claveError(tipo)];
+        this.liberarPendiente(tipo);
+        this.pendientes = { ...this.pendientes, [tipo]: { archivo: null, vistaLocal: null, quitar: true } };
+    }
+
+    deshacerImagen(tipo: TipoImagen): void {
+        delete this.errores[this.claveError(tipo)];
+        this.liberarPendiente(tipo);
+        const resto = { ...this.pendientes };
+        delete resto[tipo];
+        this.pendientes = resto;
+    }
+
+    private cambiosDeImagenes(): CambioTienda[] {
+        return this.tiposImagen.flatMap(tipo => {
+            const pendiente = this.pendientes[tipo];
+            if (!pendiente) {
+                return [];
+            }
+            const antes = this.tienda && urlImagen(this.tienda.images, tipo) !== null ? 'Imagen actual' : 'Sin imagen';
+            const despues = pendiente.quitar
+                ? 'Se quitará'
+                : `Nueva: ${pendiente.archivo?.name} (${formatearTamano(pendiente.archivo?.size ?? 0)})`;
+            return [{ campo: this.etiquetaImagen(tipo), antes, despues }];
+        });
+    }
+
+    /**
+     * Aplica las imágenes cambiadas, una por una y en orden. Se detiene en la primera que el backend rechaza; las
+     * que ya se aplicaron quedan guardadas y las anteriores a esta confirmación no se tocan (A4).
+     */
+    private aplicarImagenes(): Observable<unknown> {
+        const operaciones = this.tiposImagen.filter(tipo => !!this.pendientes[tipo]).map(tipo => defer(() => {
+            const cambio = this.pendientes[tipo] as CambioImagen;
+            const peticion: Observable<ImagenTienda | null> = cambio.quitar
+                ? this.servicio.quitarImagen(tipo).pipe(
+                    map(() => null),
+                    // Si ya no estaba, el resultado buscado (que no haya imagen) ya se cumple.
+                    catchError((e: HttpErrorResponse) => (e.status === 404 ? of(null) : throwError(() => e))))
+                : this.servicio.subirImagen(tipo, cambio.archivo as File);
+            return peticion.pipe(
+                tap(resultado => this.imagenAplicada(tipo, resultado)),
+                catchError((e: HttpErrorResponse) => throwError(() => new ImagenRechazada(tipo, e)))
+            );
+        }));
+        return operaciones.length === 0 ? of(null) : concat(...operaciones).pipe(toArray());
+    }
+
+    /** Una imagen quedó guardada: se actualiza lo confirmado y se conserva su copia local para no volver a bajarla. */
+    private imagenAplicada(tipo: TipoImagen, resultado: ImagenTienda | null): void {
+        const actual = this.tienda as ConfiguracionTienda;
+        const restantes = actual.images.filter(imagen => imagen.kind !== tipo);
+        this.tienda = { ...actual, images: resultado ? [...restantes, resultado] : restantes };
+
+        const anterior = this.subidas[tipo];
+        if (anterior) {
+            URL.revokeObjectURL(anterior.url);
+            delete this.subidas[tipo];
+        }
+        const pendiente = this.pendientes[tipo];
+        if (resultado && pendiente?.vistaLocal) {
+            this.subidas[tipo] = { sha256: resultado.sha256, url: pendiente.vistaLocal };
+        } else if (pendiente?.vistaLocal) {
+            URL.revokeObjectURL(pendiente.vistaLocal);
+        }
+        const resto = { ...this.pendientes };
+        delete resto[tipo];
+        this.pendientes = resto;
+
+        this.aplicadas.push(tipo);
+        this.vista = this.vistaGuardada(this.tienda);
+    }
+
+    private vistaGuardada(tienda: ConfiguracionTienda): VistaTienda {
+        return {
+            ...vistaDeConfiguracion(tienda),
+            logoUrl: this.urlGuardada(tienda, 'LOGO'),
+            portadaUrl: this.urlGuardada(tienda, 'PORTADA')
+        };
+    }
+
+    /** La URL del servidor (versionada por sha256) o, si es la que se subió en esta sesión, su copia local. */
+    private urlGuardada(tienda: ConfiguracionTienda, tipo: TipoImagen): string | null {
+        const imagen = tienda.images.find(candidata => candidata.kind === tipo);
+        if (!imagen) {
+            return null;
+        }
+        const subida = this.subidas[tipo];
+        return subida && subida.sha256 === imagen.sha256 ? subida.url : imagen.url;
+    }
+
+    private liberarPendiente(tipo: TipoImagen): void {
+        const vistaLocal = this.pendientes[tipo]?.vistaLocal;
+        if (vistaLocal) {
+            URL.revokeObjectURL(vistaLocal);
+        }
+    }
+
+    /** A9: descarta los cambios de imagen pendientes sin llamar al backend. */
+    private descartarImagenesPendientes(): void {
+        this.tiposImagen.forEach(tipo => this.liberarPendiente(tipo));
+        this.pendientes = {};
+    }
+
+    private liberarVistasLocales(): void {
+        this.descartarImagenesPendientes();
+        Object.values(this.subidas).forEach(subida => URL.revokeObjectURL(subida.url));
+        this.subidas = {};
+    }
+
+    /** Una imagen rechazada no permite guardar el texto; el error se muestra bajo esa imagen (A4). */
+    private alFallarLaConfirmacion(e: unknown): void {
+        if (!(e instanceof ImagenRechazada)) {
+            this.alFallar(interpretarError(e as HttpErrorResponse));
+            return;
+        }
+        const error = interpretarError(e.error, e.tipo);
+        if (error.tipo !== 'campo') {
+            this.alFallar(error);
+            return;
+        }
+        const guardadas = this.aplicadas.map(tipo => this.etiquetaImagen(tipo).toLowerCase());
+        this.errores = { [error.campo]: error.mensaje };
+        this.errorGeneral =
+            `La imagen (${this.etiquetaImagen(e.tipo).toLowerCase()}) fue rechazada, así que no se guardó el texto de tu tienda. ` +
+            (guardadas.length > 0
+                ? `Ya se guardó correctamente: ${guardadas.join(' y ')}. `
+                : 'Tus imágenes anteriores se conservan. ') +
+            'Corrige la imagen y vuelve a confirmar.';
+        this.modo = 'edicion';
+        this.desplazarArriba();
+    }
+
     // ---------- Presentación ----------
 
     etiquetaEstado(estado: EstadoTienda): string {
@@ -515,7 +788,8 @@ export class MiTiendaComponent implements OnInit {
     /** Adopta lo que el servidor confirmó y deja la pantalla en lectura, sin edición pendiente. */
     private aplicarGuardada(tienda: ConfiguracionTienda): void {
         this.tienda = tienda;
-        this.vista = vistaDeConfiguracion(tienda);
+        this.descartarImagenesPendientes();
+        this.vista = this.vistaGuardada(tienda);
         this.borrador = borradorDe(tienda);
         this.disponibles = [...tienda.shippingMethods.available];
         this.limpiarMensajes();

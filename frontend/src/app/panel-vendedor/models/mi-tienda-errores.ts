@@ -71,6 +71,14 @@ const MENSAJE_IMAGEN: Record<string, string> = {
     IMAGE_CORRUPT: 'No se pudo leer la imagen: el archivo parece dañado. Elige otra.'
 };
 
+/**
+ * Una imagen que el backend rechazó al aplicar los cambios. Lleva qué imagen fue, para mostrar el error bajo ella y
+ * no guardar el texto (A4).
+ */
+export class ImagenRechazada {
+    constructor(readonly tipo: TipoImagen, readonly error: HttpErrorResponse) {}
+}
+
 /** `imagen` indica qué imagen se estaba subiendo, para asignarle el error de imagen. */
 export function interpretarError(e: HttpErrorResponse, imagen?: TipoImagen): ErrorInterpretado {
     const cuerpo = e.error as ErrorTienda | null;
