@@ -74,6 +74,8 @@
         </button>
 
 
+        <button *ngIf="esComprador" type="button" (click)="mostrarPedidos = true">Mis pedidos</button>
+
         <!-- Cuenta -->
         <button
           type="button"
@@ -96,6 +98,9 @@
     <!-- ===================================================== -->
     <!-- OVERLAY CARRITO -->
     <!-- ===================================================== -->
+
+    <app-mis-pedidos *ngIf="esComprador && mostrarPedidos"
+      (cerrar)="mostrarPedidos = false"></app-mis-pedidos>
 
     <app-acceso
       *ngIf="mostrarAcceso"

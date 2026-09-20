@@ -58,6 +58,8 @@ import {
   AuthService
 } from './core/services/auth.service';
 
+import { MisPedidosComponent } from './pedidos/components/mis-pedidos.component';
+
 import { AccesoComponent } from './core/components/acceso.component';
 
 import { ColaSoporteComponent } from './panel-admin-soporte/components/cola-soporte.component';
@@ -102,6 +104,7 @@ import {
     NgIf,
     FormsModule,
     AccesoComponent,
+    MisPedidosComponent,
     ColaSoporteComponent
   ],
 
@@ -210,6 +213,12 @@ export class AppComponent {
   mostrarAcceso = false;
 
   mostrarModeracion = false;
+
+  mostrarPedidos = false;
+
+  get esComprador(): boolean {
+    return this.auth.cuenta()?.activeRole === 'COMPRADOR';
+  }
 
   get nombre(): string {
     return this.auth.obtenerNombreVisible();

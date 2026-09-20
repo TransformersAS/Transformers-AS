@@ -1,0 +1,45 @@
+<div class="fondo" aria-hidden="true"></div>
+<section class="panel" role="dialog" aria-modal="true" aria-labelledby="titulo-pedidos">
+  <button class="cerrar" type="button" aria-label="Cerrar pedidos" (click)="cerrar.emit()" [disabled]="cancelando">×</button>
+  <h2 id="titulo-pedidos">Mis pedidos</h2>
+  <ng-container *ngIf="auth.cuenta()?.activeRole === 'COMPRADOR'">
+    <p *ngIf="cargando" role="status">Cargando pedidos…</p>
+    <p *ngIf="cancelando" role="status">Enviando solicitud…</p>
+    <p *ngIf="error" class="error" role="alert">{{ error }}</p>
+    <p *ngIf="exito" class="exito" role="status">{{ exito }}</p>
+    <ng-container *ngIf="!detalle">
+      <button type="button" [disabled]="ocupada" (click)="cargarLista()">Actualizar pedidos</button>
+      <p *ngIf="!cargando && !error && pedidos.length === 0">Todavía no tienes pedidos.</p>
+      <ul *ngIf="!cargando">
+        <li *ngFor="let pedido of pedidos">
+          <app-resumen-pedido [pedido]="pedido"></app-resumen-pedido>
+          <button type="button" [disabled]="ocupada" (click)="verDetalle(pedido.id)"
+            [attr.aria-label]="'Ver detalle del pedido ' + pedido.id">Ver detalle</button>
+        </li>
+      </ul>
+    </ng-container>
+    <ng-container *ngIf="detalle as pedido">
+      <button type="button" [disabled]="ocupada" (click)="cargarLista()">Volver a mis pedidos</button>
+      <app-resumen-pedido [pedido]="pedido"></app-resumen-pedido>
+      <p *ngIf="pedido.addressId !== null">Dirección de envío registrada #{{ pedido.addressId }}</p>
+      <p *ngIf="pedido.transactionId">Transacción: {{ pedido.transactionId }}</p>
+      <h3>Productos</h3>
+      <ul>
+        <li *ngFor="let item of pedido.items">
+          <strong>{{ item.productName }}</strong> (producto #{{ item.productId }})
+          <p>Cantidad: {{ item.quantity }} · Precio unitario: {{ item.unitPrice | number:'1.2-2' }}</p>
+          <p>Subtotal: {{ item.subtotal | number:'1.2-2' }}</p>
+        </li>
+      </ul>
+      <p *ngIf="pedido.status === 'CANCELLATION_REQUESTED'">La cancelación de este pedido ya fue solicitada.</p>
+      <button *ngIf="conflicto" type="button" [disabled]="ocupada" (click)="verDetalle(pedido.id)">Actualizar detalle</button>
+      <button *ngIf="pedido.status === 'CONFIRMED' && !confirmar && !conflicto" type="button"
+        [disabled]="ocupada" (click)="confirmar = true">Solicitar cancelación</button>
+      <div *ngIf="confirmar" class="confirmacion">
+        <p>¿Solicitar la cancelación del pedido #{{ pedido.id }}? Esto enviará una solicitud; no confirma su cancelación definitiva.</p>
+        <button type="button" [disabled]="ocupada" (click)="solicitarCancelacion()">Confirmar solicitud</button>
+        <button type="button" [disabled]="ocupada" (click)="confirmar = false">Volver</button>
+      </div>
+    </ng-container>
+  </ng-container>
+</section>
