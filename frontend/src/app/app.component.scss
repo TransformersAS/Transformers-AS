@@ -1811,6 +1811,16 @@ footer > div {
   bottom: 8.5rem;
 }
 
+/* Reclamaciones (CU-13): el comprador solo tiene este botón; soporte lo pone sobre "Moderación de reportes" y el
+   vendedor en el cuarto nivel de su pila (pedidos, tienda, productos y reclamaciones). */
+.boton-reclamaciones-soporte {
+  bottom: 4.5rem;
+}
+
+.boton-reclamaciones-vendedor {
+  bottom: 12.25rem;
+}
+
 .panel-pedidos {
   position: fixed;
   inset: 0;
