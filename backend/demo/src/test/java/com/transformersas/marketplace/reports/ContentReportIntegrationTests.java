@@ -158,6 +158,13 @@ class ContentReportIntegrationTests extends ContentReportSupport {
         report(buyer, otherProduct, "SPAM").andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code", is("CONTENT_NOT_FOUND")));
         jdbc.update("UPDATE products SET active = TRUE WHERE id = ?", otherProduct);
+        // Un borrador o un producto retirado por su vendedor responde igual: no se revela que existe.
+        for (String state : new String[]{"DRAFT", "RETIRED"}) {
+            jdbc.update("UPDATE products SET status = ? WHERE id = ?", state, otherProduct);
+            report(buyer, otherProduct, "SPAM").andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.code", is("CONTENT_NOT_FOUND")));
+        }
+        jdbc.update("UPDATE products SET status = 'ACTIVE' WHERE id = ?", otherProduct);
         perform(buyer, post(REPORTS).contentType("application/json").content(
                 body("0" + otherProduct, "SPAM", "x"))).andExpect(status().isNotFound());
         assertThat(count("moderation_cases")).isZero();
