@@ -111,3 +111,36 @@ const ETIQUETA_METODO_ENVIO: Record<string, string> = {
 export function etiquetaMetodoEnvio(metodo: string): string {
     return ETIQUETA_METODO_ENVIO[metodo] ?? metodo;
 }
+
+/** Lo que ven los compradores de la tienda; lo usa la tarjeta de vista previa, que no conoce el contrato HTTP. */
+export interface VistaTienda {
+    nombre: string;
+    descripcion: string | null;
+    correo: string | null;
+    telefono: string | null;
+    horarios: string | null;
+    plazoDevolucion: number;
+    politica: string | null;
+    metodosEnvio: string[];
+    logoUrl: string | null;
+    portadaUrl: string | null;
+}
+
+export function urlImagen(imagenes: ImagenTienda[], tipo: TipoImagen): string | null {
+    return imagenes.find(imagen => imagen.kind === tipo)?.url ?? null;
+}
+
+export function vistaDeConfiguracion(configuracion: ConfiguracionTienda): VistaTienda {
+    return {
+        nombre: configuracion.name,
+        descripcion: configuracion.description,
+        correo: configuracion.contactEmail,
+        telefono: configuracion.contactPhone,
+        horarios: configuracion.businessHours,
+        plazoDevolucion: configuracion.returnWindowDays,
+        politica: configuracion.policyText,
+        metodosEnvio: configuracion.shippingMethods.enabled,
+        logoUrl: urlImagen(configuracion.images, 'LOGO'),
+        portadaUrl: urlImagen(configuracion.images, 'PORTADA')
+    };
+}
