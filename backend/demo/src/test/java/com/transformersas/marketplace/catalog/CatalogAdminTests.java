@@ -74,6 +74,36 @@ class CatalogAdminTests extends AbstractIntegrationTest {
         perform(buyer, get(ATTRIBUTES)).andExpect(status().isForbidden());
     }
 
+    // ---------- Consulta para cualquier usuario con sesión ----------
+
+    @Test
+    void anyLoggedInUserCanReadTheActiveStructureButNotChangeIt() throws Exception {
+        long technology = createCategory("Tecnologia", null);
+        createCategory("Celulares", technology);
+        long hidden = createCategory("Oculta", null);
+        perform(admin, post(CATEGORIES + "/" + hidden + "/deactivate")).andExpect(status().isOk());
+        createBrand("Nike");
+        long adidas = createBrand("Adidas");
+        perform(admin, post(BRANDS + "/" + adidas + "/deactivate")).andExpect(status().isOk());
+        long color = createAttribute("Color");
+        send(post(ATTRIBUTES + "/" + color + "/values"), "{\"value\":\"Rojo\"}").andExpect(status().isCreated());
+
+        mvc.perform(get("/api/categories")).andExpect(status().isUnauthorized());
+        Session seller = sessionWithRole("seller@example.com", "VENDEDOR");
+        perform(seller, get("/api/categories")).andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].name").value("Tecnologia"))
+                .andExpect(jsonPath("$[0].children[0].name").value("Celulares"));
+        perform(seller, get("/api/brands")).andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].name").value("Nike"));
+        perform(seller, get("/api/attributes")).andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].name").value("Color"))
+                .andExpect(jsonPath("$[0].values[0].value").value("Rojo"));
+        perform(seller, post(BRANDS).contentType("application/json").content("{\"name\":\"X\"}"))
+                .andExpect(status().isForbidden());
+    }
+
     // ---------- Categorías ----------
 
     @Test

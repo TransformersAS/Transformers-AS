@@ -27,6 +27,12 @@ public class BrandService {
         return brands.findAll(Sort.by("name"));
     }
 
+    /** Solo las marcas activas, para que los vendedores elijan una al publicar. */
+    @Transactional(readOnly = true)
+    public List<Brand> getActive() {
+        return brands.findAll(Sort.by("name")).stream().filter(Brand::isActive).toList();
+    }
+
     public Brand create(String name) {
         checkNameIsFree(name, null);
         Brand brand = new Brand();

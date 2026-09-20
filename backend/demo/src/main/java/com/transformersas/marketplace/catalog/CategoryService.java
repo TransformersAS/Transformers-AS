@@ -33,6 +33,13 @@ public class CategoryService {
         return childrenOf(null, all);
     }
 
+    /** Solo las categorías activas, para que los vendedores elijan una al publicar. Una inactiva nunca tiene hijas activas. */
+    @Transactional(readOnly = true)
+    public List<CategoryNode> getActiveTree() {
+        List<Category> active = categories.findAll(Sort.by("name")).stream().filter(Category::isActive).toList();
+        return childrenOf(null, active);
+    }
+
     public Category create(String name, Long parentId) {
         checkParentIsUsable(parentId);
         checkNameIsFree(name, parentId, null);

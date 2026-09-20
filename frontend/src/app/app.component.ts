@@ -65,6 +65,7 @@ import { AccesoComponent } from './core/components/acceso.component';
 import { ColaSoporteComponent } from './panel-admin-soporte/components/cola-soporte.component';
 import { PedidosRecibidosComponent } from './panel-vendedor/components/pedidos-recibidos.component';
 import { CatalogoAdminComponent } from './panel-admin-catalogo/components/catalogo-admin.component';
+import { MisProductosComponent } from './panel-vendedor/components/mis-productos.component';
 
 import {
   CheckoutService
@@ -109,7 +110,8 @@ import {
     MisPedidosComponent,
     ColaSoporteComponent,
     PedidosRecibidosComponent,
-    CatalogoAdminComponent
+    CatalogoAdminComponent,
+    MisProductosComponent
   ],
 
   templateUrl: './app.component.html',
@@ -225,6 +227,9 @@ export class AppComponent {
 
   /** Panel del administrador para configurar categorías, marcas y atributos (CU-17). */
   mostrarCatalogoAdmin = false;
+
+  /** Panel del vendedor para publicar y mantener sus productos (CU-14). */
+  mostrarMisProductos = false;
 
   get esComprador(): boolean {
     return this.auth.cuenta()?.activeRole === 'COMPRADOR';

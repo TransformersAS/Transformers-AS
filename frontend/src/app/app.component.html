@@ -1329,6 +1329,20 @@
   <app-pedidos-recibidos (cerrar)="mostrarPedidosRecibidos = false"></app-pedidos-recibidos>
 </div>
 
+<!-- Mis productos (CU-14): solo con el rol activo VENDEDOR -->
+<button
+  *ngIf="esVendedor && !mostrarMisProductos"
+  type="button"
+  class="boton-pedidos boton-productos"
+  (click)="mostrarMisProductos = true"
+>
+  Mis productos
+</button>
+
+<div class="panel-pedidos" *ngIf="esVendedor && mostrarMisProductos">
+  <app-mis-productos (cerrar)="mostrarMisProductos = false"></app-mis-productos>
+</div>
+
 <!-- Estructura del catálogo (CU-17): solo con el rol activo ADMIN -->
 <button
   *ngIf="esAdmin && !mostrarCatalogoAdmin"

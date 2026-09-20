@@ -1806,6 +1806,11 @@ footer > div {
   cursor: pointer;
 }
 
+/* "Mis productos" (vendedor): se apila encima del botón de pedidos recibidos para que no se tapen. */
+.boton-productos {
+  bottom: 4.5rem;
+}
+
 .panel-pedidos {
   position: fixed;
   inset: 0;
