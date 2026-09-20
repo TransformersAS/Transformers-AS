@@ -9,13 +9,14 @@ import java.util.List;
  * Configuración de la tienda tal como la ve su dueña. canModify es falso si la tienda está restringida o suspendida
  * (A8); el motivo va en store.statusReason(). enabledShippingMethods son los que la tienda ofrece y
  * availableShippingMethods los que el marketplace permite habilitar. images describe el logo y la portada sin su
- * contenido.
+ * contenido. minReturnWindowDays es el plazo de devolución mínimo que el marketplace exige a toda tienda (A5).
  */
 public record StoreSettingsView(
         Store store,
         boolean canModify,
         List<String> enabledShippingMethods,
         List<String> availableShippingMethods,
-        List<StoreImageSummary> images
+        List<StoreImageSummary> images,
+        int minReturnWindowDays
 ) {
 }

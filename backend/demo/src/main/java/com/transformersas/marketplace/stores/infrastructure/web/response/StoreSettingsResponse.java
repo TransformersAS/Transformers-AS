@@ -8,7 +8,8 @@ import java.util.List;
 
 /**
  * Configuración de la tienda para su dueña. status y statusReason informan por qué no puede modificarse (A8) y
- * version es la que debe devolver al guardar (A10).
+ * version es la que debe devolver al guardar (A10). minReturnWindowDays es el plazo de devolución mínimo que exige
+ * el marketplace (A5), para que el cliente lo muestre sin fijarlo por su cuenta.
  */
 public record StoreSettingsResponse(
         Long id,
@@ -18,6 +19,7 @@ public record StoreSettingsResponse(
         String contactPhone,
         String businessHours,
         int returnWindowDays,
+        int minReturnWindowDays,
         String policyText,
         String status,
         String statusReason,
@@ -38,7 +40,8 @@ public record StoreSettingsResponse(
         Store store = view.store();
         return new StoreSettingsResponse(store.id(), store.profile().name(), store.profile().description(),
                 store.profile().contactEmail(), store.profile().contactPhone(), store.profile().businessHours(),
-                store.policy().returnWindowDays(), store.policy().text(), store.status().name(), store.statusReason(),
+                store.policy().returnWindowDays(), view.minReturnWindowDays(), store.policy().text(),
+                store.status().name(), store.statusReason(),
                 view.canModify(), store.version(),
                 new ShippingMethods(view.enabledShippingMethods(), view.availableShippingMethods()),
                 view.images().stream().map(image -> imageInfo(store.id(), image)).toList());
