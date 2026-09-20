@@ -22,18 +22,24 @@ class SellerIssuesTests extends AbstractIntegrationTest {
 
     private Long sellerAccountId;
     private Session seller;
+    private Session otherSeller;
     private long product;
 
     @BeforeEach
     void setUp() throws Exception {
-        sellerAccountId = createAccount("seller@example.com", "VENDEDOR");
-        seller = login("seller@example.com");
         seedStore(2, "Otra tienda");
+        seller = sellerOfStore("seller@example.com", 1);
+        sellerAccountId = accountIdOf("seller@example.com");
+        otherSeller = sellerOfStore("seller2@example.com", 2);
         product = seedProduct(1, "Lámpara", 7, "100.00");
     }
 
+    private Session sellerOf(long storeId) {
+        return storeId == 2 ? otherSeller : seller;
+    }
+
     private ResultActions register(long storeId, long order, String body) throws Exception {
-        return performAsSeller(seller, storeId, post("/api/seller/orders/" + order + "/issues")
+        return performAsSeller(sellerOf(storeId), storeId, post("/api/seller/orders/" + order + "/issues")
                 .contentType("application/json").content(body));
     }
 
@@ -42,7 +48,7 @@ class SellerIssuesTests extends AbstractIntegrationTest {
     }
 
     private ResultActions resolve(long storeId, long order, long issue) throws Exception {
-        return performAsSeller(seller, storeId, post("/api/seller/orders/" + order + "/issues/" + issue + "/resolve"));
+        return performAsSeller(sellerOf(storeId), storeId, post("/api/seller/orders/" + order + "/issues/" + issue + "/resolve"));
     }
 
     private long issueId(long order) {

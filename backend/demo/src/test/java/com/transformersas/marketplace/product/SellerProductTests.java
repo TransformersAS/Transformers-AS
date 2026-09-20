@@ -33,7 +33,8 @@ class SellerProductTests extends AbstractIntegrationTest {
     @BeforeEach
     void setUp() throws Exception {
         cleanCatalog();
-        seller = sessionWithRole("seller@example.com", "VENDEDOR");
+        // Desde CU-18 el vendedor debe ser el dueño de la tienda cuyo X-Store-Id envía.
+        seller = sellerOfStore("seller@example.com", 1);
         seedStore(2, "Otra tienda");
         jdbc.update("INSERT INTO categories (name) VALUES ('Ropa')");
         jdbc.update("INSERT INTO brands (name) VALUES ('Nike')");

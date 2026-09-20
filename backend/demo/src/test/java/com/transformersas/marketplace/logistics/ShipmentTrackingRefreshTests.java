@@ -31,15 +31,16 @@ class ShipmentTrackingRefreshTests extends AbstractTrackingTest {
     private Long buyerId;
     private Session buyer;
     private Session seller;
+    private Session otherSeller;
     private long order;
 
     @BeforeEach
     void setUp() throws Exception {
         buyerId = createAccount("buyer@example.com", "COMPRADOR");
         buyer = login("buyer@example.com");
-        createAccount("seller@example.com", "VENDEDOR");
-        seller = login("seller@example.com");
         seedStore(2, "Otra tienda");
+        seller = sellerOfStore("seller@example.com", 1);
+        otherSeller = sellerOfStore("seller2@example.com", 2);
         order = shippedOrder(buyerId, "READY_FOR_DISPATCH");
     }
 
@@ -242,8 +243,9 @@ class ShipmentTrackingRefreshTests extends AbstractTrackingTest {
         perform(seller, post("/api/orders/" + order + "/tracking/refresh")).andExpect(status().isForbidden());
         performAsSeller(buyer, 1, get("/api/seller/orders/" + order + "/tracking")).andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("SELLER_ROLE_REQUIRED"));
-        perform(seller, get("/api/seller/orders/" + order + "/tracking")).andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.code").value("STORE_IDENTITY_MISSING"));
+        // Un vendedor sin tienda ni cabecera no tiene identidad de tienda.
+        perform(sessionWithRole("sintienda@example.com", "VENDEDOR"), get("/api/seller/orders/" + order + "/tracking"))
+                .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("STORE_IDENTITY_MISSING"));
     }
 
     @Test
@@ -254,8 +256,8 @@ class ShipmentTrackingRefreshTests extends AbstractTrackingTest {
         perform(otherBuyer, get("/api/orders/" + order + "/tracking")).andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("ORDER_NOT_FOUND"));
         perform(otherBuyer, post("/api/orders/" + order + "/tracking/refresh")).andExpect(status().isNotFound());
-        performAsSeller(seller, 2, get("/api/seller/orders/" + order + "/tracking")).andExpect(status().isNotFound());
-        performAsSeller(seller, 2, post("/api/seller/orders/" + order + "/tracking/refresh"))
+        performAsSeller(otherSeller, 2, get("/api/seller/orders/" + order + "/tracking")).andExpect(status().isNotFound());
+        performAsSeller(otherSeller, 2, post("/api/seller/orders/" + order + "/tracking/refresh"))
                 .andExpect(status().isNotFound());
         perform(buyer, get("/api/orders/999999/tracking")).andExpect(status().isNotFound());
         // Consultar lo ajeno no llamó nunca al proveedor.
