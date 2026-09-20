@@ -46,7 +46,8 @@ public abstract class AbstractIntegrationTest {
     private static final List<String> TABLES_TO_CLEAR = List.of(
             "audit_events", "notifications", "refunds", "order_cancellations", "return_tracking_events", "return_shipments",
             "shipment_tracking_events", "shipments", "order_issues", "order_status_history", "order_items", "orders",
-            "inventory_reservations", "cart_items", "carts", "products", "addresses");
+            "inventory_reservations", "cart_items", "carts", "products", "addresses",
+            "store_images", "store_shipping_methods");
 
     @Autowired protected MockMvc mvc;
     @Autowired protected JdbcTemplate jdbc;
@@ -63,6 +64,13 @@ public abstract class AbstractIntegrationTest {
     protected void resetDatabase() {
         TABLES_TO_CLEAR.forEach(table -> jdbc.update("DELETE FROM " + table));
         jdbc.update("DELETE FROM stores WHERE id <> 1");
+        // La tienda 1 vuelve al estado que deja la migración; sin dueña antes de borrar las cuentas (FK).
+        jdbc.update("""
+                UPDATE stores SET owner_account_id = NULL, name = 'Tienda principal', description = NULL,
+                    contact_email = NULL, contact_phone = NULL, business_hours = NULL, return_window_days = 30,
+                    policy_text = NULL, status = 'ACTIVE', status_reason = NULL, version = 0
+                WHERE id = 1""");
+        jdbc.update("INSERT INTO store_shipping_methods(store_id, method) VALUES (1, 'STANDARD'), (1, 'EXPRESS')");
         jdbc.update("DELETE FROM SPRING_SESSION");
         jdbc.update("DELETE FROM user_account_roles");
         jdbc.update("DELETE FROM user_accounts");
@@ -113,6 +121,11 @@ public abstract class AbstractIntegrationTest {
     protected long seedStore(long id, String name) {
         jdbc.update("INSERT INTO stores(id, name) VALUES (?,?)", id, name);
         return id;
+    }
+
+    /** Hace de la cuenta la dueña de la tienda (CU-18: una cuenta, una tienda). */
+    protected void assignStoreOwner(long storeId, long accountId) {
+        jdbc.update("UPDATE stores SET owner_account_id = ? WHERE id = ?", accountId, storeId);
     }
 
     protected long seedProduct(long storeId, String name, int stock, String price) {
