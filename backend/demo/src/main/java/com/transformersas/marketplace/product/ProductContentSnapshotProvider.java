@@ -11,16 +11,18 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * Expone las publicaciones a soporte (CU-21). Los productos aún no registran vendedor, por eso no
- * hay propietario y no se puede pedir información al propietario de una publicación.
+ * Expone las publicaciones a soporte (CU-21). El propietario es la dueña de la tienda del producto; si la tienda
+ * aún no tiene dueña, no hay propietario y no se le puede notificar ni pedirle información.
  */
 @Component
 class ProductContentSnapshotProvider implements ContentSnapshotProvider {
 
     private final ProductRepository productRepository;
+    private final ProductContentOwnerResolver owners;
 
-    ProductContentSnapshotProvider(ProductRepository productRepository) {
+    ProductContentSnapshotProvider(ProductRepository productRepository, ProductContentOwnerResolver owners) {
         this.productRepository = productRepository;
+        this.owners = owners;
     }
 
     @Override
@@ -43,7 +45,8 @@ class ProductContentSnapshotProvider implements ContentSnapshotProvider {
             attributes.put("price", product.getPrice().toPlainString());
             attributes.put("stock", String.valueOf(product.getStock()));
             attributes.put("active", String.valueOf(product.getActive()));
-            return new ContentSnapshot(product.getName(), product.getDescription(), null, attributes);
+            String ownerId = owners.ownerAccountId(contentId).orElse(null);
+            return new ContentSnapshot(product.getName(), product.getDescription(), ownerId, attributes);
         });
     }
 }
