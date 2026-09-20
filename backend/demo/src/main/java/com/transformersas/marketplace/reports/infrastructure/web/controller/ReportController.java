@@ -5,8 +5,13 @@ import com.transformersas.marketplace.reports.application.ReportException;
 import com.transformersas.marketplace.reports.application.ReportSubmissionService;
 import com.transformersas.marketplace.reports.application.ReportSubmissionService.EvidenceUpload;
 import com.transformersas.marketplace.reports.application.ReporterAccess;
+import com.transformersas.marketplace.reports.application.ReporterReportQueryService;
+import com.transformersas.marketplace.reports.application.dto.InformationResponseBody;
 import com.transformersas.marketplace.reports.application.dto.ReportReasonResponse;
 import com.transformersas.marketplace.reports.application.dto.ReportSubmissionResponse;
+import com.transformersas.marketplace.reports.application.dto.ReporterReportDetail;
+import com.transformersas.marketplace.reports.application.dto.ReporterReportDetail.InformationRequestView;
+import com.transformersas.marketplace.reports.application.dto.ReporterReportSummary;
 import com.transformersas.marketplace.reports.application.dto.SubmitReportRequest;
 import com.transformersas.marketplace.reports.domain.model.ReportReason;
 import org.springframework.http.HttpStatus;
@@ -34,12 +39,14 @@ public class ReportController {
     private final ReporterAccess access;
     private final ReportSubmissionService submission;
     private final ReportEvidenceService evidence;
+    private final ReporterReportQueryService queries;
 
     public ReportController(ReporterAccess access, ReportSubmissionService submission,
-                            ReportEvidenceService evidence) {
+                            ReportEvidenceService evidence, ReporterReportQueryService queries) {
         this.access = access;
         this.submission = submission;
         this.evidence = evidence;
+        this.queries = queries;
     }
 
     /** Todos los motivos, con la bandera {@code purchaseProblem}: el formulario orienta hacia reclamaciones. */
@@ -72,6 +79,25 @@ public class ReportController {
                 .map(ReportController::upload).toList();
         return respond(submission.submit(authentication,
                 new SubmitReportRequest(contentType, contentId, reason, description), uploads));
+    }
+
+    /** Los reportes del usuario, del más reciente al más antiguo. */
+    @GetMapping("/mine")
+    public List<ReporterReportSummary> mine(Authentication authentication) {
+        return queries.list(authentication);
+    }
+
+    /** Detalle de un reporte propio; el de otra persona responde 404. */
+    @GetMapping("/{reportId}")
+    public ReporterReportDetail detail(Authentication authentication, @PathVariable Long reportId) {
+        return queries.detail(authentication, reportId);
+    }
+
+    /** Responde una solicitud de información del agente dentro del plazo de 72 horas. */
+    @PostMapping("/{reportId}/information-requests/{requestId}/response")
+    public InformationRequestView respond(Authentication authentication, @PathVariable Long reportId,
+                                          @PathVariable Long requestId, @RequestBody InformationResponseBody body) {
+        return queries.respond(authentication, reportId, requestId, body.text());
     }
 
     /** Una imagen de evidencia de un reporte propio, con ETag; la de un reporte ajeno responde 404. */
