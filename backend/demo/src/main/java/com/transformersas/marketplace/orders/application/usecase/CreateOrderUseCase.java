@@ -11,6 +11,7 @@ import com.transformersas.marketplace.orders.domain.model.Order;
 import com.transformersas.marketplace.orders.domain.model.OrderItem;
 import com.transformersas.marketplace.orders.domain.model.OrderStatus;
 import com.transformersas.marketplace.orders.domain.repository.OrderRepository;
+import com.transformersas.marketplace.users.domain.repository.UserAccountRepository;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -25,6 +26,7 @@ import java.util.List;
 public class CreateOrderUseCase {
 
     private final OrderRepository orderRepository;
+    private final UserAccountRepository accounts;
 
     private final CartRepository cartRepository;
 
@@ -34,8 +36,11 @@ public class CreateOrderUseCase {
     public CreateOrderUseCase(
             OrderRepository orderRepository,
             CartRepository cartRepository,
-            CartItemRepository cartItemRepository
+            CartItemRepository cartItemRepository,
+            UserAccountRepository accounts
     ) {
+
+        this.accounts = accounts;
 
         this.orderRepository =
                 orderRepository;
@@ -50,11 +55,16 @@ public class CreateOrderUseCase {
 
     @Transactional
     public OrderConfirmation execute(
+            Long accountId,
             Long addressId,
             String shippingMethod,
             String transactionId,
             BigDecimal total
     ) {
+
+        if (accountId == null || accountId <= 0 || accounts.findById(accountId).isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Se requiere un comprador válido");
+        }
 
         Cart cart =
                 cartRepository
@@ -117,6 +127,7 @@ public class CreateOrderUseCase {
         Order order =
                 new Order(
                         null,
+                        accountId,
                         OrderStatus.CONFIRMED,
                         total,
                         addressId,

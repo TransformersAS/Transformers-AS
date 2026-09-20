@@ -54,6 +54,7 @@ public class ProcessPaymentUseCase {
 
     @Transactional
     public PaymentProcessResult execute(
+            Long accountId,
             String paymentMethod,
             List<Long> reservationIds,
             Long addressId,
@@ -114,6 +115,7 @@ public class ProcessPaymentUseCase {
              */
             order =
                     createOrderUseCase.execute(
+                            accountId,
                             addressId,
                             shippingMethod,
                             payment.transactionId(),
