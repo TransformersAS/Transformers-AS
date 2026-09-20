@@ -13,7 +13,7 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-/** V20 (CU-18): la tienda 1 sobrevive intacta y las restricciones del esquema nuevo. */
+/** V22 (CU-18): la tienda 1 sobrevive intacta y las restricciones del esquema nuevo. */
 class StoresMigrationTests extends AbstractIntegrationTest {
 
     private static final String LEGACY_DB = "legacy_stores";
@@ -36,14 +36,14 @@ class StoresMigrationTests extends AbstractIntegrationTest {
     }
 
     @Test
-    void storeOneKeepsItsDataAndGetsDefaultsWhenMigratingFromV19() {
+    void storeOneKeepsItsDataAndGetsDefaultsWhenMigratingFromV21() {
         rootJdbc("").execute("DROP DATABASE IF EXISTS " + LEGACY_DB);
         rootJdbc("").execute("CREATE DATABASE " + LEGACY_DB);
         JdbcTemplate legacy = rootJdbc(LEGACY_DB);
         String url = MYSQL.getJdbcUrl().replace("/" + MYSQL.getDatabaseName(), "/" + LEGACY_DB);
 
         Flyway.configure().dataSource(url, "root", MYSQL.getPassword()).locations("classpath:db/migration")
-                .target("19").load().migrate();
+                .target("21").load().migrate();
         legacy.update("INSERT INTO products(name, price, stock, category, active) VALUES ('Legado', 10.00, 3, 'Hogar', TRUE)");
         Map<String, Object> before = legacy.queryForMap("SELECT id, name, created_at FROM stores WHERE id = 1");
         Flyway.configure().dataSource(url, "root", MYSQL.getPassword()).locations("classpath:db/migration")

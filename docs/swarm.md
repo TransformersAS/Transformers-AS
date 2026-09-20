@@ -73,6 +73,46 @@ Referencias oficiales:
 [entrypoint MySQL 8.4](https://github.com/docker-library/mysql/blob/master/8.4/docker-entrypoint.sh),
 [configtree Spring Boot](https://docs.spring.io/spring-boot/reference/features/external-config.html).
 
+## Dueña de la tienda principal (`MAIN_STORE_OWNER_EMAIL`)
+
+Desde CU-18 solo la cuenta dueña de una tienda puede operarla. La "Tienda principal" (id 1) es anterior a ese caso de
+uso y la migración la deja **sin dueña**, porque no puede inventar una cuenta. En Swarm, donde no se usa el perfil
+`local` (que asigna la tienda a la cuenta demo), esto significa que ningún vendedor puede gestionar los pedidos de la
+tienda 1 —ni los productos anteriores, que pertenecen a ella— hasta que alguien la reciba: sin `X-Store-Id` responde
+401 `STORE_IDENTITY_MISSING` y con `X-Store-Id: 1`, 403 `STORE_NOT_AUTHORIZED`.
+
+Para asignarla sin editar datos a mano, definir la variable **antes** de desplegar:
+
+```bash
+MAIN_STORE_OWNER_EMAIL=vendedor@empresa.com \
+STACK_NAME=transformers \
+./deploy.sh
+```
+
+`deploy.sh` no limpia el entorno, así que `docker stack deploy` sustituye `${MAIN_STORE_OWNER_EMAIL:-}` del `stack.yml`
+con lo que exportó quien despliega. No es un secreto (es un correo), por eso va como variable y no como secret.
+
+Qué hace el backend al arrancar (cada réplica, en cada arranque):
+
+- **Vacía o sin definir (el valor por defecto):** no hace nada. Un despliegue existente no cambia hasta que se defina.
+- **Solo escribe una columna de una fila:** `stores.owner_account_id` de la tienda 1, y solo si está vacía. No
+  reemplaza a una dueña existente, no toca pedidos, productos ni otras tiendas, y no borra ni reescribe nada.
+- **Requisitos de la cuenta:** debe existir y tener el rol `VENDEDOR`, y no ser ya dueña de otra tienda (una cuenta
+  solo puede serlo de una). La cuenta debe crearse antes; el siguiente arranque o despliegue la asigna.
+- **Idempotente y seguro con 2 réplicas:** la asignación es un `UPDATE ... WHERE owner_account_id IS NULL`. Si ambas
+  arrancan a la vez, una gana y la otra registra que la tienda ya tiene dueña.
+- **Nunca impide el arranque.** Si el correo no corresponde a una cuenta, la cuenta no es vendedora, ya es dueña de otra
+  tienda o falla la base de datos, se registra una advertencia y el backend sigue arrancando. El correo no se escribe
+  en el log.
+
+Para comprobarlo, buscar en los logs (`docker service logs <stack>_backend`) alguno de estos mensajes: "La tienda
+principal quedó asignada…", "La tienda principal ya tiene dueña…" o la advertencia que explica por qué no se asignó.
+
+No definir esta variable junto con el perfil `local`: ese perfil ya asigna la tienda a la cuenta demo, y el runner
+encontraría la tienda con dueña y no cambiaría nada.
+
+Si la tienda 1 solo es la semilla de demostración y no tiene pedidos reales, puede dejarse sin dueña.
+
 ## Imagen privada y versión
 
 Autenticarse antes de desplegar, sin guardar tokens en el repositorio:

@@ -1,4 +1,4 @@
--- CU-18 F1. Continúa desde V19. Amplía la tienda mínima de V13: dueña, perfil, contacto, horarios, política, estado,
+-- CU-18 F1. Continúa desde V21 (main usa V20 y V21 para el seguimiento logístico). Amplía la tienda mínima de V13: dueña, perfil, contacto, horarios, política, estado,
 -- imágenes y métodos de envío habilitados. Ningún dato existente se borra ni se reescribe: la tienda 1 conserva su
 -- id y su nombre, y las columnas nuevas toman valores por defecto.
 

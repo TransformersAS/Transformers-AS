@@ -73,6 +73,7 @@ class SellerStoreSettingsTests extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$.description").value(nullValue())).andExpect(jsonPath("$.status").value("ACTIVE"))
                 .andExpect(jsonPath("$.canModify").value(true)).andExpect(jsonPath("$.version").value(0))
                 .andExpect(jsonPath("$.returnWindowDays").value(30))
+                .andExpect(jsonPath("$.minReturnWindowDays").value(30))
                 .andExpect(jsonPath("$.shippingMethods.enabled", contains("EXPRESS", "STANDARD")))
                 .andExpect(jsonPath("$.shippingMethods.available", contains("STANDARD", "EXPRESS")));
     }
@@ -283,6 +284,7 @@ class SellerStoreSettingsTests extends AbstractIntegrationTest {
     void thePreviewShowsTheNormalizedSettingsWithoutSavingOrAuditing() throws Exception {
         preview(settings(null)).andExpect(status().isOk())
                 .andExpect(jsonPath("$.name").value("Mi Tienda Editada"))
+                .andExpect(jsonPath("$.minReturnWindowDays").value(30))
                 .andExpect(jsonPath("$.contactEmail").value("ventas@mitienda.co"))
                 .andExpect(jsonPath("$.contactPhone").value("+57 300 123-4567"))
                 .andExpect(jsonPath("$.returnWindowDays").value(45)).andExpect(jsonPath("$.version").value(0));
