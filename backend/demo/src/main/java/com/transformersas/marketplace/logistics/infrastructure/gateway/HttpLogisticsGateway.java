@@ -2,8 +2,13 @@ package com.transformersas.marketplace.logistics.infrastructure.gateway;
 
 import com.transformersas.marketplace.logistics.domain.model.LogisticsRejectedException;
 import com.transformersas.marketplace.logistics.domain.model.LogisticsUnavailableException;
+import com.transformersas.marketplace.logistics.domain.model.ReturnEventType;
+import com.transformersas.marketplace.logistics.domain.model.ReturnTrackingUpdate;
+import com.transformersas.marketplace.logistics.domain.model.ShipmentEventType;
 import com.transformersas.marketplace.logistics.domain.model.ShipmentReceipt;
 import com.transformersas.marketplace.logistics.domain.model.ShipmentRequest;
+import com.transformersas.marketplace.logistics.domain.model.TrackingEvidence;
+import com.transformersas.marketplace.logistics.domain.model.TrackingUpdate;
 import com.transformersas.marketplace.logistics.domain.repository.LogisticsGateway;
 import com.transformersas.marketplace.shared.http.ExternalRestClients;
 import com.transformersas.marketplace.shared.web.CorrelationContext;
@@ -21,7 +26,11 @@ import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
+import java.time.Instant;
+import java.time.format.DateTimeParseException;
 import java.util.List;
+import java.util.Optional;
+import java.util.function.Supplier;
 
 /**
  * Adaptador HTTP del servicio logístico externo. Contrato en docs/contracts/logistics-api.md.
@@ -63,15 +72,95 @@ public class HttpLogisticsGateway implements LogisticsGateway {
     }
 
     private ShipmentReceipt send(ShipmentRequest request, String idempotencyKey) {
-        ResponseEntity<Response> entity;
+        ResponseEntity<Response> entity = call(() -> client.post().uri("/shipments")
+                .contentType(MediaType.APPLICATION_JSON)
+                .header("Idempotency-Key", idempotencyKey)
+                .header(CorrelationContext.HEADER, CorrelationContext.current())
+                .body(Payload.from(request))
+                .retrieve()
+                .toEntity(Response.class));
+
+        int status = entity.getStatusCode().value();
+        Response body = entity.getBody();
+        if ((status != 200 && status != 201) || body == null || blank(body.shipmentId())
+                || blank(body.trackingCode()) || !"CREATED".equals(body.status())) {
+            throw new LogisticsUnavailableException("Respuesta inválida del servicio logístico", null);
+        }
+        return new ShipmentReceipt(body.shipmentId(), body.trackingCode());
+    }
+
+    @Override
+    public List<TrackingUpdate> fetchShipmentUpdates(String providerShipmentId) {
+        return fetchEvents("/shipments/{id}/events", providerShipmentId).stream()
+                .map(event -> toShipmentUpdate(providerShipmentId, event)).flatMap(Optional::stream).toList();
+    }
+
+    @Override
+    public List<ReturnTrackingUpdate> fetchReturnUpdates(String providerReturnId) {
+        return fetchEvents("/returns/{id}/events", providerReturnId).stream()
+                .map(event -> toReturnUpdate(providerReturnId, event)).flatMap(Optional::stream).toList();
+    }
+
+    /** Lectura de la línea de tiempo del proveedor: mismo timeout, circuito y clasificación de errores que crear. */
+    private List<EventPayload> fetchEvents(String path, String reference) {
         try {
-            entity = client.post().uri("/shipments")
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .header("Idempotency-Key", idempotencyKey)
-                    .header(CorrelationContext.HEADER, CorrelationContext.current())
-                    .body(Payload.from(request))
-                    .retrieve()
-                    .toEntity(Response.class);
+            return breaker.executeSupplier(() -> {
+                ResponseEntity<EventsResponse> entity = call(() -> client.get().uri(path, reference)
+                        .header(CorrelationContext.HEADER, CorrelationContext.current())
+                        .retrieve()
+                        .toEntity(EventsResponse.class));
+                EventsResponse body = entity.getBody();
+                if (entity.getStatusCode().value() != 200 || body == null || body.events() == null) {
+                    throw new LogisticsUnavailableException("Respuesta inválida del servicio logístico", null);
+                }
+                return body.events();
+            });
+        } catch (CallNotPermittedException open) {
+            log.warn("Circuito logístico abierto: no se consulta el seguimiento reference={}", reference);
+            throw new LogisticsUnavailableException("Servicio logístico no disponible temporalmente", open);
+        }
+    }
+
+    // Una actualización mal formada o de un tipo que no conocemos se omite: no debe tumbar la consulta completa.
+    private Optional<TrackingUpdate> toShipmentUpdate(String shipmentId, EventPayload event) {
+        try {
+            var type = ShipmentEventType.parse(event.type());
+            if (type.isEmpty()) {
+                log.warn("Tipo de actualización de envío desconocido: {}", event.type());
+                return Optional.empty();
+            }
+            return Optional.of(new TrackingUpdate(event.eventId(), shipmentId, event.trackingCode(), type.get(),
+                    Instant.parse(event.occurredAt()), event.description(), event.location(), evidence(event)));
+        } catch (IllegalArgumentException | NullPointerException | DateTimeParseException invalid) {
+            log.warn("Actualización de envío inválida omitida eventId={}", event.eventId());
+            return Optional.empty();
+        }
+    }
+
+    private Optional<ReturnTrackingUpdate> toReturnUpdate(String returnId, EventPayload event) {
+        try {
+            var type = ReturnEventType.parse(event.type());
+            if (type.isEmpty()) {
+                log.warn("Tipo de actualización de retorno desconocido: {}", event.type());
+                return Optional.empty();
+            }
+            return Optional.of(new ReturnTrackingUpdate(event.eventId(), returnId, event.trackingCode(), type.get(),
+                    Instant.parse(event.occurredAt()), event.description(), event.location(), evidence(event)));
+        } catch (IllegalArgumentException | NullPointerException | DateTimeParseException invalid) {
+            log.warn("Actualización de retorno inválida omitida eventId={}", event.eventId());
+            return Optional.empty();
+        }
+    }
+
+    private static TrackingEvidence evidence(EventPayload event) {
+        return event.evidence() == null ? null : new TrackingEvidence(event.evidence().type(),
+                event.evidence().reference());
+    }
+
+    /** Ejecuta la llamada y traduce sus fallos: 4xx = rechazo definitivo; 5xx, red o cuerpo ilegible = temporal. */
+    private <T> ResponseEntity<T> call(Supplier<ResponseEntity<T>> request) {
+        try {
+            return request.get();
         } catch (HttpClientErrorException rejected) {
             throw new LogisticsRejectedException(
                     "El servicio logístico rechazó la solicitud (" + rejected.getStatusCode().value() + ")", rejected);
@@ -83,14 +172,6 @@ public class HttpLogisticsGateway implements LogisticsGateway {
         } catch (RestClientException invalid) {
             throw new LogisticsUnavailableException("Respuesta inválida del servicio logístico", invalid);
         }
-
-        int status = entity.getStatusCode().value();
-        Response body = entity.getBody();
-        if ((status != 200 && status != 201) || body == null || blank(body.shipmentId())
-                || blank(body.trackingCode()) || !"CREATED".equals(body.status())) {
-            throw new LogisticsUnavailableException("Respuesta inválida del servicio logístico", null);
-        }
-        return new ShipmentReceipt(body.shipmentId(), body.trackingCode());
     }
 
     private static boolean blank(String value) {
@@ -116,5 +197,15 @@ public class HttpLogisticsGateway implements LogisticsGateway {
     }
 
     record Response(String shipmentId, String trackingCode, String status) {
+    }
+
+    record EventsResponse(List<EventPayload> events) {
+    }
+
+    record EventPayload(String eventId, String trackingCode, String type, String occurredAt, String description,
+                        String location, EvidencePayload evidence) {
+    }
+
+    record EvidencePayload(String type, String reference) {
     }
 }
