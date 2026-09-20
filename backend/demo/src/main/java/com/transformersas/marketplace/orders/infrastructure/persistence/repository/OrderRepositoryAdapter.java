@@ -60,4 +60,15 @@ public class OrderRepositoryAdapter
         if (accountId == null) return Optional.empty();
         return repository.findByIdAndAccountId(id, accountId).map(OrderMapper::toDomain);
     }
+    @Override
+    @Transactional
+    public boolean requestCancellation(Long id, Long accountId) {
+        return accountId != null && repository.requestCancellation(id, accountId) == 1;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean existsByIdAndAccountId(Long id, Long accountId) {
+        return accountId != null && repository.existsByIdAndAccountId(id, accountId);
+    }
 }

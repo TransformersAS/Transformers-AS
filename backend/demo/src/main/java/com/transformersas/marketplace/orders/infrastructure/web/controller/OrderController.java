@@ -2,6 +2,10 @@ package com.transformersas.marketplace.orders.infrastructure.web.controller;
 
 import com.transformersas.marketplace.auth.infrastructure.security.AccountPrincipal;
 import com.transformersas.marketplace.orders.application.usecase.FindOwnOrders;
+import com.transformersas.marketplace.orders.application.usecase.RequestOrderCancellation;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import com.transformersas.marketplace.orders.domain.model.Order;
 import com.transformersas.marketplace.orders.domain.model.OrderItem;
 import com.transformersas.marketplace.orders.domain.model.OrderStatus;
@@ -19,7 +23,18 @@ import java.util.List;
 public class OrderController {
     private final FindOwnOrders orders;
 
-    public OrderController(FindOwnOrders orders) { this.orders = orders; }
+    private final RequestOrderCancellation cancellation;
+
+    public OrderController(FindOwnOrders orders, RequestOrderCancellation cancellation) {
+        this.orders = orders;
+        this.cancellation = cancellation;
+    }
+
+    @PostMapping("/{id}/cancellation")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void requestCancellation(@PathVariable Long id, @AuthenticationPrincipal AccountPrincipal principal) {
+        cancellation.execute(id, principal);
+    }
 
     public record OrderSummary(Long id, OrderStatus status, BigDecimal total,
                                String shippingMethod, LocalDateTime createdAt) {

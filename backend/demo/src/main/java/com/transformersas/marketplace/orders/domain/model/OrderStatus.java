@@ -1,5 +1,6 @@
 package com.transformersas.marketplace.orders.domain.model;
 
 public enum OrderStatus {
-    CONFIRMED
+    CONFIRMED,
+    CANCELLATION_REQUESTED
 }

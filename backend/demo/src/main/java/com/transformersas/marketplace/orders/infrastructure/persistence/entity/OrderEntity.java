@@ -27,7 +27,7 @@ public class OrderEntity {
 
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
+    @Column(nullable = false, length = 32)
     private OrderStatus status;
 
 

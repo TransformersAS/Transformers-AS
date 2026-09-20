@@ -234,6 +234,112 @@ class OrderOwnershipIntegrationTests {
         }
     }
 
+    @Test
+    void cancellationChangesOnlyTheOwnedConfirmedOrderAndRepeatReturns409() throws Exception {
+        Long id = seedOrder(firstAccount, "cancel-target");
+        Long ownOther = seedOrder(firstAccount, "own-other");
+        Long foreign = seedOrder(secondAccount, "foreign");
+        Long historical = seedOrder(null, "historical");
+        Order before = load(id);
+        Session session = login("first@example.com");
+        cancel(session, id, 204);
+        Order after = load(id);
+        assertThat(after.status().name()).isEqualTo("CANCELLATION_REQUESTED");
+        assertThat(after.id()).isEqualTo(before.id());
+        assertThat(after.accountId()).isEqualTo(before.accountId());
+        assertThat(after.total()).isEqualByComparingTo(before.total());
+        assertThat(after.items()).isEqualTo(before.items());
+        assertThat(after.addressId()).isEqualTo(before.addressId());
+        assertThat(after.shippingMethod()).isEqualTo(before.shippingMethod());
+        assertThat(after.transactionId()).isEqualTo(before.transactionId());
+        assertThat(after.createdAt()).isEqualTo(before.createdAt());
+        cancel(session, id, 409);
+        for (Long unchanged : List.of(ownOther, foreign, historical)) {
+            assertThat(load(unchanged).status().name()).isEqualTo("CONFIRMED");
+        }
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM orders", Integer.class)).isEqualTo(4);
+        mvc.perform(get("/api/orders/{id}", id).cookie(session.cookie())).andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CANCELLATION_REQUESTED"));
+    }
+
+    @Test
+    void cancellationHidesForeignHistoricalAndMissingOrdersDespiteSpoofedAccount() throws Exception {
+        Long foreign = seedOrder(secondAccount, "foreign");
+        Long historical = seedOrder(null, "historical");
+        Session session = login("first@example.com");
+        for (Long id : List.of(foreign, historical, Long.MAX_VALUE)) {
+            mvc.perform(post("/api/orders/{id}/cancellation", id).cookie(session.cookie())
+                            .header(session.header(), session.token()).header("X-Account-Id", secondAccount)
+                            .param("accountId", secondAccount.toString()).contentType("application/json")
+                            .content("{\"accountId\":" + secondAccount + ",\"buyerId\":" + secondAccount + "}"))
+                    .andExpect(status().isNotFound()).andExpect(jsonPath("$.message").value("Pedido no encontrado"));
+        }
+        assertThat(load(foreign).status().name()).isEqualTo("CONFIRMED");
+        assertThat(load(historical).status().name()).isEqualTo("CONFIRMED");
+    }
+
+    @Test
+    void cancellationRequiresActiveBuyerRole() throws Exception {
+        var account = accounts.findById(firstAccount).orElseThrow();
+        accounts.save(new UserAccount(account.id(), account.email(), account.passwordHash(), account.status(),
+                Set.of(Role.COMPRADOR, Role.VENDEDOR)));
+        Session session = login("first@example.com");
+        Long id = seedOrder(firstAccount, "own");
+        cancel(session, id, 403);
+        mvc.perform(put("/api/auth/active-role").cookie(session.cookie()).header(session.header(), session.token())
+                .contentType("application/json").content("{\"role\":\"VENDEDOR\"}"))
+                .andExpect(status().isOk());
+        cancel(session, id, 403);
+        assertThat(load(id).status().name()).isEqualTo("CONFIRMED");
+    }
+
+    @Test
+    void cancellationRequiresAuthenticationAndCsrf() throws Exception {
+        Long id = seedOrder(firstAccount, "own");
+        Session anonymous = csrf(null);
+        cancel(anonymous, id, 401);
+        Session authenticated = login("first@example.com");
+        mvc.perform(post("/api/orders/{id}/cancellation", id).cookie(authenticated.cookie()))
+                .andExpect(status().isForbidden());
+        assertThat(load(id).status().name()).isEqualTo("CONFIRMED");
+    }
+
+    @Test
+    void simultaneousCancellationRequestsPerformExactlyOneTransition() throws Exception {
+        Long id = seedOrder(firstAccount, "concurrent");
+        Long unaffected = seedOrder(firstAccount, "unaffected");
+        Session first = login("first@example.com");
+        Session second = login("first@example.com");
+        var ready = new java.util.concurrent.CountDownLatch(2);
+        var start = new java.util.concurrent.CountDownLatch(1);
+        try (var executor = java.util.concurrent.Executors.newFixedThreadPool(2)) {
+            var results = new java.util.ArrayList<java.util.concurrent.Future<Integer>>();
+            for (Session session : List.of(first, second)) {
+                results.add(executor.submit(() -> {
+                    ready.countDown();
+                    if (!start.await(10, java.util.concurrent.TimeUnit.SECONDS)) throw new AssertionError("Start timed out");
+                    return mvc.perform(post("/api/orders/{id}/cancellation", id).cookie(session.cookie())
+                                    .header(session.header(), session.token()))
+                            .andReturn().getResponse().getStatus();
+                }));
+            }
+            boolean bothReady = ready.await(10, java.util.concurrent.TimeUnit.SECONDS);
+            start.countDown();
+            assertThat(bothReady).isTrue();
+            assertThat(List.of(results.get(0).get(20, java.util.concurrent.TimeUnit.SECONDS),
+                    results.get(1).get(20, java.util.concurrent.TimeUnit.SECONDS))).containsExactlyInAnyOrder(204, 409);
+        }
+        assertThat(load(id).status().name()).isEqualTo("CANCELLATION_REQUESTED");
+        assertThat(load(unaffected).status().name()).isEqualTo("CONFIRMED");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM orders", Integer.class)).isEqualTo(2);
+    }
+
+    private void cancel(Session session, Long id, int expectedStatus) throws Exception {
+        mvc.perform(post("/api/orders/{id}/cancellation", id).cookie(session.cookie())
+                        .header(session.header(), session.token()))
+                .andExpect(status().is(expectedStatus));
+    }
+
     private Long seedOrder(Long accountId, String transactionId) {
         jdbc.update("""
                 INSERT INTO orders(account_id,status,total,address_id,shipping_method,transaction_id,created_at)

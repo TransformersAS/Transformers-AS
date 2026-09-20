@@ -12,4 +12,7 @@ public interface OrderRepository {
     List<Order> findByAccountId(Long accountId);
 
     Optional<Order> findByIdAndAccountId(Long id, Long accountId);
+    boolean requestCancellation(Long id, Long accountId);
+
+    boolean existsByIdAndAccountId(Long id, Long accountId);
 }
