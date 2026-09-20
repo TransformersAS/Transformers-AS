@@ -67,6 +67,7 @@ import { PedidosRecibidosComponent } from './panel-vendedor/components/pedidos-r
 import { CatalogoAdminComponent } from './panel-admin-catalogo/components/catalogo-admin.component';
 import { MisProductosComponent } from './panel-vendedor/components/mis-productos.component';
 import { MiTiendaComponent } from './panel-vendedor/components/mi-tienda.component';
+import { ReclamacionesComponent } from './reclamaciones-devoluciones/components/reclamaciones.component';
 
 import {
   CheckoutService
@@ -113,7 +114,8 @@ import {
     PedidosRecibidosComponent,
     CatalogoAdminComponent,
     MisProductosComponent,
-    MiTiendaComponent
+    MiTiendaComponent,
+    ReclamacionesComponent
   ],
 
   templateUrl: './app.component.html',
@@ -235,6 +237,9 @@ export class AppComponent {
 
   /** "Mi tienda" del vendedor (CU-18). */
   mostrarMiTienda = false;
+
+  /** Reclamaciones de compra (CU-13): la ven el comprador, el vendedor y soporte, cada uno a su manera. */
+  mostrarReclamaciones = false;
 
   get esComprador(): boolean {
     return this.auth.cuenta()?.activeRole === 'COMPRADOR';
