@@ -7,10 +7,13 @@ import com.transformersas.marketplace.stores.domain.model.StoreStatus;
 import com.transformersas.marketplace.stores.domain.repository.StoreModificationPolicy;
 import com.transformersas.marketplace.stores.domain.repository.StoreRepository;
 
+import org.springframework.stereotype.Component;
+
 /**
- * Política por defecto: solo una tienda ACTIVE puede modificarse; RESTRICTED y SUSPENDED se rechazan con su motivo.
- * Todavía no es un bean de Spring: se registra cuando exista el adaptador de persistencia de StoreRepository.
+ * Política por defecto: solo una tienda ACTIVE puede modificarse; RESTRICTED y SUSPENDED bloquean las escrituras y se
+ * rechazan con su motivo. La consulta de la tienda no pasa por aquí: siempre se permite.
  */
+@Component
 public class StatusBasedModificationPolicy implements StoreModificationPolicy {
 
     private final StoreRepository stores;
