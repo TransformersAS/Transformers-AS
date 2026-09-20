@@ -1,2 +1,2 @@
-/** Perfil del comprador o vendedor autenticado, listo para hidratarse desde /me. */
-export interface Usuario { id: string; nombre: string; correo: string; rol: 'comprador' | 'vendedor' | 'admin' | 'soporte'; }
+/** La cuenta expuesta por /api/auth/me, sin campos de perfil inventados. */
+export type { CuentaSesion as Usuario } from '../../core/models/auth.model';

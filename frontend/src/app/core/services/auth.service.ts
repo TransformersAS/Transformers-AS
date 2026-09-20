@@ -1,24 +1,17 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
-import { HttpClient, HttpParams } from '@angular/common/http';
-import { Observable, catchError, map, of, switchMap, tap } from 'rxjs';
+import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http';
+import { Observable, catchError, map, of, switchMap, tap, throwError } from 'rxjs';
 
 import { API_BASE } from '../config/api.config';
 
-export type Rol = 'COMPRADOR' | 'VENDEDOR' | 'ADMIN' | 'SOPORTE';
+import {
+  CambioContrasena, CambioRol, ConfirmacionRecuperacion, CredencialesLogin,
+  CuentaSesion, RespuestaCsrf, RespuestaRecuperacion, Rol, SesionActiva,
+  SolicitudRecuperacion, TokenCsrf
+} from '../models/auth.model';
 
-/** Cuenta de la sesión activa, tal como la entrega GET /api/auth/me. */
-export interface CuentaSesion {
-  accountId: number;
-  email: string;
-  roles: Rol[];
-  /** Es null cuando la cuenta tiene varios roles y aún no eligió uno. */
-  activeRole: Rol | null;
-}
-
-export interface TokenCsrf {
-  header: string;
-  token: string;
-}
+// Compatibilidad con los consumidores existentes; la definición es única.
+export type { CuentaSesion, Rol, TokenCsrf } from '../models/auth.model';
 
 /**
  * Sesión del usuario. El servidor mantiene la sesión en una cookie HttpOnly (el frontend nunca ve la
@@ -42,12 +35,12 @@ export class AuthService {
 
   /** Recupera la sesión si el navegador todavía tiene la cookie (por ejemplo tras recargar la página). */
   restaurar(): void {
-    this.http.get<CuentaSesion>(`${API_BASE}/auth/me`).pipe(catchError(() => of(null)))
-      .subscribe(cuenta => this._cuenta.set(cuenta));
+    this.obtenerCuentaActual().subscribe({ error: () => this.olvidar() });
   }
 
-  iniciarSesion(email: string, password: string): Observable<CuentaSesion | null> {
-    const cuerpo = new HttpParams().set('email', email).set('password', password).toString();
+  iniciarSesion(email: string, password: string): Observable<CuentaSesion> {
+    const credenciales: CredencialesLogin = { email, password };
+    const cuerpo = new HttpParams().set('email', credenciales.email).set('password', credenciales.password).toString();
     return this.refrescarCsrf().pipe(
       switchMap(() => this.http.post(`${API_BASE}/auth/login`, cuerpo,
         { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, responseType: 'text' })),
@@ -59,15 +52,67 @@ export class AuthService {
   }
 
   cambiarRol(rol: Rol): Observable<CuentaSesion> {
-    return this.http.put<CuentaSesion>(`${API_BASE}/auth/active-role`, { role: rol }).pipe(
+    const cambio: CambioRol = { role: rol };
+    return this.http.put<CuentaSesion>(`${API_BASE}/auth/active-role`, cambio).pipe(
       tap(cuenta => this._cuenta.set(cuenta))
     );
   }
 
-  cerrarSesion(): Observable<unknown> {
+  cerrarSesion(): Observable<void> {
     return this.http.post(`${API_BASE}/auth/logout`, {}, { responseType: 'text' }).pipe(
       catchError(() => of(null)),
-      tap(() => this.olvidar())
+      tap(() => this.olvidar()),
+      map(() => undefined)
+    );
+  }
+
+  /** /me no proporciona nombre ni perfil: solo identidad y roles de la sesión. */
+  obtenerCuentaActual(): Observable<CuentaSesion | null> {
+    return this.http.get<CuentaSesion>(`${API_BASE}/auth/me`).pipe(
+      tap(cuenta => this._cuenta.set(cuenta)),
+      catchError((error: HttpErrorResponse) => {
+        if (error.status === 401) {
+          this.olvidar();
+          return of(null);
+        }
+        return throwError(() => error);
+      })
+    );
+  }
+
+  listarSesiones(): Observable<SesionActiva[]> {
+    return this.http.get<SesionActiva[]>(`${API_BASE}/auth/sessions`);
+  }
+
+  /** Recibe una sesión de listarSesiones(); solo limpia la cuenta si se revoca la actual. */
+  revocarSesion(sesion: SesionActiva): Observable<void> {
+    return this.http.delete<void>(`${API_BASE}/auth/sessions/${encodeURIComponent(sesion.id)}`).pipe(
+      tap(() => {
+        if (sesion.current) this.olvidar();
+      })
+    );
+  }
+
+  /** El backend conserva esta sesión y revoca las demás de la cuenta. */
+  cambiarContrasena(cambio: CambioContrasena): Observable<void> {
+    return this.http.put<void>(`${API_BASE}/auth/password`, cambio);
+  }
+
+  solicitarRecuperacion(solicitud: SolicitudRecuperacion): Observable<RespuestaRecuperacion> {
+    return this.http.post<RespuestaRecuperacion>(`${API_BASE}/auth/password-recovery/request`, solicitud);
+  }
+
+  confirmarRecuperacion(confirmacion: ConfirmacionRecuperacion): Observable<void> {
+    return this.http.post<void>(`${API_BASE}/auth/password-recovery/confirm`, confirmacion).pipe(
+      // El reset revoca las sesiones de la cuenta recuperada. /me permite conservar
+      // una sesión que pertenezca a otra cuenta, sin deducir identidades del token.
+      tap(() => this.invalidarCsrf()),
+      switchMap(() => this.obtenerCuentaActual().pipe(
+        // El reset ya tuvo éxito; un fallo de sincronización no permite repetir el token.
+        // obtenerCuentaActual conserva la limpieza de sesión ante un 401.
+        catchError(() => of(null))
+      )),
+      map(() => undefined)
     );
   }
 
@@ -90,7 +135,7 @@ export class AuthService {
   }
 
   private refrescarCsrf(): Observable<TokenCsrf> {
-    return this.http.get<{ headerName: string; token: string }>(`${API_BASE}/auth/csrf`).pipe(
+    return this.http.get<RespuestaCsrf>(`${API_BASE}/auth/csrf`).pipe(
       map(respuesta => ({ header: respuesta.headerName, token: respuesta.token })),
       tap(csrf => (this.csrf = csrf))
     );
