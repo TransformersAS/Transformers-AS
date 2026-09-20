@@ -1329,4 +1329,18 @@
   <app-pedidos-recibidos (cerrar)="mostrarPedidosRecibidos = false"></app-pedidos-recibidos>
 </div>
 
+<!-- Estructura del catálogo (CU-06): solo con el rol activo ADMIN -->
+<button
+  *ngIf="esAdmin && !mostrarCatalogoAdmin"
+  type="button"
+  class="boton-pedidos"
+  (click)="mostrarCatalogoAdmin = true"
+>
+  Configurar catálogo
+</button>
+
+<div class="panel-pedidos" *ngIf="esAdmin && mostrarCatalogoAdmin">
+  <app-catalogo-admin (cerrar)="mostrarCatalogoAdmin = false"></app-catalogo-admin>
+</div>
+
 </ion-app>

@@ -64,6 +64,7 @@ import { AccesoComponent } from './core/components/acceso.component';
 
 import { ColaSoporteComponent } from './panel-admin-soporte/components/cola-soporte.component';
 import { PedidosRecibidosComponent } from './panel-vendedor/components/pedidos-recibidos.component';
+import { CatalogoAdminComponent } from './panel-admin-catalogo/components/catalogo-admin.component';
 
 import {
   CheckoutService
@@ -107,7 +108,8 @@ import {
     AccesoComponent,
     MisPedidosComponent,
     ColaSoporteComponent,
-    PedidosRecibidosComponent
+    PedidosRecibidosComponent,
+    CatalogoAdminComponent
   ],
 
   templateUrl: './app.component.html',
@@ -221,6 +223,9 @@ export class AppComponent {
   /** Panel de pedidos recibidos del vendedor (CU-23); "mostrarPedidos" es el de "Mis pedidos" del comprador. */
   mostrarPedidosRecibidos = false;
 
+  /** Panel del administrador para configurar categorías, marcas y atributos (CU-06). */
+  mostrarCatalogoAdmin = false;
+
   get esComprador(): boolean {
     return this.auth.cuenta()?.activeRole === 'COMPRADOR';
   }
@@ -237,6 +242,11 @@ export class AppComponent {
   /** Los pedidos recibidos (CU-23) solo se muestran con el rol activo VENDEDOR; el backend lo exige igualmente. */
   get esVendedor(): boolean {
     return this.auth.cuenta()?.activeRole === 'VENDEDOR';
+  }
+
+  /** La configuración del catálogo (CU-06) solo se muestra con el rol activo ADMIN; el backend lo exige igualmente. */
+  get esAdmin(): boolean {
+    return this.auth.cuenta()?.activeRole === 'ADMIN';
   }
 
 
