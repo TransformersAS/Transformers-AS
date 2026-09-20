@@ -79,6 +79,26 @@ class ContentReportEvidenceTests extends ContentReportSupport {
     }
 
     @Test
+    void evidenceIsNeverCachedPubliclyAndAlwaysCarriesAnEtag() throws Exception {
+        long reportId = idOf(reportWithImages(buyer, product, "SPAM", evidence("uno.png", png))
+                .andExpect(status().isCreated()), "id");
+        Session agent = sessionWithRole("agente@example.com", "SOPORTE");
+        String support = "/api/support/moderation/reports/" + reportId + "/evidences/1";
+
+        var forReporter = perform(buyer, get(REPORTS + "/" + reportId + "/evidences/1")).andReturn().getResponse();
+        var forSupport = perform(agent, get(support)).andReturn().getResponse();
+        for (var served : java.util.List.of(forReporter, forSupport)) {
+            assertThat(served.getStatus()).isEqualTo(200);
+            assertThat(served.getHeader("ETag")).startsWith("\"").endsWith("\"");
+            assertThat(served.getHeader("Cache-Control")).contains("private").doesNotContain("public");
+        }
+        var revalidated = perform(buyer, get(REPORTS + "/" + reportId + "/evidences/1")
+                .header("If-None-Match", forReporter.getHeader("ETag"))).andExpect(status().isNotModified())
+                .andReturn().getResponse();
+        assertThat(revalidated.getHeader("Cache-Control")).doesNotContain("public");
+    }
+
+    @Test
     void supportReadsTheEvidenceThroughItsOwnReadOnlyEndpoint() throws Exception {
         long reportId = idOf(reportWithImages(buyer, product, "SPAM", evidence("uno.png", png))
                 .andExpect(status().isCreated()), "id");
