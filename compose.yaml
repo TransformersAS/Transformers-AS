@@ -1,6 +1,15 @@
 # Host Spring Boot uses localhost:3307; the backend service uses mysql:3306.
 # Initialization variables apply only when the data volume is empty.
 services:
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - "127.0.0.1:${FRONTEND_PORT:-4300}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+
   backend:
     build:
       context: ./backend/demo
