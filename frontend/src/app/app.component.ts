@@ -64,6 +64,7 @@ import { AccesoComponent } from './core/components/acceso.component';
 
 import { ColaSoporteComponent } from './panel-admin-soporte/components/cola-soporte.component';
 import { PedidosRecibidosComponent } from './panel-vendedor/components/pedidos-recibidos.component';
+import { MiTiendaComponent } from './panel-vendedor/components/mi-tienda.component';
 
 import {
   CheckoutService
@@ -107,7 +108,8 @@ import {
     AccesoComponent,
     MisPedidosComponent,
     ColaSoporteComponent,
-    PedidosRecibidosComponent
+    PedidosRecibidosComponent,
+    MiTiendaComponent
   ],
 
   templateUrl: './app.component.html',
@@ -220,6 +222,9 @@ export class AppComponent {
 
   /** Panel de pedidos recibidos del vendedor (CU-23); "mostrarPedidos" es el de "Mis pedidos" del comprador. */
   mostrarPedidosRecibidos = false;
+
+  /** "Mi tienda" del vendedor (CU-18). */
+  mostrarMiTienda = false;
 
   get esComprador(): boolean {
     return this.auth.cuenta()?.activeRole === 'COMPRADOR';

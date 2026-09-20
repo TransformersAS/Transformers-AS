@@ -39,8 +39,7 @@ class ShipmentTrackingWebhookTests extends AbstractTrackingTest {
     void setUp() throws Exception {
         buyerId = createAccount("buyer@example.com", "COMPRADOR");
         buyer = login("buyer@example.com");
-        createAccount("seller@example.com", "VENDEDOR");
-        seller = login("seller@example.com");
+        seller = sellerOfStore("seller@example.com", 1);
         order = shippedOrder(buyerId, "READY_FOR_DISPATCH");
     }
 

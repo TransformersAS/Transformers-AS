@@ -13,7 +13,8 @@
 #   MYSQL_CONTAINER  nombre del contenedor MySQL (por defecto: mysql-mkt).
 #   DB_USER / DB_NAME  usuario y base de datos (por defecto: marketplace_app / marketplace).
 #
-# Requiere Docker y que el backend haya arrancado antes al menos una vez (Flyway crea las tablas).
+# Requiere Docker y que el backend haya arrancado antes al menos una vez (Flyway crea las tablas, incluida la
+# dueña de la tienda de CU-18: la cuenta vendedora demo queda como dueña de la tienda 1 si esta no tiene dueña).
 set -euo pipefail
 
 : "${DEMO_PASSWORD:?Define DEMO_PASSWORD (contraseña de las cuentas de prueba)}"
@@ -63,6 +64,15 @@ INSERT IGNORE INTO user_account_roles(account_id, role)
   SELECT id, 'VENDEDOR' FROM user_accounts WHERE email = '${SELLER_EMAIL}';
 INSERT IGNORE INTO user_account_roles(account_id, role)
   SELECT id, 'COMPRADOR' FROM user_accounts WHERE email = '${BUYER_EMAIL}';
+
+-- CU-18: solo la cuenta dueña de una tienda la opera. La tienda 1 se asigna al vendedor demo únicamente si aún no
+-- tiene dueña y la cuenta no es dueña de otra tienda (una cuenta solo puede serlo de una); si ya hay dueña, no se
+-- cambia. Repetir el script no altera nada.
+SET @seller_id = (SELECT id FROM user_accounts WHERE email = '${SELLER_EMAIL}');
+UPDATE stores SET owner_account_id = @seller_id
+  WHERE id = 1 AND owner_account_id IS NULL AND @seller_id IS NOT NULL
+    AND @seller_id NOT IN (SELECT owner_account_id FROM (SELECT owner_account_id FROM stores
+                                                          WHERE owner_account_id IS NOT NULL) AS owners);
 
 -- Tienda 1 (la crea V13) y productos: el stock se restablece en cada ejecución.
 INSERT INTO products(name, price, stock, category, active, store_id)

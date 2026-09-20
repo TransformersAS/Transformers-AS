@@ -1329,4 +1329,18 @@
   <app-pedidos-recibidos (cerrar)="mostrarPedidosRecibidos = false"></app-pedidos-recibidos>
 </div>
 
+<!-- Mi tienda (CU-18): solo con el rol activo VENDEDOR -->
+<button
+  *ngIf="esVendedor && !mostrarMiTienda"
+  type="button"
+  class="boton-pedidos boton-tienda"
+  (click)="mostrarMiTienda = true"
+>
+  Mi tienda
+</button>
+
+<div class="panel-pedidos" *ngIf="esVendedor && mostrarMiTienda">
+  <app-mi-tienda (cerrar)="mostrarMiTienda = false"></app-mi-tienda>
+</div>
+
 </ion-app>
