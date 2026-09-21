@@ -1238,7 +1238,7 @@
         </div>
 
 
-        <button type="button">
+        <button type="button" (click)="mostrarRegistroVendedor = true">
 
           Conocer el espacio vendedor
 
@@ -1402,6 +1402,11 @@
 
 <div class="panel-pedidos" *ngIf="(esComprador || esVendedor) && reportes.panelAbierto()">
   <app-mis-reportes (cerrar)="reportes.cerrarPanel()"></app-mis-reportes>
+</div>
+
+<!-- Registro de vendedores (CU-12): abierto a cualquier visitante, con o sin sesión -->
+<div class="panel-pedidos" *ngIf="mostrarRegistroVendedor">
+  <app-registro-vendedor (cerrar)="mostrarRegistroVendedor = false"></app-registro-vendedor>
 </div>
 
 </ion-app>
