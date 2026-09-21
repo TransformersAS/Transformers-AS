@@ -17,7 +17,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * V28 (CU-19): las tablas de devoluciones y las restricciones que sostienen las reglas del caso de uso (una solicitud por
+ * V30 (CU-19): las tablas de devoluciones y las restricciones que sostienen las reglas del caso de uso (una solicitud por
  * línea, estados válidos, una sola solicitud de información abierta, coherencia del origen y del problema reportado).
  */
 class ReturnsMigrationTests extends AbstractIntegrationTest {
