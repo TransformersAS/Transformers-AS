@@ -3,6 +3,9 @@ package com.transformersas.marketplace.logistics.infrastructure.gateway;
 import com.transformersas.marketplace.logistics.domain.model.LogisticsRejectedException;
 import com.transformersas.marketplace.logistics.domain.model.LogisticsUnavailableException;
 import com.transformersas.marketplace.logistics.domain.model.ReturnEventType;
+import com.transformersas.marketplace.logistics.domain.model.ReturnMethod;
+import com.transformersas.marketplace.logistics.domain.model.ReturnReceipt;
+import com.transformersas.marketplace.logistics.domain.model.ReturnRequestData;
 import com.transformersas.marketplace.logistics.domain.model.ReturnTrackingUpdate;
 import com.transformersas.marketplace.logistics.domain.model.ShipmentEventType;
 import com.transformersas.marketplace.logistics.domain.model.ShipmentReceipt;
@@ -87,6 +90,58 @@ public class HttpLogisticsGateway implements LogisticsGateway {
             throw new LogisticsUnavailableException("Respuesta inválida del servicio logístico", null);
         }
         return new ShipmentReceipt(body.shipmentId(), body.trackingCode());
+    }
+
+    @Override
+    public List<ReturnMethod> fetchReturnMethods(Long orderId, Long storeId) {
+        try {
+            return breaker.executeSupplier(() -> {
+                ResponseEntity<MethodsResponse> entity = call(() -> client.get()
+                        .uri(uri -> uri.path("/returns/methods").queryParam("orderId", orderId)
+                                .queryParam("storeId", storeId).build())
+                        .header(CorrelationContext.HEADER, CorrelationContext.current())
+                        .retrieve()
+                        .toEntity(MethodsResponse.class));
+                MethodsResponse body = entity.getBody();
+                if (entity.getStatusCode().value() != 200 || body == null || body.methods() == null) {
+                    throw new LogisticsUnavailableException("Respuesta inválida del servicio logístico", null);
+                }
+                return body.methods().stream().filter(method -> !blank(method.code()))
+                        .map(method -> new ReturnMethod(method.code(), method.label() == null ? method.code()
+                                : method.label())).toList();
+            });
+        } catch (CallNotPermittedException open) {
+            log.warn("Circuito logístico abierto: no se consultan los métodos de retorno orderId={}", orderId);
+            throw new LogisticsUnavailableException("Servicio logístico no disponible temporalmente", open);
+        }
+    }
+
+    @Override
+    public ReturnReceipt createReturn(ReturnRequestData request, String idempotencyKey) {
+        try {
+            return breaker.executeSupplier(() -> sendReturn(request, idempotencyKey));
+        } catch (CallNotPermittedException open) {
+            log.warn("Circuito logístico abierto: no se crea el retorno key={}", idempotencyKey);
+            throw new LogisticsUnavailableException("Servicio logístico no disponible temporalmente", open);
+        }
+    }
+
+    private ReturnReceipt sendReturn(ReturnRequestData request, String idempotencyKey) {
+        ResponseEntity<ReturnResponse> entity = call(() -> client.post().uri("/returns")
+                .contentType(MediaType.APPLICATION_JSON)
+                .header("Idempotency-Key", idempotencyKey)
+                .header(CorrelationContext.HEADER, CorrelationContext.current())
+                .body(ReturnPayload.from(request))
+                .retrieve()
+                .toEntity(ReturnResponse.class));
+
+        int status = entity.getStatusCode().value();
+        ReturnResponse body = entity.getBody();
+        if ((status != 200 && status != 201) || body == null || blank(body.returnId())
+                || blank(body.trackingCode()) || !"CREATED".equals(body.status())) {
+            throw new LogisticsUnavailableException("Respuesta inválida del servicio logístico", null);
+        }
+        return new ReturnReceipt(body.returnId(), body.trackingCode());
     }
 
     @Override
@@ -197,6 +252,28 @@ public class HttpLogisticsGateway implements LogisticsGateway {
     }
 
     record Response(String shipmentId, String trackingCode, String status) {
+    }
+
+    // Retorno de una devolución (CU-19): el destino es la tienda (solo su id); el servicio resuelve el lugar de entrega.
+    record ReturnPayload(String returnReference, String orderReference, Long storeId, String method,
+                         Payload.Party pickup, List<Payload.Line> items) {
+
+        static ReturnPayload from(ReturnRequestData request) {
+            var pickup = request.pickup();
+            return new ReturnPayload("return-" + request.returnId(), "order-" + request.orderId(), request.storeId(),
+                    request.methodCode(), new Payload.Party(pickup.name(), pickup.street(), pickup.city(),
+                            pickup.department(), pickup.postalCode(), pickup.phone()),
+                    request.items().stream().map(item -> new Payload.Line(item.name(), item.quantity())).toList());
+        }
+    }
+
+    record ReturnResponse(String returnId, String trackingCode, String status) {
+    }
+
+    record MethodsResponse(List<MethodPayload> methods) {
+    }
+
+    record MethodPayload(String code, String label) {
     }
 
     record EventsResponse(List<EventPayload> events) {

@@ -3,6 +3,9 @@ package com.transformersas.marketplace.logistics.infrastructure.gateway;
 import com.transformersas.marketplace.logistics.domain.model.LogisticsRejectedException;
 import com.transformersas.marketplace.logistics.domain.model.LogisticsUnavailableException;
 import com.transformersas.marketplace.logistics.domain.model.ReturnEventType;
+import com.transformersas.marketplace.logistics.domain.model.ReturnMethod;
+import com.transformersas.marketplace.logistics.domain.model.ReturnReceipt;
+import com.transformersas.marketplace.logistics.domain.model.ReturnRequestData;
 import com.transformersas.marketplace.logistics.domain.model.ReturnTrackingUpdate;
 import com.transformersas.marketplace.logistics.domain.model.ShipmentEventType;
 import com.transformersas.marketplace.logistics.domain.model.ShipmentReceipt;
@@ -32,6 +35,9 @@ import java.util.concurrent.atomic.AtomicInteger;
  * logistics.simulated.script=HAPPY_PATH, que hace avanzar cada envío por Recogido, En camino y Entregado (y cada
  * retorno por Recogido, En retorno y Entregado al vendedor) cada logistics.simulated.step desde la primera consulta.
  * La guía de un envío "SIM-order-N" es "TRK-N" y la de un retorno "SIM-return-N" es "TRK-RN".
+ *
+ * <p>Retornos (CU-19): ofrece los métodos PICKUP y DROP_OFF y crea el retorno de forma idempotente por "return-N", con los
+ * mismos modos OK/UNAVAILABLE/REJECT. Un método que no esté disponible se rechaza como un 4xx (setUnavailableReturnMethods).
  */
 @Component
 @ConditionalOnProperty(name = "logistics.provider", havingValue = "simulated", matchIfMissing = true)
@@ -47,7 +53,14 @@ public class SimulatedLogisticsGateway implements LogisticsGateway {
     @Value("${logistics.simulated.step:15s}")
     private volatile Duration step = Duration.ofSeconds(15);
 
+    /** Métodos de retorno que el simulador ofrece. */
+    public static final List<ReturnMethod> RETURN_METHODS = List.of(
+            new ReturnMethod("PICKUP", "Recogida en mi dirección"),
+            new ReturnMethod("DROP_OFF", "Entrega en un punto de despacho"));
+
     private final Map<String, ShipmentReceipt> byKey = new ConcurrentHashMap<>();
+    private final Map<String, ReturnReceipt> returnsByKey = new ConcurrentHashMap<>();
+    private final java.util.Set<String> unavailableReturnMethods = ConcurrentHashMap.newKeySet();
     private final Map<String, List<TrackingUpdate>> shipmentUpdates = new ConcurrentHashMap<>();
     private final Map<String, List<ReturnTrackingUpdate>> returnUpdates = new ConcurrentHashMap<>();
     private final Map<String, Instant> firstSeen = new ConcurrentHashMap<>();
@@ -116,6 +129,32 @@ public class SimulatedLogisticsGateway implements LogisticsGateway {
         return updates;
     }
 
+    @Override
+    public List<ReturnMethod> fetchReturnMethods(Long orderId, Long storeId) {
+        requests.incrementAndGet();
+        failIfNotAvailable();
+        return RETURN_METHODS.stream().filter(method -> !unavailableReturnMethods.contains(method.code())).toList();
+    }
+
+    @Override
+    public ReturnReceipt createReturn(ReturnRequestData request, String idempotencyKey) {
+        requests.incrementAndGet();
+        return switch (mode) {
+            case UNAVAILABLE -> throw new LogisticsUnavailableException("Servicio logístico simulado no disponible", null);
+            case REJECT -> throw new LogisticsRejectedException("Solicitud rechazada por el servicio logístico simulado", null);
+            case OK -> {
+                boolean offered = RETURN_METHODS.stream().anyMatch(method -> method.code().equals(request.methodCode()))
+                        && !unavailableReturnMethods.contains(request.methodCode());
+                if (!offered) {
+                    throw new LogisticsRejectedException("Método de retorno no disponible: " + request.methodCode(), null);
+                }
+                // Misma clave, mismo retorno: la creación es idempotente como exige el contrato.
+                yield returnsByKey.computeIfAbsent(idempotencyKey, key ->
+                        new ReturnReceipt("SIM-" + key, "TRK-R" + key.replace("return-", "")));
+            }
+        };
+    }
+
     private void failIfNotAvailable() {
         switch (mode) {
             case UNAVAILABLE -> throw new LogisticsUnavailableException("Servicio logístico simulado no disponible", null);
@@ -142,9 +181,20 @@ public class SimulatedLogisticsGateway implements LogisticsGateway {
         this.script = script;
     }
 
+    /** Deja de ofrecer estos métodos de retorno (uso de pruebas): simula uno que ya no está disponible. */
+    public void setUnavailableReturnMethods(java.util.Collection<String> codes) {
+        unavailableReturnMethods.clear();
+        unavailableReturnMethods.addAll(codes);
+    }
+
     /** Solicitudes recibidas (incluye las fallidas): permite comprobar que no hubo llamadas duplicadas. */
     public int requestCount() {
         return requests.get();
+    }
+
+    /** Retornos distintos creados en el proveedor simulado. */
+    public int distinctReturns() {
+        return returnsByKey.size();
     }
 
     /** Envíos distintos creados en el proveedor simulado. */
@@ -154,6 +204,8 @@ public class SimulatedLogisticsGateway implements LogisticsGateway {
 
     public void reset() {
         byKey.clear();
+        returnsByKey.clear();
+        unavailableReturnMethods.clear();
         shipmentUpdates.clear();
         returnUpdates.clear();
         firstSeen.clear();
