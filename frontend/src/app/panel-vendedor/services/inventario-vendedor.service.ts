@@ -3,7 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
 import { API_BASE } from '../../core/config/api.config';
-import { ItemInventario, MovimientoInventario } from '../models/inventario-vendedor.model';
+import { ItemInventario, MovimientoInventario, ResultadoCarga, TipoCarga } from '../models/inventario-vendedor.model';
 import { TIENDA_PROVISIONAL_ID } from './pedidos-vendedor.service';
 
 /**
@@ -45,5 +45,19 @@ export class InventarioVendedorService {
 
   historial(productoId: number): Observable<MovimientoInventario[]> {
     return this.http.get<MovimientoInventario[]>(`${this.url}/${productoId}/movements`, { headers: this.headers });
+  }
+
+  // ---------- Cargas masivas con Excel ----------
+
+  /** Descarga la plantilla vacía de productos o la de inventario (que ya trae los productos de la tienda). */
+  descargarPlantilla(tipo: TipoCarga): Observable<Blob> {
+    return this.http.get(`${this.url}/templates/${tipo}`, { headers: this.headers, responseType: 'blob' });
+  }
+
+  /** Sube la plantilla ya llena. Es todo o nada: si alguna fila falla el backend no guarda nada. */
+  cargar(tipo: TipoCarga, archivo: File): Observable<ResultadoCarga> {
+    const datos = new FormData();
+    datos.append('file', archivo);
+    return this.http.post<ResultadoCarga>(`${this.url}/imports/${tipo}`, datos, { headers: this.headers });
   }
 }

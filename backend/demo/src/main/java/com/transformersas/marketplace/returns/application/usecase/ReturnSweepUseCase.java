@@ -16,6 +16,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Clock;
@@ -48,6 +49,7 @@ public class ReturnSweepUseCase {
     private final ReturnProperties properties;
     private final Clock clock;
     private final TransactionTemplate transaction;
+    private final TransactionTemplate claimTransaction;
 
     public ReturnSweepUseCase(ReturnRequestRepository repository, RequestRefundUseCase refunds,
                               ReturnRecorder recorder, ReturnPolicy policy, ReturnProperties properties, Clock clock,
@@ -59,11 +61,13 @@ public class ReturnSweepUseCase {
         this.properties = properties;
         this.clock = clock;
         this.transaction = new TransactionTemplate(transactionManager);
+        this.claimTransaction = new TransactionTemplate(transactionManager);
+        this.claimTransaction.setIsolationLevel(TransactionDefinition.ISOLATION_READ_COMMITTED);
     }
 
     /** Una vuelta: reserva un lote, cierra las inspecciones vencidas y procesa los reembolsos. */
     public Summary runOnce() {
-        List<Long> claimed = transaction.execute(status -> claimBatch());
+        List<Long> claimed = claimTransaction.execute(status -> claimBatch());
         int completed = 0;
         int notCompleted = 0;
         for (Long id : claimed) {
