@@ -58,9 +58,19 @@ import {
   AuthService
 } from './core/services/auth.service';
 
+import { MisPedidosComponent } from './pedidos/components/mis-pedidos.component';
+
 import { AccesoComponent } from './core/components/acceso.component';
 
 import { ColaSoporteComponent } from './panel-admin-soporte/components/cola-soporte.component';
+import { PedidosRecibidosComponent } from './panel-vendedor/components/pedidos-recibidos.component';
+import { CatalogoAdminComponent } from './panel-admin-catalogo/components/catalogo-admin.component';
+import { MisProductosComponent } from './panel-vendedor/components/mis-productos.component';
+import { MiTiendaComponent } from './panel-vendedor/components/mi-tienda.component';
+import { ReclamacionesComponent } from './reclamaciones-devoluciones/components/reclamaciones.component';
+import { MisReportesComponent } from './reportes/components/mis-reportes.component';
+import { ReportarContenidoComponent } from './reportes/components/reportar-contenido.component';
+import { ReportesService } from './reportes/services/reportes.service';
 
 import {
   CheckoutService
@@ -109,7 +119,15 @@ import {
     NgIf,
     FormsModule,
     AccesoComponent,
-    ColaSoporteComponent
+    MisPedidosComponent,
+    ColaSoporteComponent,
+    PedidosRecibidosComponent,
+    CatalogoAdminComponent,
+    MisProductosComponent,
+    MiTiendaComponent,
+    ReclamacionesComponent,
+    MisReportesComponent,
+    ReportarContenidoComponent
   ],
 
   templateUrl: './app.component.html',
@@ -126,6 +144,9 @@ export class AppComponent {
 
   private readonly carrito =
     inject(CarritoService);
+
+  /** Panel "Mis reportes" (CU-20): su visibilidad y el reporte a mostrar viven en el servicio. */
+  protected readonly reportes = inject(ReportesService);
 
   private readonly auth =
     inject(AuthService);
@@ -228,6 +249,27 @@ export class AppComponent {
 
   mostrarModeracion = false;
 
+  mostrarPedidos = false;
+
+  /** Panel de pedidos recibidos del vendedor (CU-23); "mostrarPedidos" es el de "Mis pedidos" del comprador. */
+  mostrarPedidosRecibidos = false;
+
+  /** Panel del administrador para configurar categorías, marcas y atributos (CU-17). */
+  mostrarCatalogoAdmin = false;
+
+  /** Panel del vendedor para publicar y mantener sus productos (CU-14). */
+  mostrarMisProductos = false;
+
+  /** "Mi tienda" del vendedor (CU-18). */
+  mostrarMiTienda = false;
+
+  /** Reclamaciones de compra (CU-13): la ven el comprador, el vendedor y soporte, cada uno a su manera. */
+  mostrarReclamaciones = false;
+
+  get esComprador(): boolean {
+    return this.auth.cuenta()?.activeRole === 'COMPRADOR';
+  }
+
   get nombre(): string {
     return this.auth.obtenerNombreVisible();
   }
@@ -235,6 +277,16 @@ export class AppComponent {
   /** La cola de moderación solo se muestra con el rol activo SOPORTE; el backend lo exige igualmente. */
   get esSoporte(): boolean {
     return this.auth.cuenta()?.activeRole === 'SOPORTE';
+  }
+
+  /** Los pedidos recibidos (CU-23) solo se muestran con el rol activo VENDEDOR; el backend lo exige igualmente. */
+  get esVendedor(): boolean {
+    return this.auth.cuenta()?.activeRole === 'VENDEDOR';
+  }
+
+  /** La configuración del catálogo (CU-17) solo se muestra con el rol activo ADMIN; el backend lo exige igualmente. */
+  get esAdmin(): boolean {
+    return this.auth.cuenta()?.activeRole === 'ADMIN';
   }
 
 

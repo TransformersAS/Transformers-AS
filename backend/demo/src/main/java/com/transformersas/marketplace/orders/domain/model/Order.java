@@ -9,9 +9,12 @@ public record Order(
         Long id,
         Long accountId,
         OrderStatus status,
+        OrderPaymentStatus paymentStatus,
         BigDecimal total,
+        Long storeId,
         Long addressId,
         String shippingMethod,
+        DeliverySnapshot delivery,
         String transactionId,
         LocalDateTime createdAt,
         List<OrderItem> items

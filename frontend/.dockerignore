@@ -1,0 +1,14 @@
+node_modules
+dist
+.angular
+coverage
+logs
+*.log
+.git
+.idea
+.vscode
+.DS_Store
+.env
+.env.*
+*.md
+**/*.spec.ts

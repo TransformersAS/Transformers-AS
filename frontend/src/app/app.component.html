@@ -77,6 +77,8 @@
         </button>
 
 
+        <button *ngIf="esComprador" type="button" (click)="mostrarPedidos = true">Mis pedidos</button>
+
         <!-- Cuenta -->
         <button
           type="button"
@@ -99,6 +101,9 @@
     <!-- ===================================================== -->
     <!-- OVERLAY CARRITO -->
     <!-- ===================================================== -->
+
+    <app-mis-pedidos *ngIf="esComprador && mostrarPedidos"
+      (cerrar)="mostrarPedidos = false"></app-mis-pedidos>
 
     <app-acceso
       *ngIf="mostrarAcceso"
@@ -1269,6 +1274,8 @@
 
               </button>
 
+              <app-reportar-contenido tipo="PUBLICACION" [contenidoId]="producto.id"></app-reportar-contenido>
+
             </div>
 
           </article>
@@ -1390,6 +1397,93 @@
     ×
   </button>
   <app-cola-soporte></app-cola-soporte>
+</div>
+
+<!-- Pedidos recibidos (CU-23): solo con el rol activo VENDEDOR -->
+<button
+  *ngIf="esVendedor && !mostrarPedidosRecibidos"
+  type="button"
+  class="boton-pedidos"
+  (click)="mostrarPedidosRecibidos = true"
+>
+  Pedidos recibidos
+</button>
+
+<div class="panel-pedidos" *ngIf="esVendedor && mostrarPedidosRecibidos">
+  <app-pedidos-recibidos (cerrar)="mostrarPedidosRecibidos = false"></app-pedidos-recibidos>
+</div>
+
+<!-- Mis productos (CU-14): solo con el rol activo VENDEDOR -->
+<button
+  *ngIf="esVendedor && !mostrarMisProductos"
+  type="button"
+  class="boton-pedidos boton-productos"
+  (click)="mostrarMisProductos = true"
+>
+  Mis productos
+</button>
+
+<div class="panel-pedidos" *ngIf="esVendedor && mostrarMisProductos">
+  <app-mis-productos (cerrar)="mostrarMisProductos = false"></app-mis-productos>
+</div>
+
+<!-- Estructura del catálogo (CU-17): solo con el rol activo ADMIN -->
+<button
+  *ngIf="esAdmin && !mostrarCatalogoAdmin"
+  type="button"
+  class="boton-pedidos"
+  (click)="mostrarCatalogoAdmin = true"
+>
+  Configurar catálogo
+</button>
+
+<div class="panel-pedidos" *ngIf="esAdmin && mostrarCatalogoAdmin">
+  <app-catalogo-admin (cerrar)="mostrarCatalogoAdmin = false"></app-catalogo-admin>
+</div>
+
+<!-- Mi tienda (CU-18): solo con el rol activo VENDEDOR -->
+<button
+  *ngIf="esVendedor && !mostrarMiTienda"
+  type="button"
+  class="boton-pedidos boton-tienda"
+  (click)="mostrarMiTienda = true"
+>
+  Mi tienda
+</button>
+
+<div class="panel-pedidos" *ngIf="esVendedor && mostrarMiTienda">
+  <app-mi-tienda (cerrar)="mostrarMiTienda = false"></app-mi-tienda>
+</div>
+
+<!-- Reclamaciones de compra (CU-13): comprador, vendedor y soporte -->
+<button
+  *ngIf="(esComprador || esVendedor || esSoporte) && !mostrarReclamaciones"
+  type="button"
+  class="boton-pedidos"
+  [class.boton-reclamaciones-soporte]="esSoporte"
+  [class.boton-reclamaciones-vendedor]="esVendedor"
+  (click)="mostrarReclamaciones = true"
+>
+  {{ esVendedor ? 'Reclamaciones' : esSoporte ? 'Reclamaciones escaladas' : 'Mis reclamaciones' }}
+</button>
+
+<div class="panel-pedidos" *ngIf="(esComprador || esVendedor || esSoporte) && mostrarReclamaciones">
+  <app-reclamaciones (cerrar)="mostrarReclamaciones = false"></app-reclamaciones>
+</div>
+
+<!-- Mis reportes (CU-20): con el rol activo COMPRADOR o VENDEDOR -->
+<button
+  *ngIf="(esComprador || esVendedor) && !reportes.panelAbierto()"
+  type="button"
+  class="boton-pedidos boton-reportes"
+  [class.boton-reportes-vendedor]="esVendedor"
+  (click)="reportes.abrirPanel()"
+>
+  Mis reportes
+</button>
+
+<div class="panel-pedidos" *ngIf="(esComprador || esVendedor) && reportes.panelAbierto()">
+  <app-mis-reportes (cerrar)="reportes.cerrarPanel()"></app-mis-reportes>
 </div>
 
 </ion-app>

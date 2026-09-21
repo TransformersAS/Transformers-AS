@@ -1,6 +1,69 @@
 package com.transformersas.marketplace.orders.domain.model;
 
+import com.transformersas.marketplace.shared.error.BusinessException;
+
+import java.util.EnumSet;
+import java.util.Set;
+
+/**
+ * Estados del pedido y reglas de transición centralizadas (D5). Las transiciones del vendedor y del comprador están en
+ * allowedTargets; las de transporte, que solo provoca el servicio logístico (CU-24), en allowedLogisticsTargets.
+ */
 public enum OrderStatus {
     CONFIRMED,
-    CANCELLATION_REQUESTED
+    IN_PREPARATION,
+    READY_FOR_DISPATCH,
+    PICKED_UP,
+    IN_TRANSIT,
+    DELIVERED,
+    DELIVERY_EXCEPTION,
+    DELIVERY_ATTEMPT_FAILED,
+    RETURNED_TO_SELLER,
+    CANCELLED,
+    /** El comprador pidió cancelar (CU-11). Aún no hay transiciones desde aquí ni hacia otros estados. */
+    CANCELLATION_REQUESTED;
+
+    /** Destinos válidos desde este estado. */
+    public Set<OrderStatus> allowedTargets() {
+        return switch (this) {
+            case CONFIRMED -> EnumSet.of(IN_PREPARATION, CANCELLED);
+            case IN_PREPARATION -> EnumSet.of(READY_FOR_DISPATCH, CANCELLED);
+            default -> EnumSet.noneOf(OrderStatus.class);
+        };
+    }
+
+    /**
+     * Destinos que puede informar el servicio logístico desde este estado (CU-24). Nunca retroceden: Entregado y
+     * Retornado al vendedor son finales, y una novedad o un intento fallido puede repetirse o resolverse hacia adelante
+     * (A1 a A4, A6). Un pedido puede pasar directo a En camino si la recogida se informó tarde.
+     */
+    public Set<OrderStatus> allowedLogisticsTargets() {
+        return switch (this) {
+            case READY_FOR_DISPATCH -> EnumSet.of(PICKED_UP, IN_TRANSIT);
+            case PICKED_UP -> EnumSet.of(IN_TRANSIT, DELIVERY_EXCEPTION, DELIVERED);
+            case IN_TRANSIT -> EnumSet.of(DELIVERED, DELIVERY_EXCEPTION, DELIVERY_ATTEMPT_FAILED, RETURNED_TO_SELLER);
+            case DELIVERY_EXCEPTION -> EnumSet.of(IN_TRANSIT, DELIVERED, DELIVERY_EXCEPTION, DELIVERY_ATTEMPT_FAILED,
+                    RETURNED_TO_SELLER);
+            case DELIVERY_ATTEMPT_FAILED -> EnumSet.of(IN_TRANSIT, DELIVERED, DELIVERY_EXCEPTION,
+                    DELIVERY_ATTEMPT_FAILED, RETURNED_TO_SELLER);
+            default -> EnumSet.noneOf(OrderStatus.class);
+        };
+    }
+
+    public boolean canTransitionTo(OrderStatus target) {
+        return allowedTargets().contains(target);
+    }
+
+    /** Lanza 409 con código estable si la transición no está permitida. */
+    public void requireTransitionTo(OrderStatus target) {
+        if (!canTransitionTo(target)) {
+            throw BusinessException.conflict("ORDER_INVALID_TRANSITION",
+                    "El pedido en estado " + this + " no puede pasar a " + target);
+        }
+    }
+
+    /** Las novedades de preparación solo se registran antes de que el pedido quede listo (RF-121). */
+    public boolean allowsPreparationIssues() {
+        return this == CONFIRMED || this == IN_PREPARATION;
+    }
 }

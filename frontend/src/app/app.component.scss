@@ -1948,3 +1948,58 @@ footer > div {
   line-height: 1;
   cursor: pointer;
 }
+
+/* Pedidos recibidos (solo vendedor) */
+.boton-pedidos {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 800;
+  padding: 0.75rem 1.1rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--ink);
+  color: #fff;
+  font-weight: 700;
+  box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+}
+
+/* "Mis productos" (vendedor): tercer nivel de la pila, encima de "Mi tienda", para que no se tapen. */
+.boton-productos {
+  bottom: 8.5rem;
+}
+
+/* Reclamaciones (CU-13): el comprador solo tiene este botón; soporte lo pone sobre "Moderación de reportes" y el
+   vendedor en el cuarto nivel de su pila (pedidos, tienda, productos y reclamaciones). */
+.boton-reclamaciones-soporte {
+  bottom: 4.5rem;
+}
+
+.boton-reclamaciones-vendedor {
+  bottom: 12.25rem;
+}
+
+.panel-pedidos {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+}
+
+/* "Mi tienda" (CU-18): mismo botón flotante que "Pedidos recibidos", encima de él. */
+.boton-tienda {
+  bottom: 4.75rem;
+}
+
+/* "Mis reportes" (CU-20). Comprador: encima de "Mis reclamaciones" (1rem). Vendedor: quinto nivel de la pila, encima de
+   Pedidos recibidos (1rem), Mi tienda (4.75rem), Mis productos (8.5rem) y Reclamaciones (12.25rem). */
+.boton-reportes {
+  bottom: 4.75rem;
+}
+
+.boton-reportes-vendedor {
+  bottom: 16rem;
+}

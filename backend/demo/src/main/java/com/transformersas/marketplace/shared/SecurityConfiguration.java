@@ -87,10 +87,24 @@ public class SecurityConfiguration {
                         .requestMatchers(HttpMethod.GET, "/api/orders", "/api/orders/{id}").hasRole("COMPRADOR")
                         .requestMatchers(HttpMethod.HEAD, "/api/orders", "/api/orders/{id}").hasRole("COMPRADOR")
                         .requestMatchers(HttpMethod.POST, "/api/orders/{id}/cancellation").hasRole("COMPRADOR")
+                        // Seguimiento logístico (CU-24/CU-25): el comprador consulta lo suyo; la tienda pasa por
+                        // /api/seller/**, donde el rol activo VENDEDOR lo comprueba SessionSellerActorProvider.
+                        .requestMatchers(HttpMethod.GET, "/api/orders/{id}/tracking",
+                                "/api/returns/{id}/tracking").hasRole("COMPRADOR")
+                        .requestMatchers(HttpMethod.POST, "/api/orders/{id}/tracking/refresh",
+                                "/api/returns/{id}/tracking/refresh").hasRole("COMPRADOR")
+                        // El servicio logístico no tiene sesión: se autentica con la firma HMAC del cuerpo.
+                        .requestMatchers(HttpMethod.POST, "/api/logistics/webhooks/**").permitAll()
                         .requestMatchers("/api/support/**").hasRole("SOPORTE")
+                        // Reclamaciones de compra (CU-13): el comprador; el vendedor pasa por /api/seller/** y soporte por
+                        // /api/support/**.
+                        .requestMatchers("/api/claims/**").hasRole("COMPRADOR")
+                        // Administración del catálogo (CU-17): categorías, marcas y atributos.
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/**").authenticated()
                         .anyRequest().denyAll())
-                .csrf(Customizer.withDefaults())
+                // Sin sesión no hay token CSRF que enviar: el webhook se protege con la firma del cuerpo.
+                .csrf(csrf -> csrf.ignoringRequestMatchers("/api/logistics/webhooks/**"))
                 .requestCache(AbstractHttpConfigurer::disable)
                 .exceptionHandling(errors -> errors
                         .authenticationEntryPoint((request, response, exception) -> response.setStatus(401))
