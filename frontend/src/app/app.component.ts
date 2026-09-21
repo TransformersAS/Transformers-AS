@@ -73,6 +73,9 @@ import { RegistroVendedorComponent } from './registro-vendedor/components/regist
 import { MisReportesComponent } from './reportes/components/mis-reportes.component';
 import { ReportarContenidoComponent } from './reportes/components/reportar-contenido.component';
 import { ReportesService } from './reportes/services/reportes.service';
+import { DevolucionesRecibidasComponent } from './devoluciones/components/devoluciones-recibidas.component';
+import { MisDevolucionesComponent } from './devoluciones/components/mis-devoluciones.component';
+import { DevolucionesService } from './devoluciones/services/devoluciones.service';
 
 import {
   CheckoutService
@@ -131,7 +134,9 @@ import {
     ReclamacionesComponent,
     RegistroVendedorComponent,
     MisReportesComponent,
-    ReportarContenidoComponent
+    ReportarContenidoComponent,
+    MisDevolucionesComponent,
+    DevolucionesRecibidasComponent
   ],
 
   templateUrl: './app.component.html',
@@ -151,6 +156,9 @@ export class AppComponent {
 
   /** Panel "Mis reportes" (CU-20): su visibilidad y el reporte a mostrar viven en el servicio. */
   protected readonly reportes = inject(ReportesService);
+
+  /** Paneles de devoluciones (CU-19): su visibilidad y la devolución a mostrar viven en el servicio. */
+  protected readonly devoluciones = inject(DevolucionesService);
 
   private readonly auth =
     inject(AuthService);

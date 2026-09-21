@@ -52,6 +52,21 @@ public class JdbcRefundRepository implements RefundRepository {
     }
 
     @Override
+    public Optional<Ledger> lockLedger(Long orderId, String idempotencyKey) {
+        Optional<BigDecimal> total = jdbc.sql("SELECT total FROM orders WHERE id = ? FOR UPDATE").param(orderId)
+                .query(BigDecimal.class).optional();
+        if (total.isEmpty()) {
+            return Optional.empty();
+        }
+        // Lecturas actuales (FOR SHARE): una transacción que ya leyó antes no debe ver una foto vieja de los reembolsos.
+        BigDecimal refunded = jdbc.sql("SELECT COALESCE(SUM(amount), 0) FROM refunds WHERE order_id = ? "
+                + "AND status <> 'FAILED' FOR SHARE").param(orderId).query(BigDecimal.class).single();
+        Optional<Refund> existing = jdbc.sql("SELECT " + COLUMNS + " FROM refunds WHERE idempotency_key = ? FOR SHARE")
+                .param(idempotencyKey).query((rs, row) -> map(rs)).optional();
+        return Optional.of(new Ledger(total.get(), refunded, existing));
+    }
+
+    @Override
     public Optional<Refund> findById(Long id) {
         return jdbc.sql("SELECT " + COLUMNS + " FROM refunds WHERE id = ?").param(id)
                 .query((rs, row) -> map(rs)).optional();

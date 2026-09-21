@@ -14,6 +14,7 @@ import com.transformersas.marketplace.returns.infrastructure.config.ReturnProper
 import com.transformersas.marketplace.shared.audit.ActorType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
@@ -37,6 +38,10 @@ import java.util.List;
 @Service
 public class ReturnSweepUseCase {
     private static final Logger log = LoggerFactory.getLogger(ReturnSweepUseCase.class);
+
+    /** Intentos por vuelta ante un bloqueo transitorio de la base (deadlock o timeout de bloqueo) al pedir el reembolso. */
+    private static final int LOCK_ATTEMPTS = 3;
+    private static final long LOCK_BACKOFF_MILLIS = 50;
 
     /** Lo que hizo una vuelta, para las pruebas y el log. */
     public record Summary(int claimed, int refundsCompleted, int refundsNotCompleted) {
@@ -117,7 +122,7 @@ public class ReturnSweepUseCase {
         Refund refund = null;
         String failure = null;
         try {
-            refund = refunds.execute(new RefundCommand(request.getOrderId(), request.getRefundAmount(),
+            refund = requestRefund(new RefundCommand(request.getOrderId(), request.getRefundAmount(),
                     request.refundKey(), ActorType.SYSTEM, null));
         } catch (RuntimeException rejected) {
             failure = rejected.getMessage();
@@ -145,5 +150,32 @@ public class ReturnSweepUseCase {
             }
         });
         return completed;
+    }
+
+    /**
+     * Pide el reembolso. Si dos réplicas chocan en la base (deadlock o timeout de bloqueo), el perdedor repite el pedido:
+     * es idempotente por la clave return-{id}, así que repetirlo nunca cobra dos veces. Cualquier otro fallo, y el
+     * agotamiento de los intentos, se propaga y cuenta como intento no completado.
+     */
+    private Refund requestRefund(RefundCommand command) {
+        for (int attempt = 1; ; attempt++) {
+            try {
+                return refunds.execute(command);
+            } catch (PessimisticLockingFailureException lockFailure) {
+                if (attempt >= LOCK_ATTEMPTS) {
+                    throw lockFailure;
+                }
+                log.warn("Bloqueo al pedir el reembolso, se repite orderId={} intento={}", command.orderId(), attempt);
+                pause(LOCK_BACKOFF_MILLIS * attempt);
+            }
+        }
+    }
+
+    private static void pause(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+        }
     }
 }
