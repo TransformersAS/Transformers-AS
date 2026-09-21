@@ -30,3 +30,19 @@ export interface MovimientoInventario {
   reason: string | null;
   createdAt: string;
 }
+
+/** Cada carga masiva usa su propia plantilla: la de productos nuevos o la de inventario. */
+export type TipoCarga = 'products' | 'stock';
+
+/** Un error de una fila del Excel; "row" es el número de fila tal como se ve en la hoja. */
+export interface ErrorFila {
+  row: number;
+  message: string;
+}
+
+/** Resultado de una carga: la de productos informa created y published; la de inventario, applied. */
+export interface ResultadoCarga {
+  created?: number;
+  published?: number;
+  applied?: number;
+}

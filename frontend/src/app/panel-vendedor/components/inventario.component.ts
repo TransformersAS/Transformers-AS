@@ -19,7 +19,7 @@ import {
   IonToolbar
 } from '@ionic/angular/standalone';
 
-import { ItemInventario, MovimientoInventario } from '../models/inventario-vendedor.model';
+import { ErrorFila, ItemInventario, MovimientoInventario, TipoCarga } from '../models/inventario-vendedor.model';
 import { InventarioVendedorService } from '../services/inventario-vendedor.service';
 
 /** Lo que el vendedor está haciendo con un producto: cada opción muestra su propio formulario. */
@@ -53,6 +53,15 @@ type Accion = 'entrada' | 'ajuste' | 'minimo' | 'historial';
       }
       @if (aviso) {
         <ion-text color="success"><p role="status">{{ aviso }}</p></ion-text>
+      }
+      @if (erroresFilas.length > 0) {
+        <ion-text color="danger">
+          <ul role="alert">
+            @for (fila of erroresFilas; track fila.row) {
+              <li>Fila {{ fila.row }}: {{ fila.message }}</li>
+            }
+          </ul>
+        </ion-text>
       }
 
       @if (cantidadBajos > 0 && !soloBajos) {
@@ -116,6 +125,18 @@ type Accion = 'entrada' | 'ajuste' | 'minimo' | 'historial';
         </div>
       }
 
+      <!-- ===== Cargas masivas con Excel ===== -->
+      <div class="excel">
+        <h2>Cargas masivas con Excel</h2>
+        <p class="nota">Descarga la plantilla, llénala y súbela. Si alguna fila tiene errores no se guarda nada y verás qué corregir.</p>
+        <ion-button size="small" fill="outline" (click)="descargar('products')">Plantilla de productos nuevos</ion-button>
+        <ion-button size="small" fill="outline" [disabled]="enviando" (click)="entradaProductos.click()">Cargar productos</ion-button>
+        <input #entradaProductos type="file" hidden accept=".xlsx" (change)="cargar('products', $event)" />
+        <ion-button size="small" fill="outline" (click)="descargar('stock')">Plantilla de inventario</ion-button>
+        <ion-button size="small" fill="outline" [disabled]="enviando" (click)="entradaInventario.click()">Cargar inventario</ion-button>
+        <input #entradaInventario type="file" hidden accept=".xlsx" (change)="cargar('stock', $event)" />
+      </div>
+
       <!-- ===== Existencias ===== -->
       <form class="filtros" (ngSubmit)="listar()">
         <ion-item>
@@ -153,6 +174,7 @@ type Accion = 'entrada' | 'ajuste' | 'minimo' | 'historial';
     ion-content { flex: 1; }
     .filtros { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.75rem; margin-bottom: 1rem; }
     .accion { border: 1px solid var(--ion-color-medium); border-radius: 0.5rem; padding: 1rem; margin-bottom: 1.5rem; }
+    .excel { border: 1px solid var(--ion-color-medium); border-radius: 0.5rem; padding: 1rem; margin-bottom: 1.5rem; }
     .nota { color: #666; font-size: 0.9rem; }
   `]
 })
@@ -163,6 +185,8 @@ export class InventarioComponent implements OnInit {
 
   error = '';
   aviso = '';
+  /** Errores por fila de la última carga de Excel rechazada. */
+  erroresFilas: ErrorFila[] = [];
   enviando = false;
 
   items: ItemInventario[] = [];
@@ -216,8 +240,7 @@ export class InventarioComponent implements OnInit {
   // ---------- Acciones sobre un producto ----------
 
   elegir(item: ItemInventario, accion: Accion): void {
-    this.error = '';
-    this.aviso = '';
+    this.limpiarMensajes();
     this.seleccionado = item;
     this.accion = accion;
     this.motivo = '';
@@ -253,8 +276,7 @@ export class InventarioComponent implements OnInit {
 
   /** Ejecuta la llamada, muestra el mensaje del backend si la rechaza y recarga la lista al terminar bien. */
   private tramitar(operacion: Observable<ItemInventario>, mensaje: string): void {
-    this.error = '';
-    this.aviso = '';
+    this.limpiarMensajes();
     this.enviando = true;
     operacion.subscribe({
       next: () => {
@@ -270,7 +292,60 @@ export class InventarioComponent implements OnInit {
     });
   }
 
+  // ---------- Cargas masivas con Excel ----------
+
+  descargar(tipo: TipoCarga): void {
+    this.limpiarMensajes();
+    const nombre = tipo === 'products' ? 'plantilla-productos.xlsx' : 'plantilla-inventario.xlsx';
+    this.servicio.descargarPlantilla(tipo).subscribe({
+      next: contenido => this.guardarArchivo(contenido, nombre),
+      error: (respuesta: HttpErrorResponse) => this.mostrarError(respuesta)
+    });
+  }
+
+  cargar(tipo: TipoCarga, evento: Event): void {
+    const entrada = evento.target as HTMLInputElement;
+    const archivo = entrada.files?.[0];
+    entrada.value = ''; // permite volver a elegir el mismo archivo después de corregirlo
+    if (!archivo) {
+      return;
+    }
+    this.limpiarMensajes();
+    this.enviando = true;
+    this.servicio.cargar(tipo, archivo).subscribe({
+      next: resultado => {
+        this.enviando = false;
+        this.aviso = tipo === 'products'
+          ? `Se crearon ${resultado.created} producto(s) y ${resultado.published} quedaron publicados.`
+          : `Se aplicaron ${resultado.applied} movimiento(s) de inventario.`;
+        this.listar();
+      },
+      error: (respuesta: HttpErrorResponse) => {
+        this.enviando = false;
+        this.mostrarError(respuesta);
+      }
+    });
+  }
+
+  /** Entrega al navegador el archivo descargado, como si se hubiera pulsado un enlace de descarga. */
+  private guardarArchivo(contenido: Blob, nombre: string): void {
+    const direccion = URL.createObjectURL(contenido);
+    const enlace = document.createElement('a');
+    enlace.href = direccion;
+    enlace.download = nombre;
+    enlace.click();
+    URL.revokeObjectURL(direccion);
+  }
+
+  private limpiarMensajes(): void {
+    this.error = '';
+    this.aviso = '';
+    this.erroresFilas = [];
+  }
+
   private mostrarError(respuesta: HttpErrorResponse): void {
     this.error = respuesta.error?.message ?? 'No se pudo completar la operación.';
+    // Una carga de Excel rechazada trae la lista de filas con su error en "details".
+    this.erroresFilas = Array.isArray(respuesta.error?.details) ? respuesta.error.details : [];
   }
 }
