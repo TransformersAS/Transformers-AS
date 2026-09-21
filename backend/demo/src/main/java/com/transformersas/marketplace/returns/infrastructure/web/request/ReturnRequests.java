@@ -9,6 +9,10 @@ public final class ReturnRequests {
     public record Request(Long orderId, Long orderItemId, String reason, String description) {
     }
 
+    /** Método de retorno elegido por el comprador. */
+    public record MethodChoice(String method) {
+    }
+
     /** Respuesta del comprador a una solicitud de información. */
     public record Answer(String text) {
     }
