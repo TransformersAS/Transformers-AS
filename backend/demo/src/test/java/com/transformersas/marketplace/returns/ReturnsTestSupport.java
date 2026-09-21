@@ -4,10 +4,20 @@ import com.transformersas.marketplace.returns.domain.model.ReturnLine;
 import com.transformersas.marketplace.support.AbstractIntegrationTest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.test.web.servlet.ResultActions;
+import org.springframework.test.web.servlet.request.MockMultipartHttpServletRequestBuilder;
 
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
 /**
  * Utilidades de las pruebas de devoluciones (CU-19). Las tablas de devoluciones se limpian antes y después de cada
@@ -36,6 +46,45 @@ abstract class ReturnsTestSupport extends AbstractIntegrationTest {
                 deliveredAt, order);
         long item = jdbc.queryForObject("SELECT id FROM order_items WHERE order_id = ?", Long.class, order);
         return new DeliveredOrder(order, item, product, buyerId);
+    }
+
+    static final String RETURNS = "/api/return-requests";
+    static final String SELLER_RETURNS = "/api/seller/return-requests";
+
+    static byte[] image(String format, int width, int height) throws IOException {
+        BufferedImage picture = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        ImageIO.write(picture, format, out);
+        return out.toByteArray();
+    }
+
+    static MockMultipartFile evidence(String name, byte[] content) {
+        return new MockMultipartFile("evidences", name, "image/png", content);
+    }
+
+    /** Solicitud JSON de devolución. */
+    ResultActions requestReturn(Session session, long orderId, long itemId, String reason, String description)
+            throws Exception {
+        String body = "{\"orderId\":%d,\"orderItemId\":%d,\"reason\":%s,\"description\":%s}".formatted(orderId, itemId,
+                reason == null ? "null" : "\"" + reason + "\"", description == null ? "null" : "\"" + description + "\"");
+        return perform(session, post(RETURNS).contentType("application/json").content(body));
+    }
+
+    /** Solicitud multipart con imágenes; la petición multipart se firma aquí porque tiene su propio tipo de constructor. */
+    ResultActions requestReturnWithImages(Session session, long orderId, long itemId, MockMultipartFile... files)
+            throws Exception {
+        MockMultipartHttpServletRequestBuilder request = multipart(RETURNS);
+        for (MockMultipartFile file : files) {
+            request.file(file);
+        }
+        return mvc.perform(request.param("orderId", String.valueOf(orderId))
+                .param("orderItemId", String.valueOf(itemId)).param("reason", "DEFECTIVE")
+                .param("description", "No enciende").cookie(session.cookie())
+                .header(session.csrfHeader(), session.csrfToken()));
+    }
+
+    long idOf(ResultActions result, String field) throws Exception {
+        return json.readTree(result.andReturn().getResponse().getContentAsString()).get(field).asLong();
     }
 
     ReturnLine lineOf(DeliveredOrder order) {
