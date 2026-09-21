@@ -1752,6 +1752,165 @@ footer > div {
   }
 }
 
+/* =========================================================
+   RECOMENDACIONES PERSONALIZADAS
+   ========================================================= */
+
+.recommendations-section {
+  padding: 50px 6%;
+  background: #f8f6f1;
+}
+
+.recommendations-container {
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.recommendations-header {
+  margin-bottom: 28px;
+}
+
+.recommendations-eyebrow {
+  display: block;
+
+  margin-bottom: 8px;
+
+  color: #61757c;
+
+  font-size: 12px;
+  font-weight: 700;
+
+  letter-spacing: 2px;
+}
+
+.recommendations-header h2 {
+  margin: 0 0 8px;
+
+  font-size: 32px;
+  font-weight: 600;
+
+  color: #111;
+}
+
+.recommendations-header p {
+  margin: 0;
+
+  color: #69797e;
+
+  font-size: 15px;
+}
+
+.recommendations-grid {
+  display: grid;
+
+  grid-template-columns:
+    repeat(auto-fit, minmax(220px, 1fr));
+
+  gap: 20px;
+}
+
+.recommendation-card {
+  display: flex;
+  flex-direction: column;
+
+  min-height: 250px;
+
+  padding: 24px;
+
+  border: 1px solid #e1ded6;
+  border-radius: 14px;
+
+  background: #fff;
+
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.recommendation-card:hover {
+  transform: translateY(-4px);
+
+  box-shadow:
+    0 10px 25px rgba(0, 0, 0, 0.07);
+}
+
+.recommendation-category {
+  margin-bottom: 12px;
+
+  color: #71838a;
+
+  font-size: 11px;
+  font-weight: 700;
+
+  letter-spacing: 1.4px;
+
+  text-transform: uppercase;
+}
+
+.recommendation-card h3 {
+  margin: 0 0 12px;
+
+  color: #111;
+
+  font-size: 19px;
+}
+
+.recommendation-description {
+  flex: 1;
+
+  margin: 0 0 22px;
+
+  color: #66757a;
+
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.recommendation-footer {
+  display: flex;
+
+  justify-content: space-between;
+  align-items: center;
+
+  gap: 10px;
+
+  margin-bottom: 18px;
+}
+
+.recommendation-footer strong {
+  color: #111;
+
+  font-size: 18px;
+}
+
+.recommendation-footer span {
+  color: #688078;
+
+  font-size: 12px;
+}
+
+.recommendation-button {
+  width: 100%;
+
+  padding: 12px;
+
+  border: none;
+  border-radius: 8px;
+
+  background: #173740;
+
+  color: #fff;
+
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+
+  cursor: pointer;
+}
+
+.recommendation-button:hover {
+  opacity: 0.92;
+}
 /* Moderación de reportes (solo soporte) */
 .boton-moderacion {
   position: fixed;

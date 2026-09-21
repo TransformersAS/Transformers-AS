@@ -20,4 +20,7 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
     List<Product> findByStoreId(Long storeId);
 
     Optional<Product> findByIdAndStoreId(Long id, Long storeId);
+
+    // CU-02 - productos disponibles para recomendaciones
+    List<Product> findByActiveTrueAndStockGreaterThan(Integer stock);
 }

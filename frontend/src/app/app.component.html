@@ -19,22 +19,25 @@
       </a>
 
 
-      <!-- Buscador -->
+     <!-- Buscador -->
       <label
-        class="search"
-        aria-label="Buscar productos"
-      >
+    class="search"
+     aria-label="Buscar productos"
+    >
 
-        <ion-icon
-          name="search-outline"
-        ></ion-icon>
+  <ion-icon
+    name="search-outline"
+    (click)="buscarProductos()"
+  ></ion-icon>
 
-        <input
-          type="search"
-          placeholder="¿Qué estás buscando hoy?"
-        >
+  <input
+    type="search"
+    placeholder="¿Qué estás buscando hoy?"
+    [(ngModel)]="searchTerm"
+    (keyup.enter)="buscarProductos()"
+  >
 
-      </label>
+</label>
 
 
       <!-- Acciones rápidas -->
@@ -1023,7 +1026,86 @@
 
       </section>
 
+      <!-- ====================================================== -->
+<!-- RECOMENDACIONES PERSONALIZADAS -->
+<!-- ====================================================== -->
 
+<section
+  class="recommendations-section"
+  *ngIf="recommendations$ | async as recommendation"
+>
+
+  <div
+    class="recommendations-container"
+    *ngIf="recommendation.products.length > 0"
+  >
+
+    <div class="recommendations-header">
+
+      <div>
+        <span class="recommendations-eyebrow">
+          SELECCIONADO PARA TI
+        </span>
+
+        <h2>
+          Recomendado para ti
+        </h2>
+
+        <p>
+          Productos elegidos según tus intereses
+          y actividad en el marketplace.
+        </p>
+      </div>
+
+    </div>
+
+    <div class="recommendations-grid">
+
+      <article
+        class="recommendation-card"
+        *ngFor="let product of recommendation.products"
+         (click)="verProducto(product.id)"
+      >
+
+        <div class="recommendation-category">
+          {{ product.category }}
+        </div>
+
+        <h3>
+          {{ product.name }}
+        </h3>
+
+        <p class="recommendation-description">
+          {{ product.description }}
+        </p>
+
+        <div class="recommendation-footer">
+
+          <strong>
+            {{ product.price | currency:'COP':'symbol-narrow':'1.0-0' }}
+          </strong>
+
+          <span>
+            {{ product.stock }} disponibles
+          </span>
+
+        </div>
+
+        <button
+          type="button"
+          class="recommendation-button"
+          (click)="agregarAlCarrito(product.id)"
+        >
+          Agregar
+        </button>
+
+      </article>
+
+    </div>
+
+  </div>
+
+</section>
 
       <!-- ================================================= -->
       <!-- CATÁLOGO -->

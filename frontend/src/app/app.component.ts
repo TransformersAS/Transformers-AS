@@ -97,6 +97,13 @@ import {
   PaymentResponse
 } from './checkout/models/payment.model';
 
+import {
+  RecommendationService
+} from './recomendaciones/services/recommendation.service';
+
+import {
+  InteractionService
+} from './recomendaciones/services/interaction.service';
 
 @Component({
   selector: 'app-root',
@@ -158,6 +165,12 @@ export class AppComponent {
   private readonly http =
     inject(HttpClient);
 
+  private readonly recommendation =
+  inject(RecommendationService);
+
+  private readonly interaction =
+  inject(InteractionService);
+
 
   // =========================================================
   // CATÁLOGO
@@ -169,6 +182,8 @@ export class AppComponent {
   readonly categorias$ =
     this.catalogo.obtenerCategorias();
 
+  recommendations$ =
+  this.recommendation.getRecommendations(1);
 
   // =========================================================
   // CARRITO
@@ -181,6 +196,8 @@ export class AppComponent {
     this.carrito.total$;
 
   mostrarCarrito = false;
+ 
+   searchTerm = '';
 
 
   // =========================================================
@@ -309,12 +326,98 @@ export class AppComponent {
   // =========================================================
 
   agregarAlCarrito(
-    id: number
-  ): void {
+  id: number
+): void {
 
-    this.carrito.agregar(id);
+  this.carrito.agregar(id);
+
+  this.interaction.register({
+    userId: 1,
+    productId: id,
+    interactionType: 'ADD_TO_CART',
+    searchTerm: null
+  }).subscribe({
+
+    next: () => {
+      console.log(
+        'Interacción ADD_TO_CART registrada'
+      );
+    },
+
+    error: error => {
+      console.error(
+        'No se pudo registrar la interacción',
+        error
+      );
+    }
+  });
+}
+verProducto(
+  id: number
+): void {
+
+  this.interaction.register({
+    userId: 1,
+    productId: id,
+    interactionType: 'VIEW',
+    searchTerm: null
+  }).subscribe({
+
+    next: () => {
+      console.log(
+        'Interacción VIEW registrada:',
+        id
+      );
+    },
+
+    error: error => {
+      console.error(
+        'No se pudo registrar VIEW',
+        error
+      );
+    }
+  });
+}
+
+buscarProductos(): void {
+
+  const term =
+    this.searchTerm.trim();
+
+  if (!term) {
+    return;
   }
 
+  this.interaction.register({
+    userId: 1,
+    productId: null,
+    interactionType: 'SEARCH',
+    searchTerm: term
+  }).subscribe({
+
+    next: () => {
+
+      console.log(
+        'Interacción SEARCH registrada:',
+        term
+      );
+
+      // Volvemos a consultar a Gemini
+      // para que considere la nueva búsqueda.
+      this.recommendations$ =
+        this.recommendation
+          .getRecommendations(1);
+    },
+
+    error: error => {
+
+      console.error(
+        'No se pudo registrar la búsqueda',
+        error
+      );
+    }
+  });
+}
 
   // =========================================================
   // CONTADOR DEL CARRITO
@@ -721,6 +824,9 @@ export class AppComponent {
           ) {
 
             this.carrito.refrescar();
+            this.recommendations$ =
+            this.recommendation
+             .getRecommendations(1);
           }
         },
 

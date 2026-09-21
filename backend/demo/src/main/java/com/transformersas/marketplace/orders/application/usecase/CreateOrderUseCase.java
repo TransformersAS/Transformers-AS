@@ -17,10 +17,13 @@ import com.transformersas.marketplace.orders.domain.model.OrderStatus;
 import com.transformersas.marketplace.orders.domain.model.OrderStatusHistoryEntry;
 import com.transformersas.marketplace.orders.domain.repository.OrderRepository;
 import com.transformersas.marketplace.orders.domain.repository.OrderStatusHistoryRepository;
+import com.transformersas.marketplace.recommendation.interaction.InteractionService;
 import com.transformersas.marketplace.shared.audit.ActorType;
 import com.transformersas.marketplace.shared.error.BusinessException;
 import com.transformersas.marketplace.shared.web.CorrelationContext;
 import com.transformersas.marketplace.users.domain.repository.UserAccountRepository;
+
+
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -42,6 +45,7 @@ public class CreateOrderUseCase {
     private final CartItemRepository cartItemRepository;
     private final AddressRepository addressRepository;
     private final UserAccountRepository accounts;
+    private final InteractionService interactionService;
 
     public CreateOrderUseCase(
             OrderRepository orderRepository,
@@ -49,7 +53,8 @@ public class CreateOrderUseCase {
             CartRepository cartRepository,
             CartItemRepository cartItemRepository,
             AddressRepository addressRepository,
-            UserAccountRepository accounts
+            UserAccountRepository accounts,
+            InteractionService interactionService
     ) {
         this.orderRepository = orderRepository;
         this.historyRepository = historyRepository;
@@ -57,6 +62,7 @@ public class CreateOrderUseCase {
         this.cartItemRepository = cartItemRepository;
         this.addressRepository = addressRepository;
         this.accounts = accounts;
+        this.interactionService = interactionService;
     }
 
     @Transactional
@@ -107,6 +113,14 @@ public class CreateOrderUseCase {
 
         historyRepository.append(new OrderStatusHistoryEntry(null, saved.id(), null, OrderStatus.CONFIRMED,
                 ActorType.BUYER, accountId, "Compra confirmada", CorrelationContext.current(), now));
+
+        // CU-02: registrar la compra para futuras recomendaciones
+for (CartItem cartItem : cartItems) {
+    interactionService.registerPurchase(
+            accountId,
+            cartItem.getProduct().getId()
+    );
+}
 
         // La compra ya quedó convertida en pedido: ahora sí se vacía el carrito.
         cartItemRepository.deleteAll(cartItems);
