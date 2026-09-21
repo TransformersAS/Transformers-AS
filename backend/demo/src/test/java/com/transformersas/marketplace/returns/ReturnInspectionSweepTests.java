@@ -1,12 +1,17 @@
 package com.transformersas.marketplace.returns;
 
 import com.transformersas.marketplace.logistics.application.dto.ReturnDeliveredToSeller;
+import com.transformersas.marketplace.payments.application.usecase.RequestRefundUseCase;
 import com.transformersas.marketplace.payments.infrastructure.gateway.SimulatedRefundGateway;
 import com.transformersas.marketplace.returns.application.usecase.ReturnSweepUseCase;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.CannotAcquireLockException;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
+import org.springframework.test.util.AopTestUtils;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
@@ -17,6 +22,11 @@ import java.util.concurrent.CyclicBarrier;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -32,10 +42,21 @@ class ReturnInspectionSweepTests extends ReturnsTestSupport {
     @Autowired ReturnSweepUseCase sweep;
     @Autowired SimulatedRefundGateway gateway;
     @Autowired TransactionTemplate tx;
+    @MockitoSpyBean RequestRefundUseCase refundRequests;
 
     private Session buyer;
     private Session seller;
     private long buyerId;
+
+    /** El espía envuelve al destino del proxy transaccional: se stubbea el destino, no el proxy. */
+    private static <T> T target(T bean) {
+        return AopTestUtils.getUltimateTargetObject(bean);
+    }
+
+    @AfterEach
+    void removeInjectedFailures() {
+        reset(target(refundRequests));
+    }
 
     @BeforeEach
     void seed() throws Exception {
@@ -284,6 +305,37 @@ class ReturnInspectionSweepTests extends ReturnsTestSupport {
         sweep.runOnce();
 
         assertThat(jdbc.queryForObject("SELECT amount FROM refunds", BigDecimal.class)).isEqualByComparingTo("12.50");
+    }
+
+    // ---------- Bloqueos transitorios al pedir el reembolso ----------
+
+    @Test
+    void aLockFailureWhileRequestingTheRefundIsRepeatedAndTheRefundCompletesOnce() throws Exception {
+        long id = inInspection();
+        expireInspection(id);
+        doThrow(new CannotAcquireLockException("Deadlock found when trying to get lock"))
+                .doCallRealMethod().when(target(refundRequests)).execute(any());
+
+        assertThat(sweep.runOnce()).isEqualTo(new ReturnSweepUseCase.Summary(1, 1, 0));
+
+        verify(target(refundRequests), times(2)).execute(any());
+        assertThat(statusOf(id)).isEqualTo("FINISHED");
+        assertThat(count("refunds")).isEqualTo(1);
+    }
+
+    @Test
+    void aLockFailureThatNeverClearsCountsAsAnAttemptAndLeavesTheReturnForALaterRound() throws Exception {
+        long id = inInspection();
+        expireInspection(id);
+        doThrow(new CannotAcquireLockException("Deadlock found when trying to get lock"))
+                .when(target(refundRequests)).execute(any());
+
+        assertThat(sweep.runOnce()).isEqualTo(new ReturnSweepUseCase.Summary(1, 0, 1));
+
+        verify(target(refundRequests), times(3)).execute(any());
+        assertThat(statusOf(id)).isEqualTo("REFUND_PENDING");
+        assertThat(jdbc.queryForObject("SELECT refund_attempts FROM return_requests", Integer.class)).isEqualTo(1);
+        assertThat(count("refunds")).isZero();
     }
 
     // ---------- Dos réplicas a la vez ----------
