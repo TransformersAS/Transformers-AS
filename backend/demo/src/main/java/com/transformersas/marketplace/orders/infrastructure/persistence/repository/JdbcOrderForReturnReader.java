@@ -2,6 +2,7 @@ package com.transformersas.marketplace.orders.infrastructure.persistence.reposit
 
 import com.transformersas.marketplace.returns.domain.model.ReturnLine;
 import com.transformersas.marketplace.returns.domain.port.OrderForReturn;
+import com.transformersas.marketplace.returns.domain.port.OrderForReturn.Pickup;
 import com.transformersas.marketplace.returns.domain.port.OrderForReturnReader;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
@@ -32,26 +33,36 @@ class JdbcOrderForReturnReader implements OrderForReturnReader {
         this.jdbc = jdbc;
     }
 
-    private record OrderRow(Long id, Long accountId, Long storeId, boolean delivered) {
+    private record OrderRow(Long id, Long accountId, Long storeId, boolean delivered, Pickup pickup) {
+    }
+
+    private static final String ORDER_COLUMNS = "id, account_id, store_id, status, delivery_recipient_name, "
+            + "delivery_street, delivery_city, delivery_department, delivery_postal_code, delivery_phone";
+
+    private static OrderRow orderRow(java.sql.ResultSet rs) throws java.sql.SQLException {
+        String street = rs.getString("delivery_street");
+        Pickup pickup = street == null ? null : new Pickup(rs.getString("delivery_recipient_name"), street,
+                rs.getString("delivery_city"), rs.getString("delivery_department"),
+                rs.getString("delivery_postal_code"), rs.getString("delivery_phone"));
+        return new OrderRow(rs.getLong("id"), rs.getLong("account_id"), rs.getLong("store_id"),
+                "DELIVERED".equals(rs.getString("status")), pickup);
     }
 
     @Override
     @Transactional(readOnly = true)
     public Optional<OrderForReturn> findForBuyer(Long orderId, Long buyerAccountId) {
-        Optional<OrderRow> row = jdbc.sql("SELECT id, account_id, store_id, status FROM orders WHERE id = ? "
+        Optional<OrderRow> row = jdbc.sql("SELECT " + ORDER_COLUMNS + " FROM orders WHERE id = ? "
                         + "AND account_id = ?").params(orderId, buyerAccountId)
-                .query((rs, n) -> new OrderRow(rs.getLong("id"), rs.getLong("account_id"), rs.getLong("store_id"),
-                        "DELIVERED".equals(rs.getString("status")))).optional();
+                .query((rs, n) -> orderRow(rs)).optional();
         return row.map(order -> assemble(List.of(order)).get(0));
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<OrderForReturn> findByBuyer(Long buyerAccountId) {
-        List<OrderRow> rows = jdbc.sql("SELECT id, account_id, store_id, status FROM orders WHERE account_id = ? "
+        List<OrderRow> rows = jdbc.sql("SELECT " + ORDER_COLUMNS + " FROM orders WHERE account_id = ? "
                         + "ORDER BY created_at DESC, id DESC").param(buyerAccountId)
-                .query((rs, n) -> new OrderRow(rs.getLong("id"), rs.getLong("account_id"), rs.getLong("store_id"),
-                        "DELIVERED".equals(rs.getString("status")))).list();
+                .query((rs, n) -> orderRow(rs)).list();
         return assemble(rows);
     }
 
@@ -81,6 +92,6 @@ class JdbcOrderForReturnReader implements OrderForReturnReader {
                 .list();
         return orders.stream().map(order -> new OrderForReturn(order.id(), order.accountId(), order.storeId(),
                 order.delivered(), order.delivered() ? deliveredAt.get(order.id()) : null,
-                lines.getOrDefault(order.id(), List.of()))).toList();
+                lines.getOrDefault(order.id(), List.of()), order.pickup())).toList();
     }
 }

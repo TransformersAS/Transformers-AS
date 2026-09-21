@@ -6,6 +6,7 @@ import com.transformersas.marketplace.returns.application.dto.ReturnViews;
 import com.transformersas.marketplace.returns.application.usecase.RequestReturnUseCase;
 import com.transformersas.marketplace.returns.application.usecase.RequestReturnUseCase.EvidenceUpload;
 import com.transformersas.marketplace.returns.application.usecase.ReturnDecisionUseCase;
+import com.transformersas.marketplace.returns.application.usecase.ReturnMethodSelectionUseCase;
 import com.transformersas.marketplace.returns.application.usecase.ReturnQueryService;
 import com.transformersas.marketplace.returns.infrastructure.web.request.ReturnRequests;
 import org.springframework.http.HttpStatus;
@@ -38,13 +39,15 @@ public class BuyerReturnController {
     private final RequestReturnUseCase request;
     private final ReturnQueryService queries;
     private final ReturnDecisionUseCase decisions;
+    private final ReturnMethodSelectionUseCase methodSelection;
 
     public BuyerReturnController(ReturnBuyerAccess access, RequestReturnUseCase request, ReturnQueryService queries,
-                                 ReturnDecisionUseCase decisions) {
+                                 ReturnDecisionUseCase decisions, ReturnMethodSelectionUseCase methodSelection) {
         this.access = access;
         this.request = request;
         this.queries = queries;
         this.decisions = decisions;
+        this.methodSelection = methodSelection;
     }
 
     /** Pedidos entregados del comprador, con cada línea y si se puede devolver o por qué no (RF-048). */
@@ -96,6 +99,24 @@ public class BuyerReturnController {
                                      @RequestBody ReturnRequests.Answer body) {
         Long buyer = access.require(authentication);
         decisions.answerInformation(buyer, id, body.text());
+        return queries.buyerReturn(buyer, id);
+    }
+
+    /** Los métodos de retorno que logística ofrece ahora para una devolución aprobada (RF-109). */
+    @GetMapping("/{id}/return-methods")
+    public List<ReturnViews.Method> returnMethods(Authentication authentication, @PathVariable Long id) {
+        return methodSelection.methods(access.require(authentication), id);
+    }
+
+    /**
+     * Elige el método de retorno: crea el retorno en logística y registra su seguimiento. Idempotente; si logística no
+     * responde responde 503 y la devolución sigue aprobada para reintentar.
+     */
+    @PostMapping("/{id}/return-method")
+    public ReturnViews.Detail chooseReturnMethod(Authentication authentication, @PathVariable Long id,
+                                                 @RequestBody ReturnRequests.MethodChoice body) {
+        Long buyer = access.require(authentication);
+        methodSelection.choose(buyer, id, body.method());
         return queries.buyerReturn(buyer, id);
     }
 

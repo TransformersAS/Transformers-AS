@@ -50,6 +50,10 @@ public final class ReturnViews {
                          List<TimelineView> timeline) {
     }
 
+    /** Un método de retorno que logística ofrece ahora. */
+    public record Method(String code, String label) {
+    }
+
     /** Resultado de solicitar una devolución; {@code duplicate} si esa línea ya tenía una (A3) y se devuelve esa. */
     public record Requested(Long id, Long orderItemId, ReturnStatus status, boolean duplicate, int evidenceCount,
                             LocalDateTime createdAt) {
