@@ -1,5 +1,8 @@
 package com.transformersas.marketplace.logistics.domain.repository;
 
+import com.transformersas.marketplace.logistics.domain.model.ReturnMethod;
+import com.transformersas.marketplace.logistics.domain.model.ReturnReceipt;
+import com.transformersas.marketplace.logistics.domain.model.ReturnRequestData;
 import com.transformersas.marketplace.logistics.domain.model.ReturnTrackingUpdate;
 import com.transformersas.marketplace.logistics.domain.model.ShipmentReceipt;
 import com.transformersas.marketplace.logistics.domain.model.ShipmentRequest;
@@ -37,4 +40,22 @@ public interface LogisticsGateway {
      * @throws com.transformersas.marketplace.logistics.domain.model.LogisticsUnavailableException fallo temporal
      */
     List<ReturnTrackingUpdate> fetchReturnUpdates(String providerReturnId);
+
+    /**
+     * Métodos de retorno disponibles para la devolución de un pedido a una tienda (RF-109). Lectura sin efectos en el
+     * proveedor. La lista puede cambiar de una consulta a otra: un método ofrecido antes puede dejar de estarlo.
+     *
+     * @throws com.transformersas.marketplace.logistics.domain.model.LogisticsRejectedException rechazo definitivo
+     * @throws com.transformersas.marketplace.logistics.domain.model.LogisticsUnavailableException fallo temporal
+     */
+    List<ReturnMethod> fetchReturnMethods(Long orderId, Long storeId);
+
+    /**
+     * Crea el retorno de una devolución. Idempotente: la misma idempotencyKey ("return-{id}") devuelve el mismo retorno.
+     * Un 4xx, entre ellos un método que ya no está disponible, es un rechazo definitivo: hay que elegir otro método.
+     *
+     * @throws com.transformersas.marketplace.logistics.domain.model.LogisticsRejectedException rechazo definitivo
+     * @throws com.transformersas.marketplace.logistics.domain.model.LogisticsUnavailableException fallo temporal
+     */
+    ReturnReceipt createReturn(ReturnRequestData request, String idempotencyKey);
 }
