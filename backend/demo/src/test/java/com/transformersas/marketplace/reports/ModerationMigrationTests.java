@@ -13,7 +13,7 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** V9 debe convertir los reportes y decisiones que ya existían con el esquema V8 en casos de moderación. */
+
 @Testcontainers
 class ModerationMigrationTests {
 
@@ -33,8 +33,7 @@ class ModerationMigrationTests {
         JdbcTemplate jdbc = new JdbcTemplate(new DriverManagerDataSource(mysql.getJdbcUrl(), mysql.getUsername(),
                 mysql.getPassword()));
 
-        // Contenido 1: dos reportes abiertos (uno en investigación). Contenido 2: reporte ya resuelto con RETIRAR.
-        // Contenido 3: reporte escalado (la decisión "escalar" desaparece).
+        
         insertReport(jdbc, 1, "user_a", "PUBLICACION", "10", "PENDIENTE", null);
         insertReport(jdbc, 2, "user_b", "PUBLICACION", "10", "EN_INVESTIGACION", "agent_1");
         insertReport(jdbc, 3, "user_c", "RESENA", "20", "RESUELTO", "agent_1");
