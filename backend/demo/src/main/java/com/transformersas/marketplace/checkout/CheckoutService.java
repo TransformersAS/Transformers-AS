@@ -7,6 +7,7 @@ import com.transformersas.marketplace.cart.CartItemRepository;
 import com.transformersas.marketplace.cart.CartRepository;
 import com.transformersas.marketplace.checkout.dto.CheckoutPreviewRequest;
 import com.transformersas.marketplace.checkout.dto.CheckoutPreviewResponse;
+import com.transformersas.marketplace.shared.error.BusinessException;   
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -222,9 +223,9 @@ public class CheckoutService {
 
             } else if (!storeId.equals(productStoreId)) {
 
-                throw new ResponseStatusException(
-                        HttpStatus.CONFLICT,
-                        "El carrito contiene productos de diferentes tiendas"
+                throw BusinessException.conflict(
+                "MULTI_STORE_CART",
+                "El carrito contiene productos de varias tiendas; compra cada tienda por separado"
                 );
             }
 

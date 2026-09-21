@@ -1320,7 +1320,7 @@
         </div>
 
 
-        <button type="button">
+        <button type="button" (click)="mostrarRegistroVendedor = true">
 
           Conocer el espacio vendedor
 
@@ -1427,6 +1427,20 @@
   <app-mis-productos (cerrar)="mostrarMisProductos = false"></app-mis-productos>
 </div>
 
+<!-- Inventario (CU-15): solo con el rol activo VENDEDOR -->
+<button
+  *ngIf="esVendedor && !mostrarInventario"
+  type="button"
+  class="boton-pedidos boton-inventario"
+  (click)="mostrarInventario = true"
+>
+  Inventario
+</button>
+
+<div class="panel-pedidos" *ngIf="esVendedor && mostrarInventario">
+  <app-inventario (cerrar)="mostrarInventario = false"></app-inventario>
+</div>
+
 <!-- Estructura del catálogo (CU-17): solo con el rol activo ADMIN -->
 <button
   *ngIf="esAdmin && !mostrarCatalogoAdmin"
@@ -1512,6 +1526,11 @@
 
 <div class="panel-pedidos" *ngIf="esVendedor && devoluciones.panelVendedorAbierto()">
   <app-devoluciones-recibidas (cerrar)="devoluciones.cerrarPanelVendedor()"></app-devoluciones-recibidas>
+</div>
+
+<!-- Registro de vendedores (CU-12): abierto a cualquier visitante, con o sin sesión -->
+<div class="panel-pedidos" *ngIf="mostrarRegistroVendedor">
+  <app-registro-vendedor (cerrar)="mostrarRegistroVendedor = false"></app-registro-vendedor>
 </div>
 
 </ion-app>

@@ -2,6 +2,8 @@ package com.transformersas.marketplace.checkout;
 
 import com.transformersas.marketplace.checkout.dto.CheckoutPreviewRequest;
 import com.transformersas.marketplace.reservation.InventoryReservationService;
+import com.transformersas.marketplace.shared.error.BusinessException;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -15,6 +17,7 @@ import org.springframework.web.server.ResponseStatusException;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.mysql.MySQLContainer;
+
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -171,6 +174,50 @@ class CheckoutReservationIntegrationTests {
         item("Escaso", "10", 0, 1);
         error(() -> checkout.preview(request("STANDARD", null)), 409, "No hay suficiente stock");
     }
+    @Test
+void checkoutRejectsCartWithProductsFromDifferentStores() {
+
+    Long firstStoreId =
+            jdbc.queryForObject(
+                    "SELECT MIN(id) FROM stores",
+                    Long.class
+            );
+
+    jdbc.update(
+            "INSERT INTO stores(name, created_at) VALUES (?, CURRENT_TIMESTAMP)",
+            "Otra tienda"
+    );
+
+    Long secondStoreId =
+            jdbc.queryForObject(
+                    "SELECT MAX(id) FROM stores",
+                    Long.class
+            );
+
+    long firstProduct =
+            item("Producto tienda 1", "100.00", 10, 1);
+
+    long secondProduct =
+            item("Producto tienda 2", "50.00", 10, 1);
+
+    jdbc.update(
+            "UPDATE products SET store_id=? WHERE id=?",
+            firstStoreId,
+            firstProduct
+    );
+
+    jdbc.update(
+            "UPDATE products SET store_id=? WHERE id=?",
+            secondStoreId,
+            secondProduct
+    );
+
+    assertThatThrownBy(
+            () -> checkout.preview(
+                    request("STANDARD", null)
+            )
+    ).isInstanceOf(BusinessException.class);
+}
 
     @Test
     void checkoutValidatesRequestAndAddressBeforeReadingCart() {

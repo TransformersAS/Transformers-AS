@@ -69,6 +69,16 @@ public class Product {
     @OrderColumn(name = "position")
     private List<ProductVariant> variants = new ArrayList<>();
 
+    // ---------- CU-15: control de inventario ----------
+
+    /** Nivel mínimo de stock; 0 significa "sin aviso". */
+    @Column(name = "min_stock", nullable = false)
+    private Integer minStock = 0;
+
+    /** Ya se avisó de stock bajo; se apaga cuando el stock vuelve a superar el mínimo. */
+    @Column(name = "low_stock_alerted", nullable = false)
+    private Boolean lowStockAlerted = false;
+
     /** Constructor previo a CU-23 (sin tienda): el producto queda en la tienda 1, igual que el valor por defecto. */
     public Product(Long id, String name, String description, BigDecimal price, Integer stock, String category,
                    Boolean active) {

@@ -2004,19 +2004,24 @@ footer > div {
   bottom: 16rem;
 }
 
-/* "Mis devoluciones" (CU-19). Comprador: encima de "Mis reportes" (4.75rem). Vendedor: sexto nivel de la pila, encima de
-   Mis reportes (16rem). */
+/* "Inventario" (CU-15): sexto nivel de la pila del vendedor, encima de Mis reportes (16rem). */
+.boton-inventario {
+  bottom: 19.75rem;
+}
+
+/* "Mis devoluciones" (CU-19). Comprador: encima de "Mis reportes" (4.75rem). Vendedor: séptimo nivel de la pila, encima de
+   Inventario (19.75rem). */
 .boton-devoluciones {
   bottom: 8.5rem;
 }
 
 .boton-devoluciones-vendedor {
-  bottom: 19.75rem;
+  bottom: 23.5rem;
 }
 
-/* Ventanas bajas (por ejemplo un teléfono en horizontal): la pila de botones flotantes se compacta para que los seis
+/* Ventanas bajas (por ejemplo un teléfono en horizontal): la pila de botones flotantes se compacta para que los siete
    del vendedor quepan sin salirse de la pantalla ni tapar la pantalla completa. */
-@media (max-height: 23rem) {
+@media (max-height: 27rem) {
   .boton-pedidos {
     bottom: 0.5rem;
     padding: 0.3rem 0.8rem;
@@ -2041,7 +2046,11 @@ footer > div {
     bottom: 8.5rem;
   }
 
-  .boton-devoluciones-vendedor {
+  .boton-inventario {
     bottom: 10.5rem;
+  }
+
+  .boton-devoluciones-vendedor {
+    bottom: 12.5rem;
   }
 }
