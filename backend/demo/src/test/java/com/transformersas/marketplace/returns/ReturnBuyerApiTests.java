@@ -60,6 +60,42 @@ class ReturnBuyerApiTests extends ReturnsTestSupport {
         assertThat(line(orders, unknown).get("ineligibleMessage").asString()).isNotBlank();
     }
 
+    /**
+     * El frontend identifica la línea por su posición porque el detalle del pedido no expone el id de la línea. Por eso
+     * las dos listas deben salir siempre ordenadas por id: aquí el pedido tiene el mismo producto en dos líneas y la de
+     * menor id se insertó después, así que solo un ORDER BY id explícito las deja en el mismo orden.
+     */
+    @Test
+    void theSameProductInTwoLinesComesInTheSameIdOrderInTheOrderDetailAndInTheEligibleOrders() throws Exception {
+        DeliveredOrder order = delivered(3);
+        jdbc.update("UPDATE order_items SET id = 500000 + id WHERE id = ?", order.itemId());
+        jdbc.update("""
+                INSERT INTO order_items(id, order_id, product_id, product_name, quantity, unit_price, subtotal)
+                SELECT 400000 + ?, order_id, product_id, product_name, 5, unit_price, unit_price * 5
+                FROM order_items WHERE id = 500000 + ?""", order.itemId(), order.itemId());
+        jdbc.update("UPDATE orders SET total = total + 50.00 WHERE id = ?", order.orderId());
+
+        JsonNode detail = json.readTree(perform(buyer, get("/api/orders/" + order.orderId()))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+        JsonNode eligible = json.readTree(perform(buyer, get(RETURNS + "/eligible-orders")).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString());
+
+        JsonNode items = detail.get("items");
+        JsonNode lines = eligible.get(0).get("lines");
+        assertThat(items).hasSize(2);
+        assertThat(lines).hasSize(2);
+        for (int position = 0; position < 2; position++) {
+            assertThat(lines.get(position).get("productId").asLong())
+                    .isEqualTo(items.get(position).get("productId").asLong());
+            assertThat(lines.get(position).get("quantity").asInt())
+                    .isEqualTo(items.get(position).get("quantity").asInt());
+        }
+        assertThat(lines.get(0).get("orderItemId").asLong()).isEqualTo(400000 + order.itemId());
+        assertThat(lines.get(0).get("quantity").asInt()).isEqualTo(5);
+        assertThat(lines.get(1).get("orderItemId").asLong()).isEqualTo(500000 + order.itemId());
+        assertThat(lines.get(1).get("quantity").asInt()).isEqualTo(2);
+    }
+
     private JsonNode line(JsonNode orders, DeliveredOrder order) {
         for (JsonNode candidate : orders) {
             if (candidate.get("orderId").asLong() == order.orderId()) {
