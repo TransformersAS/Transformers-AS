@@ -123,6 +123,14 @@ public final class ReturnRequest {
                 null, null, now, now));
     }
 
+    /** Valida el motivo y la descripción de una solicitud sin crearla (A4), para hacerlo antes de consultar nada más. */
+    public static void validateRequestText(ReturnReason reason, String description) {
+        if (reason == null) {
+            throw invalid("RETURN_REASON_REQUIRED", "reason", "Elige el motivo de la devolución");
+        }
+        requiredText(description, "RETURN_DESCRIPTION_REQUIRED", "description", "Describe por qué devuelves el producto");
+    }
+
     /**
      * Devolución que nace de una reclamación (CU-13): Aprobada desde el principio, sin plazo y con la referencia a la
      * reclamación. No pasa por revisión: la reclamación ya la decidió.
@@ -318,6 +326,20 @@ public final class ReturnRequest {
         this.updatedAt = now;
         return new ReturnEvent(ReturnEventType.PROBLEM_REPORTED, null, null, ActorType.SELLER, sellerAccountId,
                 claimId == null ? null : "Reclamación " + claimId);
+    }
+
+    /**
+     * Comprueba que se puede reportar un problema ahora (estado, ventana y que no haya uno ya) sin cambiar nada, para
+     * hacerlo antes de abrir la reclamación que lo acompaña.
+     */
+    public void ensureCanReportProblem(LocalDateTime now) {
+        requireStatus("reportar un problema", ReturnStatus.IN_INSPECTION);
+        if (problem != null) {
+            throw conflict("RETURN_PROBLEM_ALREADY_REPORTED", "Ya reportaste un problema con esta devolución");
+        }
+        if (now.isAfter(inspectionDueAt)) {
+            throw conflict("RETURN_INSPECTION_CLOSED", "La ventana de inspección de 24 horas ya terminó");
+        }
     }
 
     /** Terminó la ventana sin problema: pasa a Reembolso pendiente y queda lista para el primer intento. */
