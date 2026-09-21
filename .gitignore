@@ -1,6 +1,9 @@
 .env
 .env.*
 !.env.example
+.vscode/
+backend/demo/maven_output.txt
+backend/demo/test_output.log
 
 # El gestor de paquetes y Angular regeneran estos artefactos; no pertenecen al repositorio.
 frontend/node_modules/
