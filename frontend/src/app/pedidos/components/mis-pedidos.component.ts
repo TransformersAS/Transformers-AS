@@ -9,10 +9,12 @@ import { ResumenPedidoComponent } from './resumen-pedido.component';
 import { SeguimientoLogisticoComponent } from '../../seguimiento/components/seguimiento-logistico.component';
 import { ConsultaDevolucionComponent } from '../../seguimiento/components/consulta-devolucion.component';
 import { estadoConSeguimiento } from '../../seguimiento/models/seguimiento.model';
+import { DevolverLineaComponent } from '../../devoluciones/components/devolver-linea.component';
 
 @Component({
   selector: 'app-mis-pedidos', standalone: true,
-  imports: [CommonModule, ResumenPedidoComponent, SeguimientoLogisticoComponent, ConsultaDevolucionComponent],
+  imports: [CommonModule, ResumenPedidoComponent, SeguimientoLogisticoComponent, ConsultaDevolucionComponent,
+    DevolverLineaComponent],
   templateUrl: './mis-pedidos.component.html',
   styleUrl: './mis-pedidos.component.scss'
 })
