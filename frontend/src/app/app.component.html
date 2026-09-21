@@ -1486,4 +1486,32 @@
   <app-mis-reportes (cerrar)="reportes.cerrarPanel()"></app-mis-reportes>
 </div>
 
+<!-- Mis devoluciones (CU-19): con el rol activo COMPRADOR -->
+<button
+  *ngIf="esComprador && !devoluciones.panelCompradorAbierto()"
+  type="button"
+  class="boton-pedidos boton-devoluciones"
+  (click)="devoluciones.abrirPanelComprador()"
+>
+  Mis devoluciones
+</button>
+
+<div class="panel-pedidos" *ngIf="esComprador && devoluciones.panelCompradorAbierto()">
+  <app-mis-devoluciones (cerrar)="devoluciones.cerrarPanelComprador()"></app-mis-devoluciones>
+</div>
+
+<!-- Devoluciones recibidas (CU-19): con el rol activo VENDEDOR -->
+<button
+  *ngIf="esVendedor && !devoluciones.panelVendedorAbierto()"
+  type="button"
+  class="boton-pedidos boton-devoluciones-vendedor"
+  (click)="devoluciones.abrirPanelVendedor()"
+>
+  Devoluciones recibidas
+</button>
+
+<div class="panel-pedidos" *ngIf="esVendedor && devoluciones.panelVendedorAbierto()">
+  <app-devoluciones-recibidas (cerrar)="devoluciones.cerrarPanelVendedor()"></app-devoluciones-recibidas>
+</div>
+
 </ion-app>

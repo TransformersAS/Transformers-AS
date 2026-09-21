@@ -2003,3 +2003,45 @@ footer > div {
 .boton-reportes-vendedor {
   bottom: 16rem;
 }
+
+/* "Mis devoluciones" (CU-19). Comprador: encima de "Mis reportes" (4.75rem). Vendedor: sexto nivel de la pila, encima de
+   Mis reportes (16rem). */
+.boton-devoluciones {
+  bottom: 8.5rem;
+}
+
+.boton-devoluciones-vendedor {
+  bottom: 19.75rem;
+}
+
+/* Ventanas bajas (por ejemplo un teléfono en horizontal): la pila de botones flotantes se compacta para que los seis
+   del vendedor quepan sin salirse de la pantalla ni tapar la pantalla completa. */
+@media (max-height: 23rem) {
+  .boton-pedidos {
+    bottom: 0.5rem;
+    padding: 0.3rem 0.8rem;
+    font-size: 0.8rem;
+  }
+
+  .boton-tienda,
+  .boton-reportes {
+    bottom: 2.5rem;
+  }
+
+  .boton-productos,
+  .boton-devoluciones {
+    bottom: 4.5rem;
+  }
+
+  .boton-reclamaciones-vendedor {
+    bottom: 6.5rem;
+  }
+
+  .boton-reportes-vendedor {
+    bottom: 8.5rem;
+  }
+
+  .boton-devoluciones-vendedor {
+    bottom: 10.5rem;
+  }
+}
