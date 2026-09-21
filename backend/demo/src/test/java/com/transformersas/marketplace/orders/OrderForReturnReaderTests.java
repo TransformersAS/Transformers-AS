@@ -73,6 +73,12 @@ class OrderForReturnReaderTests extends AbstractIntegrationTest {
         assertThat(found.delivered()).isTrue();
         assertThat(found.deliveredAt()).isEqualTo(DELIVERED);
         assertThat(found.storeId()).isEqualTo(1L);
+        // La recogida sale del snapshot de entrega del pedido y no se expone en toString.
+        assertThat(found.pickup()).isNotNull();
+        assertThat(found.pickup().street()).isEqualTo("Calle 1 # 2-3");
+        assertThat(found.pickup().city()).isEqualTo("Bogotá");
+        assertThat(found.pickup().postalCode()).isEqualTo("110111");
+        assertThat(found.pickup().toString()).doesNotContain("Calle");
         assertThat(found.lines()).singleElement().satisfies(line -> {
             assertThat(line.orderItemId()).isEqualTo(itemId);
             assertThat(line.productId()).isEqualTo(product);
