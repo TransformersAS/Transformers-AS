@@ -4,6 +4,7 @@ import com.transformersas.marketplace.shared.audit.ActorType;
 import com.transformersas.marketplace.shared.error.BusinessException;
 import lombok.Getter;
 
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.Map;
@@ -42,7 +43,7 @@ public final class ReturnRequest {
     }
 
     /** Todos los datos de una solicitud, para reconstruirla desde la base. */
-    public record Data(Long id, Long orderId, ReturnLine line, Long buyerAccountId, Long storeId, ReturnStatus status,
+    public record Data(Long id, Long orderId, ReturnLine line, BigDecimal refundAmount, Long buyerAccountId, Long storeId, ReturnStatus status,
                        ReturnReason reason, String description, ReturnOrigin origin, Long originClaimId,
                        Integer returnWindowDays, LocalDateTime deliveredAt, Decision decision, String returnMethodCode,
                        LocalDateTime methodChosenAt, LocalDateTime inspectionStartedAt, LocalDateTime inspectionDueAt,
@@ -53,13 +54,14 @@ public final class ReturnRequest {
     private Long id;
     private final Long orderId;
     private final ReturnLine line;
+    private BigDecimal refundAmount;
     private final Long buyerAccountId;
     private final Long storeId;
     private ReturnStatus status;
     private final ReturnReason reason;
     private final String description;
-    private final ReturnOrigin origin;
-    private final Long originClaimId;
+    private ReturnOrigin origin;
+    private Long originClaimId;
     private final Integer returnWindowDays;
     private final LocalDateTime deliveredAt;
     private Decision decision;
@@ -78,6 +80,7 @@ public final class ReturnRequest {
         this.id = d.id();
         this.orderId = d.orderId();
         this.line = d.line();
+        this.refundAmount = d.refundAmount();
         this.buyerAccountId = d.buyerAccountId();
         this.storeId = d.storeId();
         this.status = d.status();
@@ -114,7 +117,8 @@ public final class ReturnRequest {
         }
         String text = requiredText(description, "RETURN_DESCRIPTION_REQUIRED", "description",
                 "Describe por qué devuelves el producto");
-        return new ReturnRequest(new Data(null, orderId, line, buyerAccountId, storeId, ReturnStatus.REQUESTED, reason,
+        return new ReturnRequest(new Data(null, orderId, line, line.refundAmount(), buyerAccountId, storeId,
+                ReturnStatus.REQUESTED, reason,
                 text, ReturnOrigin.BUYER, null, returnWindowDays, deliveredAt, null, null, null, null, null, null, 0,
                 null, null, now, now));
     }
@@ -124,15 +128,53 @@ public final class ReturnRequest {
      * reclamación. No pasa por revisión: la reclamación ya la decidió.
      */
     public static ReturnRequest approvedFromClaim(Long orderId, ReturnLine line, Long buyerAccountId, Long storeId,
-                                                  Long claimId, String description, LocalDateTime now) {
+                                                  Long claimId, String description, BigDecimal agreedRefund,
+                                                  LocalDateTime now) {
         if (claimId == null) {
             throw new IllegalArgumentException("Una devolución originada por reclamación necesita su reclamación");
         }
-        return new ReturnRequest(new Data(null, orderId, line, buyerAccountId, storeId, ReturnStatus.APPROVED,
+        return new ReturnRequest(new Data(null, orderId, line, claimRefund(line, agreedRefund), buyerAccountId, storeId,
+                ReturnStatus.APPROVED,
                 ReturnReason.OTHER, requiredText(description, "RETURN_DESCRIPTION_REQUIRED", "description",
                 "Describe la devolución"), ReturnOrigin.CLAIM, claimId, null, null,
                 new Decision("Originada por la reclamación " + claimId, null, now), null, null, null, null, null, 0,
                 null, null, now, now));
+    }
+
+    /**
+     * Una reclamación (CU-13) exige la devolución de una línea que el vendedor había rechazado: la reabre como Aprobada,
+     * sin plazo, con el reembolso acordado en la reclamación (o el de la línea si no se acordó otro). Solo desde
+     * Rechazada. Deja en la línea de tiempo la reapertura y el cambio de origen, y conserva todo lo anterior.
+     */
+    public java.util.List<ReturnEvent> reopenFromClaim(Long claimId, BigDecimal agreedRefund, LocalDateTime now) {
+        if (claimId == null) {
+            throw new IllegalArgumentException("Reabrir por reclamación necesita su reclamación");
+        }
+        requireStatus("reabrir por una reclamación", ReturnStatus.REJECTED);
+        ReturnOrigin previousOrigin = this.origin;
+        this.refundAmount = claimRefund(line, agreedRefund);
+        this.origin = ReturnOrigin.CLAIM;
+        this.originClaimId = claimId;
+        this.decision = new Decision("Reabierta por la reclamación " + claimId, null, now);
+        this.returnMethodCode = null;
+        this.methodChosenAt = null;
+        ReturnEvent reopened = move(ReturnStatus.APPROVED, ReturnEventType.REOPENED_FROM_CLAIM, ActorType.SYSTEM, null,
+                "Reclamación " + claimId, now);
+        ReturnEvent originChanged = new ReturnEvent(ReturnEventType.ORIGIN_CHANGED, null, null, ActorType.SYSTEM, null,
+                previousOrigin + " → " + ReturnOrigin.CLAIM + " (reclamación " + claimId + ")");
+        return java.util.List.of(reopened, originChanged);
+    }
+
+    /** El reembolso acordado en la reclamación; sin uno, el de la línea. Nunca más que la línea ni cero. */
+    private static BigDecimal claimRefund(ReturnLine line, BigDecimal agreedRefund) {
+        if (agreedRefund == null) {
+            return line.refundAmount();
+        }
+        if (agreedRefund.signum() <= 0 || agreedRefund.compareTo(line.refundAmount()) > 0) {
+            throw invalid("RETURN_REFUND_AMOUNT_INVALID", "refund",
+                    "El reembolso debe ser mayor que cero y no superar lo pagado por la línea");
+        }
+        return agreedRefund;
     }
 
     public static ReturnRequest restore(Data data) {
@@ -316,6 +358,16 @@ public final class ReturnRequest {
         requireStatus("finalizar", ReturnStatus.REFUND_PENDING);
         this.nextActionAt = null;
         return move(ReturnStatus.FINISHED, ReturnEventType.FINISHED, ActorType.SYSTEM, null, "return-" + id, now);
+    }
+
+    /**
+     * Reserva la devolución para quien la está procesando: aplaza su próxima acción para que otra réplica no la tome al
+     * mismo tiempo. Si el proceso se cae, la acción vuelve a estar vencida cuando termina la reserva.
+     */
+    public void lease(LocalDateTime until, LocalDateTime now) {
+        requireStatus("reservar", ReturnStatus.IN_INSPECTION, ReturnStatus.REFUND_PENDING);
+        this.nextActionAt = until;
+        this.updatedAt = now;
     }
 
     // ---------- Consultas derivadas (no se guardan) ----------

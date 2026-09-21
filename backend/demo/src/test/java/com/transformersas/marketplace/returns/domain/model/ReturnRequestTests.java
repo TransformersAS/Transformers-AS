@@ -104,7 +104,7 @@ class ReturnRequestTests {
     @Test
     void aReturnBornFromAClaimStartsApprovedWithoutWindowAndReferencesTheClaim() {
         ReturnRequest request = ReturnRequest.approvedFromClaim(100L, line(), BUYER, 1L, 44L, "Devolver el producto",
-                T0);
+                null, T0);
 
         assertThat(request.getStatus()).isEqualTo(ReturnStatus.APPROVED);
         assertThat(request.getOrigin()).isEqualTo(ReturnOrigin.CLAIM);
@@ -113,8 +113,89 @@ class ReturnRequestTests {
         assertThat(request.returnWindowEndsAt()).isEmpty();
         assertThat(request.getDecision().note()).contains("44");
         assertThat(request.openingEvent().type()).isEqualTo(ReturnEventType.APPROVED_FROM_CLAIM);
-        assertThatThrownBy(() -> ReturnRequest.approvedFromClaim(100L, line(), BUYER, 1L, null, "x", T0))
+        assertThatThrownBy(() -> ReturnRequest.approvedFromClaim(100L, line(), BUYER, 1L, null, "x", null, T0))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void aClaimBornReturnRefundsTheAgreedAmountOrTheWholeLineButNeverMore() {
+        ReturnRequest whole = ReturnRequest.approvedFromClaim(100L, line(), BUYER, 1L, 44L, "Devolver", null, T0);
+        ReturnRequest agreed = ReturnRequest.approvedFromClaim(100L, line(), BUYER, 1L, 44L, "Devolver",
+                new BigDecimal("12.50"), T0);
+
+        assertThat(whole.getRefundAmount()).isEqualByComparingTo("20.00");
+        assertThat(agreed.getRefundAmount()).isEqualByComparingTo("12.50");
+        assertInvalid(() -> ReturnRequest.approvedFromClaim(100L, line(), BUYER, 1L, 44L, "x", new BigDecimal("20.01"),
+                T0), "RETURN_REFUND_AMOUNT_INVALID", "refund");
+        assertInvalid(() -> ReturnRequest.approvedFromClaim(100L, line(), BUYER, 1L, 44L, "x", BigDecimal.ZERO, T0),
+                "RETURN_REFUND_AMOUNT_INVALID", "refund");
+        assertThat(requested().getRefundAmount()).isEqualByComparingTo("20.00");
+    }
+
+    // ---------- Reapertura por una reclamación (CU-13) ----------
+
+    private static ReturnRequest rejected() {
+        ReturnRequest request = inReview();
+        request.reject(SELLER, "No cumple las condiciones", T0.plusHours(2));
+        return request;
+    }
+
+    @Test
+    void aClaimReopensARejectedReturnAsApprovedAndRecordsBothTheReopeningAndTheOriginChange() {
+        ReturnRequest request = rejected();
+
+        java.util.List<ReturnEvent> events = request.reopenFromClaim(44L, new BigDecimal("15.00"), T0.plusDays(2));
+
+        assertThat(request.getStatus()).isEqualTo(ReturnStatus.APPROVED);
+        assertThat(request.getOrigin()).isEqualTo(ReturnOrigin.CLAIM);
+        assertThat(request.getOriginClaimId()).isEqualTo(44L);
+        assertThat(request.getRefundAmount()).isEqualByComparingTo("15.00");
+        assertThat(request.getDecision().note()).contains("44");
+        assertThat(request.getReturnMethodCode()).isNull();
+        assertThat(events).extracting(ReturnEvent::type).containsExactly(ReturnEventType.REOPENED_FROM_CLAIM,
+                ReturnEventType.ORIGIN_CHANGED);
+        assertThat(events.get(0)).extracting(ReturnEvent::from, ReturnEvent::to, ReturnEvent::actorType)
+                .containsExactly(ReturnStatus.REJECTED, ReturnStatus.APPROVED, ActorType.SYSTEM);
+        assertThat(events.get(1).from()).isNull();
+        assertThat(events.get(1).details()).contains("BUYER").contains("CLAIM").contains("44");
+        request.chooseReturnMethod(BUYER, "PICKUP", T0.plusDays(2));
+        assertThat(request.getReturnMethodCode()).isEqualTo("PICKUP");
+    }
+
+    @Test
+    void aClaimCanOnlyReopenARejectedReturn() {
+        assertConflict(() -> requested().reopenFromClaim(44L, null, T0), "RETURN_INVALID_STATE");
+        assertConflict(() -> inReview().reopenFromClaim(44L, null, T0), "RETURN_INVALID_STATE");
+        assertConflict(() -> approved().reopenFromClaim(44L, null, T0), "RETURN_INVALID_STATE");
+        assertConflict(() -> inInspection().reopenFromClaim(44L, null, T0), "RETURN_INVALID_STATE");
+        assertConflict(() -> refundPending().reopenFromClaim(44L, null, T0), "RETURN_INVALID_STATE");
+        assertThatThrownBy(() -> rejected().reopenFromClaim(null, null, T0))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertInvalid(() -> rejected().reopenFromClaim(44L, new BigDecimal("99.00"), T0),
+                "RETURN_REFUND_AMOUNT_INVALID", "refund");
+    }
+
+    @Test
+    void aReopenedReturnFollowsTheSamePathAsAnyApprovedOne() {
+        ReturnRequest request = rejected();
+        request.reopenFromClaim(44L, null, T0.plusDays(1));
+
+        request.startInspection(T0.plusDays(3), POLICY.inspectionWindow());
+        request.beginRefund(T0.plusDays(4));
+        request.refundCompleted(T0.plusDays(4));
+
+        assertThat(request.getStatus()).isEqualTo(ReturnStatus.FINISHED);
+    }
+
+    @Test
+    void leasingPostponesTheNextActionOnlyWhileThereIsRefundOrInspectionWork() {
+        ReturnRequest inspection = inInspection();
+        LocalDateTime until = T0.plusDays(10);
+
+        inspection.lease(until, T0.plusDays(4));
+
+        assertThat(inspection.getNextActionAt()).isEqualTo(until);
+        assertConflict(() -> requested().lease(until, T0), "RETURN_INVALID_STATE");
     }
 
     @Test
