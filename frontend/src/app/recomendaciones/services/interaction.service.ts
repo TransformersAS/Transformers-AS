@@ -15,7 +15,7 @@ export class InteractionService {
     inject(HttpClient);
 
   private readonly apiUrl =
-    'http://localhost:8080/api/interactions';
+    '/api/interactions';
 
   register(
     request: InteractionRequest
