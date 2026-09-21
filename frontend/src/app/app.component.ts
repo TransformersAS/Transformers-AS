@@ -65,9 +65,11 @@ import { AccesoComponent } from './core/components/acceso.component';
 import { ColaSoporteComponent } from './panel-admin-soporte/components/cola-soporte.component';
 import { PedidosRecibidosComponent } from './panel-vendedor/components/pedidos-recibidos.component';
 import { CatalogoAdminComponent } from './panel-admin-catalogo/components/catalogo-admin.component';
+import { InventarioComponent } from './panel-vendedor/components/inventario.component';
 import { MisProductosComponent } from './panel-vendedor/components/mis-productos.component';
 import { MiTiendaComponent } from './panel-vendedor/components/mi-tienda.component';
 import { ReclamacionesComponent } from './reclamaciones-devoluciones/components/reclamaciones.component';
+import { RegistroVendedorComponent } from './registro-vendedor/components/registro-vendedor.component';
 import { MisReportesComponent } from './reportes/components/mis-reportes.component';
 import { ReportarContenidoComponent } from './reportes/components/reportar-contenido.component';
 import { ReportesService } from './reportes/services/reportes.service';
@@ -124,8 +126,10 @@ import {
     PedidosRecibidosComponent,
     CatalogoAdminComponent,
     MisProductosComponent,
+    InventarioComponent,
     MiTiendaComponent,
     ReclamacionesComponent,
+    RegistroVendedorComponent,
     MisReportesComponent,
     ReportarContenidoComponent
   ],
@@ -260,11 +264,17 @@ export class AppComponent {
   /** Panel del vendedor para publicar y mantener sus productos (CU-14). */
   mostrarMisProductos = false;
 
+  /** Panel del vendedor para controlar su inventario (CU-15). */
+  mostrarInventario = false;
+
   /** "Mi tienda" del vendedor (CU-18). */
   mostrarMiTienda = false;
 
   /** Reclamaciones de compra (CU-13): la ven el comprador, el vendedor y soporte, cada uno a su manera. */
   mostrarReclamaciones = false;
+
+  /** Registro de vendedores (CU-12): lo abre el botón "Conocer el espacio vendedor" de la portada. */
+  mostrarRegistroVendedor = false;
 
   get esComprador(): boolean {
     return this.auth.cuenta()?.activeRole === 'COMPRADOR';
