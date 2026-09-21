@@ -4,6 +4,8 @@ package com.transformersas.marketplace.returns.domain.model;
 public enum ReturnEventType {
     REQUESTED,
     APPROVED_FROM_CLAIM,
+    REOPENED_FROM_CLAIM,
+    ORIGIN_CHANGED,
     REVIEW_STARTED,
     INFORMATION_REQUESTED,
     INFORMATION_ANSWERED,
