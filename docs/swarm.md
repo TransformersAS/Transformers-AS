@@ -3,6 +3,19 @@
 Esta configuración es independiente de `compose.yaml`. No incluye CD remoto ni
 runner self-hosted. Ejecutar `deploy.sh` desde un manager con Docker y curl.
 
+Compose y Swarm publican el backend en el puerto 8080 por defecto: no ejecutar
+ambos con ese puerto en el mismo host. Antes de probar Swarm, detener el backend
+de Compose (`docker compose stop backend`) o recrearlo con otro
+`BACKEND_HOST_PORT`. Comprobar `docker ps` además de `docker service ls`: en Docker
+Desktop un contenedor Compose puede recibir las peticiones a `127.0.0.1:8080`
+aunque Swarm muestre sus dos réplicas disponibles. Si ocurrió la colisión,
+volver a publicar el puerto del servicio Swarm después de liberar el de Compose.
+
+La prueba de persistencia se ejecuta con `k6 run scripts/k6/seller-register.js`;
+para otro host/puerto usar `BASE_URL=http://host:puerto k6 run scripts/k6/seller-register.js`.
+Los POST deben devolver 201; un 401 con cuerpo vacío exige comprobar qué imagen
+está atendiendo realmente el puerto antes de modificar CSRF o las sesiones.
+
 ## Arquitectura y límites
 
 - `backend`: imagen privada de GHCR, dos réplicas, healthcheck **liveness** heredado

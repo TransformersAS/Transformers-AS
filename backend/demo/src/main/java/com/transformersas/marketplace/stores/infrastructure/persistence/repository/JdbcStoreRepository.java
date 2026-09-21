@@ -112,6 +112,12 @@ public class JdbcStoreRepository implements StoreRepository {
     @Transactional
     public void replaceShippingMethods(Long storeId, Collection<String> methods) {
         jdbc.sql("DELETE FROM store_shipping_methods WHERE store_id = ?").param(storeId).update();
+        initializeShippingMethods(storeId, methods);
+    }
+
+    @Override
+    @Transactional
+    public void initializeShippingMethods(Long storeId, Collection<String> methods) {
         methods.stream().distinct().forEach(method ->
                 jdbc.sql("INSERT INTO store_shipping_methods (store_id, method) VALUES (?, ?)")
                         .params(storeId, method).update());

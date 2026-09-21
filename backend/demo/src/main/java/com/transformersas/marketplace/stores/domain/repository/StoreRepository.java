@@ -39,6 +39,9 @@ public interface StoreRepository {
     /** Métodos de envío habilitados de la tienda, en orden alfabético. */
     List<String> findShippingMethods(Long storeId);
 
+    /** Inicializa los métodos de una tienda recién creada, sin borrar filas ni bloquear rangos vacíos. */
+    void initializeShippingMethods(Long storeId, Collection<String> methods);
+
     /** Reemplaza los métodos de envío habilitados por exactamente los indicados. */
     void replaceShippingMethods(Long storeId, Collection<String> methods);
 

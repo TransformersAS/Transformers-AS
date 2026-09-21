@@ -21,6 +21,41 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /** CU-12: una persona habilita el rol de vendedor, con cuenta nueva o con la que ya tiene. */
 class SellerRegistrationTests extends AbstractIntegrationTest {
 
+    @org.springframework.beans.factory.annotation.Autowired
+    SellerRegistrationService registrationService;
+
+    @Test
+    void concurrentRegistrationsPersistEveryAccountStoreAndTermsAcceptance() throws Exception {
+        var start = new java.util.concurrent.CyclicBarrier(5);
+        try (var workers = java.util.concurrent.Executors.newFixedThreadPool(5)) {
+            var results = new java.util.ArrayList<java.util.concurrent.Future<?>>();
+            for (int worker = 0; worker < 5; worker++) {
+                final int id = worker;
+                results.add(workers.submit(() -> {
+                    start.await(10, java.util.concurrent.TimeUnit.SECONDS);
+                    for (int iteration = 0; iteration < 4; iteration++) {
+                        String suffix = id + "-" + iteration;
+                        registrationService.register("parallel-" + suffix + "@example.com", PASSWORD,
+                                "Parallel store " + suffix);
+                    }
+                    return null;
+                }));
+            }
+            for (var result : results) {
+                result.get(60, java.util.concurrent.TimeUnit.SECONDS);
+            }
+        }
+        assertThat(count("user_accounts")).isEqualTo(20);
+        assertThat(count("seller_terms_acceptances")).isEqualTo(20);
+        assertThat(jdbc.queryForObject("""
+                SELECT COUNT(*) FROM user_accounts u
+                JOIN stores s ON s.owner_account_id = u.id
+                JOIN seller_terms_acceptances t ON t.account_id = u.id
+                WHERE u.email LIKE 'parallel-%@example.com'
+                """, Integer.class)).isEqualTo(20);
+        assertThat(count("store_shipping_methods")).isEqualTo(42);
+    }
+
     private static final String API = "/api/sellers";
 
     // ---------- Ayudas ----------

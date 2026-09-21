@@ -48,7 +48,7 @@ class CreateStoreUseCaseTests {
         Store store = useCase.execute(7L, "  Mi   Tienda ");
 
         assertThat(store.id()).isEqualTo(5L);
-        verify(stores).replaceShippingMethods(5L, List.of("STANDARD", "EXPRESS"));
+        verify(stores).initializeShippingMethods(5L, List.of("STANDARD", "EXPRESS"));
     }
 
     @Test

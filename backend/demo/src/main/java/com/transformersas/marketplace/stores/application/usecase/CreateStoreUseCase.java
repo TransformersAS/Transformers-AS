@@ -40,7 +40,7 @@ public class CreateStoreUseCase {
         }
         Store store = stores.insert(ownerAccountId, profile);
         List<String> available = shippingMethods.availableMethods();
-        stores.replaceShippingMethods(store.id(), available);
+        stores.initializeShippingMethods(store.id(), available);
         return store;
     }
 }
