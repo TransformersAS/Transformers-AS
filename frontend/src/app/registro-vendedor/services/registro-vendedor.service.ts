@@ -6,9 +6,8 @@ import { API_BASE } from '../../core/config/api.config';
 import { CondicionesVendedor, ResultadoRegistro } from '../models/registro-vendedor.model';
 
 /**
- * Registro de vendedores (CU-12). Las condiciones, el registro de una cuenta nueva y la verificación del correo no
- * exigen sesión; habilitar el rol con una cuenta existente y reenviar el correo sí. La sesión y el token CSRF los
- * aporta sessionInterceptor.
+ * Registro de vendedores (CU-12). Las condiciones, el registro de una cuenta nueva y la confirmación no exigen
+ * sesión; habilitar el rol con una cuenta existente sí. La sesión y el token CSRF los aporta sessionInterceptor.
  */
 @Injectable({ providedIn: 'root' })
 export class RegistroVendedorService {
@@ -29,11 +28,8 @@ export class RegistroVendedorService {
     return this.http.post<ResultadoRegistro>(`${this.url}/enable`, { storeName, acceptTerms });
   }
 
-  verificarCorreo(token: string): Observable<void> {
-    return this.http.post<void>(`${this.url}/verify-email`, { token });
-  }
-
-  reenviarVerificacion(): Observable<void> {
-    return this.http.post<void>(`${this.url}/resend-verification`, {});
+  /** Confirma el registro: el correo de la cuenta y el nombre de la tienda que se registró. */
+  confirmarRegistro(email: string, storeName: string): Observable<void> {
+    return this.http.post<void>(`${this.url}/verify-email`, { email, storeName });
   }
 }

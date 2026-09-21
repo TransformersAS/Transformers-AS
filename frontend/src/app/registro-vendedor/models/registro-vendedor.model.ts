@@ -10,7 +10,7 @@ export interface CondicionesVendedor {
 export interface ResultadoRegistro {
   storeId: number;
   storeName: string;
-  /** Si es true, el rol de vendedor llega cuando se confirma el correo. */
+  /** Si es true, el rol de vendedor llega cuando se confirma el registro. */
   emailVerificationRequired: boolean;
   /** Si es true, la cuenta ya tiene el rol VENDEDOR. */
   sellerRoleActive: boolean;

@@ -24,7 +24,7 @@ type Modo = 'nueva' | 'existente';
 
 /**
  * Registro de vendedores (CU-12) en tres pasos: el formulario (con las condiciones y el nombre único de la tienda),
- * la verificación del correo cuando hace falta y la confirmación. Quien ya tiene sesión usa su misma cuenta; quien no,
+ * la confirmación del registro cuando hace falta y el cierre. Quien ya tiene sesión usa su misma cuenta; quien no,
  * crea una nueva. Las reglas las decide el backend; aquí solo se guía el proceso y se muestran sus mensajes.
  */
 @Component({
@@ -99,23 +99,16 @@ type Modo = 'nueva' | 'existente';
           </form>
         }
       } @else if (paso === 'verificar') {
-        <h2>Verifica tu correo</h2>
-        <p>Reservamos la tienda <strong>{{ resultado?.storeName }}</strong>. Te enviamos un correo a <strong>{{ correoPendiente }}</strong>
-          con un código de verificación: pégalo aquí para activar tu rol de vendedor.</p>
-        <p class="nota">En este entorno de desarrollo todavía no hay un servidor de correo real: el código se escribe en el registro del servidor.</p>
-        <form (ngSubmit)="verificar()" novalidate>
+        <h2>Confirma tu registro</h2>
+        <p>Reservamos tu tienda a nombre de <strong>{{ correoPendiente }}</strong>. Para activar tu rol de vendedor,
+          escribe el nombre de tu tienda para confirmar.</p>
+        <form (ngSubmit)="confirmar()" novalidate>
           <ion-item>
-            <ion-input label="Código de verificación" labelPlacement="stacked" name="codigo" [(ngModel)]="codigo"
-              [disabled]="enviando"></ion-input>
+            <ion-input label="Nombre de tu tienda" labelPlacement="stacked" name="confirmacion"
+              [(ngModel)]="nombreConfirmacion" [disabled]="enviando"></ion-input>
           </ion-item>
-          <ion-button type="submit" [disabled]="enviando || !codigo.trim()">Verificar correo</ion-button>
-          @if (auth.autenticada()) {
-            <ion-button fill="outline" [disabled]="enviando" (click)="reenviar()">Reenviar el código</ion-button>
-          }
+          <ion-button type="submit" [disabled]="enviando || !nombreConfirmacion.trim()">Confirmar registro</ion-button>
         </form>
-        @if (!auth.autenticada()) {
-          <p class="nota">¿El código venció? Inicia sesión con tu cuenta y pide otro desde aquí.</p>
-        }
       } @else {
         <h2>¡Listo!</h2>
         <p>
@@ -153,7 +146,7 @@ export class RegistroVendedorComponent implements OnInit {
   confirmacion = '';
   tienda = '';
   acepto = false;
-  codigo = '';
+  nombreConfirmacion = '';
 
   correoPendiente = '';
   verificado = false;
@@ -202,15 +195,12 @@ export class RegistroVendedorComponent implements OnInit {
     });
   }
 
-  verificar(): void {
-    this.tramitar(this.servicio.verificarCorreo(this.codigo.trim()), () => {
+  /** Primera entrega: se confirma escribiendo el nombre de la tienda registrada (no comprueba el buzón del correo). */
+  confirmar(): void {
+    this.tramitar(this.servicio.confirmarRegistro(this.correoPendiente, this.nombreConfirmacion.trim()), () => {
       this.verificado = true;
       this.paso = 'listo';
     });
-  }
-
-  reenviar(): void {
-    this.tramitar(this.servicio.reenviarVerificacion(), () => (this.aviso = 'Enviamos un código nuevo; el anterior ya no sirve.'));
   }
 
   /** Ejecuta una llamada, muestra el mensaje del backend si la rechaza y evita envíos dobles mientras tanto. */

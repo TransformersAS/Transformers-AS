@@ -2,8 +2,6 @@ package com.transformersas.marketplace.sellers;
 
 import com.transformersas.marketplace.support.AbstractIntegrationTest;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.ResultActions;
 import tools.jackson.databind.JsonNode;
 
@@ -14,12 +12,6 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.atLeastOnce;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -30,9 +22,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class SellerRegistrationTests extends AbstractIntegrationTest {
 
     private static final String API = "/api/sellers";
-
-    // El envío real del correo no existe: se reemplaza para leer el token que se "enviaría".
-    @MockitoBean EmailVerificationNotifier notifier;
 
     // ---------- Ayudas ----------
 
@@ -64,15 +53,8 @@ class SellerRegistrationTests extends AbstractIntegrationTest {
                 .content(enableBody(storeName, acceptTerms)));
     }
 
-    /** El último token que el sistema "envió por correo" a esa dirección. */
-    private String lastTokenSentTo(String email) {
-        ArgumentCaptor<String> token = ArgumentCaptor.forClass(String.class);
-        verify(notifier, atLeastOnce()).notifyVerification(eq(email), token.capture());
-        return token.getAllValues().getLast();
-    }
-
-    private ResultActions verifyEmail(String token) throws Exception {
-        return publicPost(API + "/verify-email", "{\"token\":\"" + token + "\"}");
+    private ResultActions verify(String email, String storeName) throws Exception {
+        return publicPost(API + "/verify-email", "{\"email\":\"" + email + "\",\"storeName\":\"" + storeName + "\"}");
     }
 
     private List<String> rolesOf(String email) {
@@ -96,7 +78,7 @@ class SellerRegistrationTests extends AbstractIntegrationTest {
     // ---------- Sin cuenta: se registra una nueva ----------
 
     @Test
-    void visitorRegistersAnAccountAndItsStoreThenVerifiesTheEmailToBecomeASeller() throws Exception {
+    void visitorRegistersAnAccountAndItsStoreThenConfirmsItToBecomeASeller() throws Exception {
         register("nuevo@example.com", "Mi Tienda Nueva").andExpect(status().isCreated())
                 .andExpect(jsonPath("$.storeName").value("Mi Tienda Nueva"))
                 .andExpect(jsonPath("$.emailVerificationRequired").value(true))
@@ -113,18 +95,12 @@ class SellerRegistrationTests extends AbstractIntegrationTest {
         assertThat(jdbc.queryForObject("SELECT email_verified_at IS NULL FROM user_accounts WHERE id = ?",
                 Boolean.class, accountId)).isTrue();
 
-        // El token solo viaja por el correo: en la base solo queda su hash.
-        String token = lastTokenSentTo("nuevo@example.com");
-        assertThat(token).hasSize(43);
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM email_verification_tokens WHERE token_hash = ?",
-                Integer.class, token)).isZero();
-        assertThat(count("email_verification_tokens")).isEqualTo(1);
-
-        // Antes de verificar solo es comprador.
+        // Antes de confirmar solo es comprador.
         Session before = login("nuevo@example.com");
         perform(before, get("/api/auth/me")).andExpect(jsonPath("$.roles", containsInAnyOrder("COMPRADOR")));
 
-        verifyEmail(token).andExpect(status().isNoContent());
+        // El nombre se compara sin distinguir mayúsculas, tildes ni espacios sobrantes.
+        verify("Nuevo@Example.com", "  MI   tienda nueva ").andExpect(status().isNoContent());
 
         assertThat(rolesOf("nuevo@example.com")).containsExactlyInAnyOrder("COMPRADOR", "VENDEDOR");
         assertThat(jdbc.queryForObject("SELECT email_verified_at IS NOT NULL FROM user_accounts WHERE id = ?",
@@ -184,65 +160,42 @@ class SellerRegistrationTests extends AbstractIntegrationTest {
 
         assertThat(count("user_accounts")).isZero();
         assertThat(count("stores")).isEqualTo(1);
-        verify(notifier, never()).notifyVerification(any(), any());
     }
 
-    @Test
-    void aFailureDeliveringTheEmailDoesNotUndoTheRegistration() throws Exception {
-        doThrow(new RuntimeException("servidor de correo caído")).when(notifier).notifyVerification(any(), any());
+    // ---------- Confirmación del registro ----------
 
+    @Test
+    void confirmationIsRejectedWhenItDoesNotMatchTheRegistration() throws Exception {
         register("nuevo@example.com", "Mi Tienda").andExpect(status().isCreated());
+        createAccount("sintienda@example.com", "COMPRADOR");
+
+        // Nombre equivocado, correo desconocido y cuenta sin tienda dan la misma respuesta: no se revela quién tiene cuenta.
+        verify("nuevo@example.com", "Otra Tienda").andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_VERIFICATION"));
+        verify("nadie@example.com", "Mi Tienda").andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_VERIFICATION"));
+        verify("sintienda@example.com", "Mi Tienda").andExpect(status().isBadRequest());
+        // Campos vacíos o ausentes.
+        verify("nuevo@example.com", " ").andExpect(status().isBadRequest());
+        publicPost(API + "/verify-email", "{\"email\":\"nuevo@example.com\"}").andExpect(status().isBadRequest());
 
         assertThat(rolesOf("nuevo@example.com")).containsExactly("COMPRADOR");
-        assertThat(count("email_verification_tokens")).isEqualTo(1);
-    }
-
-    // ---------- Verificación del correo ----------
-
-    @Test
-    void badOrUsedOrExpiredTokensAreRejected() throws Exception {
-        register("nuevo@example.com", "Mi Tienda").andExpect(status().isCreated());
-        String token = lastTokenSentTo("nuevo@example.com");
-
-        verifyEmail("corto").andExpect(status().isBadRequest());
-        verifyEmail("a".repeat(43)).andExpect(status().isBadRequest()); // bien formado pero desconocido
-        publicPost(API + "/verify-email", "{}").andExpect(status().isBadRequest());
-
-        // Vencido: no concede nada.
-        jdbc.update("UPDATE email_verification_tokens SET expires_at = NOW(6) - INTERVAL 1 MINUTE");
-        verifyEmail(token).andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("INVALID_VERIFICATION_TOKEN"));
-        assertThat(rolesOf("nuevo@example.com")).containsExactly("COMPRADOR");
-        jdbc.update("UPDATE email_verification_tokens SET expires_at = NOW(6) + INTERVAL 1 HOUR");
-
-        verifyEmail(token).andExpect(status().isNoContent());
-        // Un token se usa una sola vez.
-        verifyEmail(token).andExpect(status().isBadRequest());
     }
 
     @Test
-    void resendingInvalidatesThePreviousTokenAndIssuesANewOne() throws Exception {
+    void confirmingTwiceChangesNothing() throws Exception {
         register("nuevo@example.com", "Mi Tienda").andExpect(status().isCreated());
-        String first = lastTokenSentTo("nuevo@example.com");
-        Session session = login("nuevo@example.com");
 
-        perform(session, post(API + "/resend-verification")).andExpect(status().isNoContent());
-        String second = lastTokenSentTo("nuevo@example.com");
+        verify("nuevo@example.com", "Mi Tienda").andExpect(status().isNoContent());
+        verify("nuevo@example.com", "Mi Tienda").andExpect(status().isNoContent());
 
-        assertThat(second).isNotEqualTo(first);
-        verifyEmail(first).andExpect(status().isBadRequest());
-        verifyEmail(second).andExpect(status().isNoContent());
         assertThat(rolesOf("nuevo@example.com")).containsExactlyInAnyOrder("COMPRADOR", "VENDEDOR");
-
-        // Ya verificado: no hay nada que reenviar.
-        perform(session, post(API + "/resend-verification")).andExpect(status().isConflict())
-                .andExpect(jsonPath("$.code").value("EMAIL_ALREADY_VERIFIED"));
     }
 
     // ---------- Con cuenta: se usa la misma cuenta y credenciales ----------
 
     @Test
-    void anAccountWithAVerifiedEmailBecomesASellerRightAway() throws Exception {
+    void anAccountWithAConfirmedRegistrationBecomesASellerRightAway() throws Exception {
         createAccount("comprador@example.com", "COMPRADOR");
         markEmailVerified("comprador@example.com");
         Session buyer = login("comprador@example.com");
@@ -258,8 +211,6 @@ class SellerRegistrationTests extends AbstractIntegrationTest {
                 accountId)).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT terms_version FROM seller_terms_acceptances WHERE account_id = ?",
                 String.class, accountId)).isEqualTo(SellerTerms.VERSION);
-        assertThat(count("email_verification_tokens")).isZero();
-        verify(notifier, never()).notifyVerification(any(), any());
 
         // La misma contraseña de siempre: con una sesión nueva ya figura el rol.
         perform(login("comprador@example.com"), get("/api/auth/me"))
@@ -267,20 +218,20 @@ class SellerRegistrationTests extends AbstractIntegrationTest {
     }
 
     @Test
-    void anAccountWithAnUnverifiedEmailReservesItsStoreButWaitsForTheVerification() throws Exception {
-        createAccount("sinverificar@example.com", "COMPRADOR");
-        Session buyer = login("sinverificar@example.com");
+    void anAccountWithoutConfirmationReservesItsStoreButWaitsToConfirm() throws Exception {
+        createAccount("sinconfirmar@example.com", "COMPRADOR");
+        Session buyer = login("sinconfirmar@example.com");
 
         enable(buyer, "Tienda Pendiente", true).andExpect(status().isCreated())
                 .andExpect(jsonPath("$.emailVerificationRequired").value(true))
                 .andExpect(jsonPath("$.sellerRoleActive").value(false));
 
-        assertThat(rolesOf("sinverificar@example.com")).containsExactly("COMPRADOR");
+        assertThat(rolesOf("sinconfirmar@example.com")).containsExactly("COMPRADOR");
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM stores WHERE name = 'Tienda Pendiente'", Integer.class))
                 .isEqualTo(1);
 
-        verifyEmail(lastTokenSentTo("sinverificar@example.com")).andExpect(status().isNoContent());
-        assertThat(rolesOf("sinverificar@example.com")).containsExactlyInAnyOrder("COMPRADOR", "VENDEDOR");
+        verify("sinconfirmar@example.com", "Tienda Pendiente").andExpect(status().isNoContent());
+        assertThat(rolesOf("sinconfirmar@example.com")).containsExactlyInAnyOrder("COMPRADOR", "VENDEDOR");
     }
 
     @Test
@@ -312,19 +263,18 @@ class SellerRegistrationTests extends AbstractIntegrationTest {
     }
 
     @Test
-    void enablingAndResendingNeedASession() throws Exception {
+    void enablingNeedsASession() throws Exception {
         // Con el token CSRF correcto pero sin iniciar sesión.
         publicPost(API + "/enable", enableBody("Tienda", true)).andExpect(status().isUnauthorized());
-        publicPost(API + "/resend-verification", "{}").andExpect(status().isUnauthorized());
     }
 
     @Test
-    void theStoreOfANewSellerIsNotVisibleUntilItsOwnerCanUseIt() throws Exception {
+    void theStoreOfANewSellerCannotBeOperatedUntilTheRegistrationIsConfirmed() throws Exception {
         register("nuevo@example.com", "Mi Tienda").andExpect(status().isCreated());
         Session buyerOnly = login("nuevo@example.com");
         long storeId = jdbc.queryForObject("SELECT id FROM stores WHERE name = 'Mi Tienda'", Long.class);
 
-        // Sin el rol VENDEDOR (correo sin verificar) la tienda existe pero no se puede operar.
+        // Sin el rol VENDEDOR la tienda existe pero no se puede operar.
         performAsSeller(buyerOnly, storeId, get("/api/seller/products")).andExpect(status().isForbidden());
         perform(buyerOnly, get("/api/auth/me")).andExpect(jsonPath("$.roles", not(hasItem("VENDEDOR"))));
     }
