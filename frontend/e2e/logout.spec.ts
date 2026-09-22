@@ -59,7 +59,10 @@ for (const rememberMe of [false, true]) {
         return json(200, []);
       });
 
+      const initialSession = page.waitForResponse(response => new URL(response.url()).pathname === '/api/auth/me');
       await page.goto('/');
+      expect((await initialSession).status()).toBe(401);
+      await expect(page.locator('.welcome-strip')).toContainText('Hola, visitante');
       await page.getByRole('button', { name: 'Ver cuenta', exact: true }).first().click();
       await page.locator('ion-input[name="correo"] input').fill(account.email);
       await page.locator('ion-input[name="clave"] input').fill('CorrectPassword123!');
@@ -110,8 +113,14 @@ for (const rememberMe of [false, true]) {
       expect(logoutRequests).toBe(scenario === 'success' ? 1 : 2);
       expect(csrfRequests).toBe(scenario === 'csrf-fetch' ? 4 : scenario === 'csrf' ? 3 : 2);
       expect(await page.evaluate(async () => (await fetch('/api/auth/me')).status)).toBe(401);
+      // fetch above checks the server contract, not Angular's authentication/render state.
+      await expect(page.locator('.welcome-strip')).toContainText('Hola, visitante');
+      await expect(page.locator('.cart-button em')).toHaveText('0');
       await page.getByRole('button', { name: 'Ver cuenta', exact: true }).first().click();
-      await expect(page.getByRole('button', { name: 'Iniciar sesión', exact: true })).toBeVisible();
+      const loginPanel = page.getByRole('dialog', { name: 'Acceso a tu cuenta', exact: true });
+      await expect(loginPanel).toBeVisible();
+      await expect(loginPanel).toHaveAttribute('aria-busy', 'false');
+      await expect(loginPanel.getByRole('button', { name: 'Iniciar sesión', exact: true })).toBeVisible();
       await expect(heading).toHaveCount(0);
       await expect(page.getByRole('alert')).toHaveCount(0);
     });

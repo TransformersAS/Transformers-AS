@@ -9,7 +9,8 @@ export default defineConfig({
   },
 
   webServer: {
-    command: 'npm start -- --host 127.0.0.1',
+    // E2E must control navigation; dev-server reloads can destroy an open account panel.
+    command: 'npm start -- --host 127.0.0.1 --live-reload=false --hmr=false',
     url: 'http://127.0.0.1:4300',
     reuseExistingServer: true,
   },
