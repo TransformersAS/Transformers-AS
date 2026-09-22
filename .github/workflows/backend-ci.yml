@@ -106,3 +106,43 @@ jobs:
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
+
+  frontend-e2e:
+    name: Frontend E2E with Playwright
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Install Chrome for Playwright
+        working-directory: frontend
+        run: npx playwright install --with-deps chrome
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+
+      - name: Run Playwright E2E
+        working-directory: frontend
+        run: npx playwright test --project=chrome --reporter=html
+
+      - name: Upload Playwright report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ github.sha }}
+          path: frontend/playwright-report/
+          if-no-files-found: warn
+          retention-days: 14
