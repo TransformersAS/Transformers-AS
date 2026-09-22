@@ -117,7 +117,7 @@ export class AccesoComponent {
       this.sesiones = [];
       this.vista = 'cuenta';
       this.cerrar.emit();
-    }, 'No se pudo cerrar la sesión.');
+    }, 'No se pudo confirmar el cierre de sesión. Inténtalo de nuevo.');
   }
 
   cargarSesiones(): void {

@@ -143,6 +143,8 @@ class PersistentSessionIntegrationTests extends AbstractIntegrationTest {
     void logoutRequiresCsrfDeletesCookieAndJdbcSessionInBothModes(boolean persistent) throws Exception {
         Cookie cookie = login(persistent);
         mvc.perform(post("/api/auth/logout").cookie(cookie)).andExpect(status().isForbidden());
+        mvc.perform(post("/api/auth/logout").cookie(cookie).header("X-CSRF-TOKEN", "invalid-csrf"))
+                .andExpect(status().isForbidden());
         mvc.perform(get("/api/auth/me").cookie(cookie)).andExpect(status().isOk());
         var response = mvc.perform(csrf(cookie).apply(post("/api/auth/logout")))
                 .andExpect(status().isNoContent()).andReturn().getResponse();

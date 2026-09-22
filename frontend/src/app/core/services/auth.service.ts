@@ -69,7 +69,7 @@ export class AuthService {
 
   cerrarSesion(): Observable<void> {
     return this.http.post(`${API_BASE}/auth/logout`, {}, { responseType: 'text' }).pipe(
-      catchError(() => of(null)),
+      // Solo olvidar la cuenta cuando el servidor confirma el cierre; los errores llegan a la UI.
       tap(() => this.olvidar()),
       map(() => undefined)
     );
