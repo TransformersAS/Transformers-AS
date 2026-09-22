@@ -1,7 +1,16 @@
 # Baseline Docker Swarm
 
 Esta configuración es independiente de `compose.yaml`. No incluye CD remoto ni
-runner self-hosted. Ejecutar `deploy.sh` desde un manager con Docker y curl.
+runner self-hosted. Ejecutar `deploy.sh` desde un manager con Docker y curl. Un
+solo comando despliega frontend, backend y MySQL; espera sus probes antes de
+terminar.
+
+**Si solo quieres levantarlo, ve directo a [Paso a paso del despliegue local](#paso-a-paso-del-despliegue-local).**
+Lo de arriba es el porqué; eso es el cómo.
+
+**En Windows, desplegar con Docker Desktop, no con el Docker de WSL.** Un stack desplegado en el motor
+de WSL funciona dentro de WSL pero queda inalcanzable desde el navegador de Windows (comprobado: fallan
+`localhost`, `127.0.0.1` y `[::1]`).
 
 Compose y Swarm publican el backend en el puerto 8080 por defecto: no ejecutar
 ambos con ese puerto en el mismo host. Antes de probar Swarm, detener el backend
@@ -11,13 +20,14 @@ Desktop un contenedor Compose puede recibir las peticiones a `127.0.0.1:8080`
 aunque Swarm muestre sus dos réplicas disponibles. Si ocurrió la colisión,
 volver a publicar el puerto del servicio Swarm después de liberar el de Compose.
 
-La prueba de persistencia se ejecuta con `k6 run scripts/k6/seller-register.js`;
-para otro host/puerto usar `BASE_URL=http://host:puerto k6 run scripts/k6/seller-register.js`.
-Los POST deben devolver 201; un 401 con cuerpo vacío exige comprobar qué imagen
-está atendiendo realmente el puerto antes de modificar CSRF o las sesiones.
+El frontend publica el puerto 80 (18000 con `--local`) y reenvía `/api` a las
+réplicas backend. Las pruebas k6 se dirigen normalmente al frontend, por ejemplo
+`BASE_URL=http://localhost:18000 k6 run scripts/k6/catalog-browse.js`.
 
 ## Arquitectura y límites
 
+- `frontend`: imagen privada de GHCR, dos réplicas Nginx, healthcheck `/healthz`
+  y proxy de `/api` al backend.
 - `backend`: imagen privada de GHCR, dos réplicas, healthcheck **liveness** heredado
   de la imagen, restart con 10 s de espera y actualización de una réplica a la vez.
   `start-first` requiere capacidad temporal para una tercera réplica. Un fallo
@@ -25,7 +35,7 @@ está atendiendo realmente el puerto antes de modificar CSRF o las sesiones.
 - `mysql`: MySQL 8.4.11 LTS, una réplica, volumen local `<stack>_mysql_data`, fijado al ID
   de un manager concreto. Las actualizaciones usan `stop-first` para evitar dos
   escritores simultáneos sobre ese volumen. **No hay HA ni replicación de MySQL.**
-- Ambos servicios comparten una red overlay `<stack>_internal`. El backend usa
+- Los tres servicios comparten una red overlay `<stack>_internal`. El backend usa
   `mysql:3306` por DNS de Swarm; MySQL no publica puertos al host.
 - El routing mesh publica el puerto del backend en los nodos del Swarm y dirige
   las conexiones a sus tasks, incluso si el nodo receptor no tiene una réplica.
@@ -55,10 +65,11 @@ Un rollback de imagen tampoco revierte cambios de esquema hechos por Flyway.
 
 ## Secrets sin contraseñas en el servicio
 
-Se crean dos secrets externos al stack, por defecto:
+Se crean tres secrets externos al stack, por defecto:
 
 - `<stack>_db_password_v1`
 - `<stack>_mysql_root_password_v1`
+- `<stack>_logistics_webhook_secret_v1`
 
 MySQL usa `MYSQL_PASSWORD_FILE` y `MYSQL_ROOT_PASSWORD_FILE`. La imagen oficial
 lee esos archivos al inicializar una base vacía. El backend monta solo la clave
@@ -66,6 +77,13 @@ de aplicación como `/run/secrets/DB_PASSWORD`, legible por UID/GID 10001, modo
 0400, y usa `SPRING_CONFIG_IMPORT=configtree:/run/secrets/`. Spring Boot incorpora
 el nombre del archivo como propiedad `DB_PASSWORD`, resolviendo el placeholder
 actual sin cambiar el código ni exportar la contraseña como variable de entorno.
+
+Por el mismo mecanismo, el secreto del webhook logístico se monta como
+`/run/secrets/logistics.webhook.secret`: el nombre del archivo **es** la propiedad que lee el backend,
+así que sustituye el valor vacío de `application.properties` y el webhook de CU-24 y CU-25 queda
+abierto. Si no se entrega un archivo, `deploy.sh` genera un valor aleatorio de 48 caracteres, porque es
+un secreto que nadie escribe a mano; para poder firmar novedades hay que crearlo antes con un valor
+conocido (paso 6 del despliegue).
 
 `docker service inspect` muestra rutas y referencias, no valores de contraseñas.
 El administrador del daemon sigue teniendo capacidad para acceder a secrets:
@@ -143,8 +161,10 @@ Docker Desktop puede conservarla en su almacén de credenciales.
 --resolve-image always`, enviando la autenticación a los agentes de Swarm. Cada
 nodo necesita conectividad a GHCR. No se construye ninguna imagen desde el stack.
 
-`BACKEND_IMAGE_TAG=latest` sirve para pruebas iniciales. Preferir
-`BACKEND_IMAGE_TAG=sha-<SHA completo publicado>` para identificar una versión.
+`BACKEND_IMAGE_TAG=latest` y `FRONTEND_IMAGE_TAG=latest` sirven para pruebas
+iniciales. Si no se define `FRONTEND_IMAGE_TAG`, el script usa el tag del backend.
+Preferir el mismo `sha-<SHA completo publicado>` para identificar una versión
+coherente de ambas imágenes.
 Swarm resuelve el digest del registro. Las etiquetas pueden cambiar. MySQL está fijado a `8.4.11`;
 fijar una versión no equivale a fijar todo por digest.
 
@@ -153,6 +173,7 @@ Verificar arquitecturas antes de desplegar:
 ```bash
 docker info --format '{{.Architecture}}'
 docker manifest inspect ghcr.io/transformersas/transformers-as-backend:latest
+docker manifest inspect ghcr.io/transformersas/transformers-as-frontend:latest
 ```
 
 La CI publica para amd64 y arm64. Verificar el manifiesto de la etiqueta elegida:
@@ -177,55 +198,152 @@ git diff --check
 
 Los valores de validación son nombres/IDs ficticios, no contraseñas ni recursos.
 
-## Despliegue local de un solo nodo
+## Paso a paso del despliegue local
 
-Docker Desktop debe estar activo. El modo local puede inicializar un Swarm nuevo
-con `advertise-addr 127.0.0.1`; no es una dirección para incorporar otros equipos.
-No abandona ni reinicializa un Swarm existente y rechaza un worker. No detiene
-Compose ni elimina volúmenes. El puerto local predeterminado es 18080 para evitar
-el backend de desarrollo en 8080. El routing mesh puede ser accesible desde la LAN.
+Recorrido completo, en orden, tal como se ejecutó y se comprobó. Deja el Marketplace entero
+—frontend, backend con dos réplicas y MySQL— corriendo en un Swarm de un solo nodo.
+
+### Antes de empezar: dónde se ejecuta
+
+**Docker Desktop en Windows, desde Git Bash.** No desde el Docker de WSL.
+
+Desplegar el stack en el motor Docker de WSL sí funciona *dentro* de WSL, pero el resultado queda
+**inalcanzable desde Windows**: el navegador y `curl` no llegan a los puertos publicados, ni por
+`localhost`, ni por `127.0.0.1`, ni por `[::1]`. El reenvío de puertos de WSL no se lleva bien con el
+enrutamiento interno de Swarm. Si ya lo desplegaste ahí, retíralo (`docker stack rm <nombre>` dentro
+de WSL) antes de repetirlo en Docker Desktop, o los puertos chocarán.
+
+Comprobar dónde estás parado:
 
 ```bash
-docker login ghcr.io
-STACK_NAME=transformers-local \
-BACKEND_IMAGE_TAG=latest \
-BACKEND_HOST_PORT=18080 \
+docker context show     # debe ser desktop-linux
+docker info --format '{{.Swarm.LocalNodeState}}'
+```
+
+### Paso 1. Archivos de contraseña
+
+El script pide las contraseñas por teclado si no existen los secrets. Para no depender de eso,
+prepararlas en archivos **fuera del repositorio**, de una sola línea y sin salto final:
+
+```bash
+mkdir -p ~/swarm-secrets
+printf 'UnaClaveLocalApp' > ~/swarm-secrets/db.txt
+printf 'OtraClaveLocalRoot' > ~/swarm-secrets/root.txt
+chmod 600 ~/swarm-secrets/*.txt
+wc -l ~/swarm-secrets/*.txt      # debe decir 0 líneas en ambos
+```
+
+### Paso 2. Desplegar
+
+```bash
+export STACK_NAME=transformers-local
+export DB_PASSWORD_SECRET_FILE=~/swarm-secrets/db.txt
+export MYSQL_ROOT_PASSWORD_SECRET_FILE=~/swarm-secrets/root.txt
 ./deploy.sh --local
 ```
 
-Introducir las contraseñas de prueba cuando se soliciten. Repetir el mismo comando
-reutiliza secrets y volumen. En automatización añadir las dos variables de rutas
-de secret antes del comando. El script no elimina recursos ante un timeout, para
-permitir diagnóstico. Es posible una creación parcial si falla algún paso.
+Un solo comando hace todo: construye las dos imágenes con los mismos Dockerfile que publica la CI,
+inicializa el Swarm si hace falta, crea los tres secrets, despliega el stack y **espera** a que las
+réplicas converjan y a que respondan tres comprobaciones seguidas de salud antes de terminar.
 
-Comprobar:
+La primera vez tarda bastante, porque compila el backend (unos 600 archivos) y el frontend dentro de
+las imágenes. Las siguientes reutilizan la caché.
+
+Termina con las tres líneas de servicios y el mensaje «Frontend y API disponibles». Si no converge en
+el plazo, **no borra nada**: deja el stack en pie para que se pueda diagnosticar.
+
+### Paso 3. Comprobar que responde
 
 ```bash
-docker info --format '{{.Swarm.LocalNodeState}}'
 docker stack services transformers-local
-docker stack ps --no-trunc transformers-local
-docker service ls
-docker service logs --tail 100 transformers-local_backend
-curl --fail http://localhost:18080/actuator/health/liveness
-curl --fail http://localhost:18080/actuator/health/readiness
-curl --fail http://localhost:18080/actuator/health
-
-# En cada nodo, comprobar los contenedores locales de cada servicio:
-for service in backend mysql; do
-  for container in $(docker ps -q --filter "label=com.docker.swarm.service.name=transformers-local_${service}"); do
-    docker inspect --format '{{.Name}} {{.State.Health.Status}}' "$container"
-  done
-done
-
-docker service inspect transformers-local_backend \
-  --format '{{json .Spec.TaskTemplate.ContainerSpec.Env}}'
-docker service inspect transformers-local_mysql \
-  --format '{{json .Spec.TaskTemplate.ContainerSpec.Env}}'
+curl --fail http://localhost:18000/healthz
+curl --fail http://localhost:18000/api/actuator/health/readiness
+curl --fail http://localhost:18090/actuator/health/readiness
 ```
 
-Esperado: mysql 1/1, backend 2/2, contenedores healthy, Actuator UP, URL JDBC
-`mysql:3306`, sin contraseñas en los arrays Env. Una respuesta de routing mesh no
-demuestra que ambas réplicas respondieron. No equivale a una prueba multi-nodo.
+Esperado: `mysql 1/1`, `frontend 2/2`, `backend 2/2` y `{"status":"UP"}` en las tres URL. El frontend
+queda en `http://localhost:18000` y la API directa en `http://localhost:18080`.
+
+**Es normal ver arranques fallidos del backend.** En el historial de tareas aparecen una o dos
+`Failed ... "task: non-zero exit (1)"` por réplica antes de la que está `Running`:
+
+```bash
+docker stack ps --no-trunc transformers-local
+```
+
+Swarm no espera a que MySQL esté listo antes de arrancar el backend, así que este muere y se reintenta
+hasta que la base acepta conexiones. Es esperado y se recupera solo. Distinto es que **siga** fallando
+después de la convergencia: eso ya es un fallo real, y se mira con
+`docker service logs --tail 100 transformers-local_backend`.
+
+### Paso 4. Cargar datos de demostración
+
+El stack arranca **vacío**: sin cuentas y sin productos. Se puede crear una cuenta desde la propia
+aplicación, porque el registro de vendedor es público, pero el catálogo seguiría vacío y no habría
+nada que demostrar.
+
+Los guiones del repositorio funcionan contra el MySQL del stack; solo hay que apuntarles al
+contenedor, cuyo nombre lo pone Swarm:
+
+```bash
+MYSQLC=$(docker ps --filter "label=com.docker.swarm.service.name=transformers-local_mysql" \
+  --format '{{.Names}}' | head -1)
+
+DB_PASSWORD='UnaClaveLocalApp' DEMO_PASSWORD='UnaClaveDemo2026!' MYSQL_CONTAINER="$MYSQLC" \
+  ./scripts/cu23-demo-seed.sh
+DB_PASSWORD='UnaClaveLocalApp' DEMO_PASSWORD='UnaClaveDemo2026!' MYSQL_CONTAINER="$MYSQLC" \
+  ./scripts/cu24-25-demo-seed.sh
+```
+
+`DB_PASSWORD` es la del archivo del paso 1. Eso deja las cuentas `vendedor.demo@example.com` y
+`comprador.demo@example.com`, el catálogo con productos y los pedidos de demostración.
+
+La primera cuenta con rol VENDEDOR recibe la tienda principal, así que puede gestionar sus pedidos.
+Si se prefiere asignarla a otra cuenta, está `MAIN_STORE_OWNER_EMAIL` (ver más abajo).
+
+### Paso 5. Usarlo
+
+Abrir `http://localhost:18000`, entrar con una de las cuentas del paso anterior y cambiar el rol
+activo en *Ver cuenta*. Recordar **recargar la página** después de entrar: el catálogo se pide antes
+del login.
+
+### Paso 6. El webhook logístico (CU-24 y CU-25)
+
+`deploy.sh` crea un tercer secret con el secreto del webhook. Si no se le da un archivo, lo **genera
+aleatorio**, de modo que el webhook queda abierto. Comprobarlo:
+
+```bash
+curl -s -X POST http://localhost:18000/api/logistics/webhooks/shipments \
+  -H 'Content-Type: application/json' -d '{"eventId":"x"}'
+```
+
+Debe responder 401 `WEBHOOK_SIGNATURE_INVALID`. Si responde 401 `WEBHOOK_NOT_CONFIGURED`, el backend
+arrancó sin secreto.
+
+Para **enviar novedades a mano** hace falta conocer el valor, así que hay que crearlo antes de
+desplegar:
+
+```bash
+printf 'un-secreto-largo-y-aleatorio' > ~/swarm-secrets/webhook.txt
+chmod 600 ~/swarm-secrets/webhook.txt
+export LOGISTICS_WEBHOOK_SECRET_FILE=~/swarm-secrets/webhook.txt
+./deploy.sh --local
+```
+
+Y después:
+
+```bash
+LOGISTICS_WEBHOOK_SECRET='un-secreto-largo-y-aleatorio' BACKEND_URL=http://localhost:18000 \
+  ./scripts/cu24-25-demo-events.sh shipment 7 PICKED_UP
+```
+
+Los secrets son inmutables: si ya existe con otro valor, hay que cambiar `LOGISTICS_WEBHOOK_SECRET`
+al nombre de uno nuevo, no reescribir el que hay.
+
+### Paso 7. Repetir o retirar
+
+Volver a ejecutar el mismo comando reutiliza secrets, volumen y datos. Para retirarlo, la sección
+**Retirada explícita** al final de este documento.
 
 ## Futuro cluster con dos computadores
 
@@ -278,7 +396,7 @@ impedir recuperación con un único nodo disponible.
 Referencias: [placement](https://docs.docker.com/engine/swarm/services/),
 [routing mesh](https://docs.docker.com/engine/swarm/ingress/).
 
-## Demostración futura de pérdida de una réplica (NO ejecutada en esta fase)
+## Prueba de disponibilidad: tráfico, caída y recuperación
 
 Usando el nombre `transformers-local` y puerto 18080; ajustar en el cluster real.
 Primero confirmar 2/2 y localizar el nodo y el ID completo de una task:
@@ -287,16 +405,18 @@ Primero confirmar 2/2 y localizar el nodo y el ID completo de una task:
 docker service ps --no-trunc transformers-local_backend
 ```
 
-Desde otra terminal, emitir peticiones durante un intervalo limitado:
+Desde otra terminal, iniciar tráfico continuo a través del frontend. Dejarlo
+activo hasta que termine la recuperación; `DURATION` debe ser mayor que el tiempo
+previsto para reemplazar la task:
 
 ```bash
-for attempt in $(seq 1 60); do
-  date -u
-  curl --max-time 3 --silent --show-error --output /dev/null \
-    --write-out '%{http_code}\n' http://localhost:18080/actuator/health/readiness
-  sleep 1
-done
+BASE_URL=http://localhost:18000 VUS=50 DURATION=3m \
+  k6 run --summary-export availability-k6.json scripts/k6/catalog-browse.js
 ```
+
+Se usa el guion de catálogo y no el de registro: son peticiones de lectura, así que el tráfico se
+mantiene constante sin saturar la CPU con el cifrado de contraseñas, y lo que se observe durante la
+caída se atribuye a la réplica que falta y no a una máquina sin CPU disponible.
 
 En el manager, obtener el contenedor de la task seleccionada:
 
@@ -318,10 +438,101 @@ docker stack services transformers-local
 ```
 
 Esperado a comprobar: la réplica restante atiende tráfico y Swarm crea una task
-nueva hasta recuperar 2/2. Puede haber conexiones en vuelo fallidas o errores
-transitorios; no prometer cero errores. Registrar los códigos HTTP y tiempos
-reales. Matar una task no demuestra tolerancia a la pérdida de un computador;
-esa prueba, la overlay y las arquitecturas deben validarse con los dos equipos.
+nueva hasta recuperar 2/2. Verificarlo explícitamente con:
+
+```bash
+docker service ps --no-trunc transformers-local_backend
+docker service ls --filter name=transformers-local_backend
+curl --fail http://localhost:18000/api/actuator/health/readiness
+```
+
+El resumen y `availability-k6.json` registran P95, throughput y error rate
+durante la caída. Puede haber conexiones en vuelo fallidas o errores transitorios;
+no prometer cero errores. Matar una task no demuestra tolerancia a la pérdida de
+un computador; esa prueba, la overlay y las arquitecturas deben validarse con los
+dos equipos.
+
+### Medición hecha
+
+Ejecutada en Docker Desktop sobre el stack de un nodo, con tráfico continuo al readiness a través del
+frontend (una petición cada 0,2 s) mientras se mataba una réplica del backend:
+
+| Qué | Resultado |
+| --- | --- |
+| Peticiones durante la prueba | 200 |
+| Respuestas HTTP 200 | 200 (ninguna falló) |
+| Tiempo en volver a 2/2 | 29 s |
+| Estado de la task muerta | `Failed ... "task: non-zero exit (137)"`, reemplazada por una nueva |
+
+Que no fallara ninguna petición no está garantizado: depende de si alguna conexión estaba en vuelo
+hacia la réplica que se mató. Lo que sí es repetible es que **el servicio siguió atendiendo** con una
+sola réplica y que Swarm reemplazó la caída sin intervención.
+
+## Prueba de performance y comparación ASR
+
+Hay **dos guiones**, porque miden cosas distintas y el ASR (sección 36 de las decisiones
+arquitectónicas) fija metas por endpoint, no un único número:
+
+| Guion | Qué ejercita | Meta del ASR |
+| --- | --- | --- |
+| `scripts/k6/catalog-browse.js` | Navegación del catálogo: listar productos y abrir el detalle | P95 `<= 3 s`, error `< 2 %` |
+| `scripts/k6/seller-register.js` | Registro de vendedor, una escritura completa | P95 `<= 4 s` global, error `< 2 %` |
+
+**Cuál acredita el ASR de 100 usuarios.** El de catálogo. Es lo que hace la mayoría de las personas
+la mayor parte del tiempo, y ejercita el camino completo: Nginx, las réplicas del backend, el pool de
+conexiones, Hibernate y MySQL.
+
+**Por qué el de registro se presenta aparte.** Cifra la contraseña con BCrypt de coste 12, que está
+hecho para ser lento a propósito. Un registro cuesta del orden de 0,3 s de CPU **sin nadie más
+conectado**, así que con 100 usuarios en paralelo la máquina se satura y el P95 mide el cifrado, no la
+plataforma. Además nadie se registra cien veces por minuto. Sirve para comparar corridas entre sí y
+para ver cómo se comporta una escritura bajo carga, no para acreditar el tiempo de respuesta general.
+
+Ninguno de los dos define un mínimo de throughput, porque el ASR no lo fija: se informa
+(`catalog_throughput`, `seller_register_throughput`) para comparar corridas.
+
+### Ejecutar
+
+k6 no viene instalado. Se puede instalar (`winget install k6 --source winget`) o usar su imagen, que
+es lo que se probó aquí. Desde la raíz del repositorio, en PowerShell:
+
+```powershell
+docker run --rm -v "${PWD}\scripts\k6:/scripts" `
+  -e BASE_URL=http://host.docker.internal:4300 `
+  -e CATALOG_EMAIL=demo@marketplace.local -e CATALOG_PASSWORD=MarketplaceDemo123! `
+  -e VUS=50 -e DURATION=1m `
+  grafana/k6 run --summary-export /scripts/catalogo-50.json /scripts/catalog-browse.js
+```
+
+Y repetir con `VUS=100`, que es la corrida que acredita el ASR. Lo mismo para el otro guion cambiando
+el archivo por `seller-register.js` y el nombre del resumen.
+
+Desde un contenedor, el Marketplace publicado en el host se alcanza por `host.docker.internal`; con k6
+instalado en la máquina se usa `localhost`. Apuntar al **frontend** (4300 en Compose, 18000 con
+`./deploy.sh --local`, 80 en el cluster) para medir el camino real, incluido Nginx y el reparto entre
+réplicas; apuntar directamente al backend solo si se quiere aislar la API.
+
+Variables de los dos guiones: `BASE_URL`, `VUS`, `DURATION`, `P95_LIMIT_MS` y `ERROR_RATE_LIMIT`. No
+relajar los dos últimos cuando se esté acreditando el ASR. El de catálogo acepta además
+`CATALOG_EMAIL` y `CATALOG_PASSWORD`; si esa cuenta no existe, la crea al empezar, porque el registro
+es público.
+
+k6 termina con código 0 si se cumplen los umbrales y distinto de 0 si alguno se cruza, así que sirve
+tal cual en un pipeline.
+
+### Detalle que cuesta descubrir
+
+El catálogo exige sesión: sin ella responde 401. Cada usuario virtual inicia sesión **una sola vez** y
+reutiliza su cookie, porque el login también usa BCrypt y hacerlo en cada iteración volvería a medir el
+cifrado. Para eso el guion crea su propio frasco de cookies (`new http.CookieJar()`): k6 reinicia el
+frasco por defecto al empezar cada iteración, y sin ese detalle la sesión se pierde y todo responde 401
+a partir de la segunda vuelta.
+
+### Medición de referencia
+
+Con 5 usuarios virtuales contra un despliegue de desarrollo en un portátil, para tener un punto de
+partida, no para acreditar nada: P95 de 46 ms en listado y en detalle, 0 % de error y unas 60
+operaciones por segundo. Las corridas de 50 y 100 usuarios son las que hay que guardar como evidencia.
 
 ## Retirada explícita
 

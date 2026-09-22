@@ -1,6 +1,34 @@
 version: "3.8"
 
 services:
+  frontend:
+    image: ghcr.io/transformersas/transformers-as-frontend:${FRONTEND_IMAGE_TAG:-latest}
+    networks:
+      - internal
+    ports:
+      - target: 80
+        published: ${FRONTEND_HOST_PORT:-80}
+        protocol: tcp
+        mode: ingress
+    deploy:
+      replicas: 2
+      placement:
+        preferences:
+          - spread: node.labels.backend_zone
+      restart_policy:
+        condition: any
+        delay: 10s
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+        failure_action: rollback
+        monitor: 90s
+      rollback_config:
+        parallelism: 1
+        order: stop-first
+        monitor: 90s
+
   backend:
     image: ghcr.io/transformersas/transformers-as-backend:${BACKEND_IMAGE_TAG:-latest}
     environment:
@@ -14,6 +42,13 @@ services:
     secrets:
       - source: db_password
         target: DB_PASSWORD
+        uid: "10001"
+        gid: "10001"
+        mode: 0400
+      # El nombre del archivo es la propiedad que lee Spring: sin este secreto el webhook del
+      # servicio logistico queda cerrado y CU-24/CU-25 no reciben novedades (401 WEBHOOK_NOT_CONFIGURED).
+      - source: logistics_webhook_secret
+        target: logistics.webhook.secret
         uid: "10001"
         gid: "10001"
         mode: 0400
@@ -102,3 +137,6 @@ secrets:
   mysql_root_password:
     external: true
     name: ${MYSQL_ROOT_PASSWORD_SECRET:?Set MYSQL_ROOT_PASSWORD_SECRET}
+  logistics_webhook_secret:
+    external: true
+    name: ${LOGISTICS_WEBHOOK_SECRET:?Set LOGISTICS_WEBHOOK_SECRET}
