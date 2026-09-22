@@ -152,12 +152,15 @@ Referencias: [Resilience4j Boot 4 y BOM](https://github.com/resilience4j/resilie
 ## Infraestructura
 
 Compose es para desarrollo local. Swarm es para el despliegue distribuido/demo:
-ver [docs/swarm.md](docs/swarm.md). MySQL permanece en una sola réplica y **no tiene HA**.
+ver [docs/swarm.md](docs/swarm.md). `./deploy.sh --local` despliega frontend,
+backend y MySQL y ejecuta su smoke test de health/readiness antes de terminar.
+MySQL permanece en una sola réplica y **no tiene HA**.
 
-La [CI](.github/workflows/backend-ci.yml) ejecuta Maven y construye la imagen en
-push a ramas; solo `main` publica en GHCR con tags `latest` y `sha-<commit>` para
-amd64/arm64. El cambio de artifactId no cambia las rutas ni el nombre del paquete
-GHCR: el Dockerfile copia el JAR por patrón. No se añade CD remoto.
+La [CI](.github/workflows/backend-ci.yml) ejecuta Maven y construye las imágenes
+backend y frontend en push a ramas; solo `main` publica ambas en GHCR con tags
+`latest` y `sha-<commit>` para amd64/arm64. El cambio de artifactId no cambia las
+rutas ni el nombre del paquete GHCR: el Dockerfile copia el JAR por patrón. No se
+añade CD remoto.
 
 Esta foundation no acredita disponibilidad ni rendimiento cuantitativos. Quedan
 pendientes las políticas de seguridad definitivas, contratos y esquema de cada CU,

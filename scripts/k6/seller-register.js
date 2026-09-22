@@ -1,16 +1,29 @@
 import http from 'k6/http';
 import { check } from 'k6';
-import { Trend, Rate } from 'k6/metrics';
+import { Counter, Trend, Rate } from 'k6/metrics';
 
 const registerDuration = new Trend('seller_register_duration', true);
-const registerFailed = new Rate('seller_register_failed');
+const registerErrorRate = new Rate('seller_register_error_rate');
+const registerThroughput = new Counter('seller_register_throughput');
+
+const vus = Number(__ENV.VUS || 50);
+const duration = __ENV.DURATION || '1m';
+const p95LimitMs = Number(__ENV.P95_LIMIT_MS || 4000);
+const errorRateLimit = Number(__ENV.ERROR_RATE_LIMIT || 0.02);
 
 export const options = {
-  vus: 5,
-  iterations: 20,
+  scenarios: {
+    seller_registration: {
+      executor: 'constant-vus',
+      vus,
+      duration,
+      gracefulStop: '10s',
+    },
+  },
   thresholds: {
-    seller_register_duration: ['p(95)<3000'],
-    seller_register_failed: ['rate<0.02'],
+    // ASR global: P95 <= 4 s y tasa de error < 2 % con 100 usuarios.
+    seller_register_duration: [`p(95)<=${p95LimitMs}`],
+    seller_register_error_rate: [`rate<${errorRateLimit}`],
   },
 };
 
@@ -21,7 +34,7 @@ export default function () {
 
   if (csrf.status !== 200) {
     console.error(`GET /api/auth/csrf: status=${csrf.status} body=${csrf.body}`);
-    registerFailed.add(true);
+    registerErrorRate.add(true);
     return;
   }
 
@@ -47,7 +60,10 @@ export default function () {
   );
 
   registerDuration.add(response.timings.duration);
-  registerFailed.add(response.status !== 201);
+  registerErrorRate.add(response.status !== 201);
+  if (response.status === 201) {
+    registerThroughput.add(1);
+  }
 
   if (response.status !== 201) {
     console.error(`POST /api/sellers/register: status=${response.status} body=${response.body}`);

@@ -15,22 +15,29 @@ esac
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 export STACK_NAME="${STACK_NAME:-transformers}"
 export BACKEND_IMAGE_TAG="${BACKEND_IMAGE_TAG:-latest}"
+export FRONTEND_IMAGE_TAG="${FRONTEND_IMAGE_TAG:-$BACKEND_IMAGE_TAG}"
 export DB_NAME="${DB_NAME:-marketplace}"
 export DB_USER="${DB_USER:-marketplace_app}"
 export DB_PASSWORD_SECRET="${DB_PASSWORD_SECRET:-${STACK_NAME}_db_password_v1}"
 export MYSQL_ROOT_PASSWORD_SECRET="${MYSQL_ROOT_PASSWORD_SECRET:-${STACK_NAME}_mysql_root_password_v1}"
 if "$local_mode"; then
   export BACKEND_HOST_PORT="${BACKEND_HOST_PORT:-18080}"
+  export FRONTEND_HOST_PORT="${FRONTEND_HOST_PORT:-18000}"
 else
   export BACKEND_HOST_PORT="${BACKEND_HOST_PORT:-8080}"
+  export FRONTEND_HOST_PORT="${FRONTEND_HOST_PORT:-80}"
 fi
 deploy_timeout="${DEPLOY_TIMEOUT_SECONDS:-600}"
 [[ "$STACK_NAME" =~ ^[a-z][a-z0-9_-]*$ ]] || fail 'STACK_NAME no válido.'
 [[ "$BACKEND_IMAGE_TAG" =~ ^[a-zA-Z0-9_][a-zA-Z0-9_.-]{0,127}$ ]] || fail 'BACKEND_IMAGE_TAG no válido.'
+[[ "$FRONTEND_IMAGE_TAG" =~ ^[a-zA-Z0-9_][a-zA-Z0-9_.-]{0,127}$ ]] || fail 'FRONTEND_IMAGE_TAG no válido.'
 [[ "$DB_NAME" =~ ^[a-zA-Z][a-zA-Z0-9_]*$ ]] || fail 'DB_NAME no válido.'
 [[ "$DB_USER" =~ ^[a-zA-Z][a-zA-Z0-9_]*$ && "$DB_USER" != root ]] || fail 'DB_USER debe ser una cuenta de aplicación.'
 [[ "$BACKEND_HOST_PORT" =~ ^[1-9][0-9]{0,4}$ ]] || fail 'BACKEND_HOST_PORT no válido.'
 (( BACKEND_HOST_PORT <= 65535 )) || fail 'BACKEND_HOST_PORT fuera de rango.'
+[[ "$FRONTEND_HOST_PORT" =~ ^[1-9][0-9]{0,4}$ ]] || fail 'FRONTEND_HOST_PORT no válido.'
+(( FRONTEND_HOST_PORT <= 65535 )) || fail 'FRONTEND_HOST_PORT fuera de rango.'
+[[ "$BACKEND_HOST_PORT" != "$FRONTEND_HOST_PORT" ]] || fail 'Los puertos publicados de frontend y backend deben ser distintos.'
 [[ "$deploy_timeout" =~ ^[1-9][0-9]{0,3}$ ]] || fail 'DEPLOY_TIMEOUT_SECONDS debe estar entre 1 y 9999.'
 for secret_name in "$DB_PASSWORD_SECRET" "$MYSQL_ROOT_PASSWORD_SECRET"; do
   [[ "$secret_name" =~ ^[a-zA-Z0-9][a-zA-Z0-9_.-]*$ ]] || fail 'Nombre de secret no válido.'
@@ -49,12 +56,17 @@ esac
 
 # Check private-registry access and CPU compatibility before changing Swarm.
 backend_image="ghcr.io/transformersas/transformers-as-backend:${BACKEND_IMAGE_TAG}"
-docker pull "$backend_image" || fail 'No se puede descargar la imagen. Verifica docker login ghcr.io, etiqueta y arquitectura.'
-image_platform="$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "$backend_image")"
+frontend_image="ghcr.io/transformersas/transformers-as-frontend:${FRONTEND_IMAGE_TAG}"
 server_platform="$(docker version --format '{{.Server.Os}}/{{.Server.Arch}}')"
-[[ "$image_platform" == "$server_platform" ]] || fail "Imagen $image_platform incompatible con este nodo $server_platform; no se asume emulación."
+for image in "$backend_image" "$frontend_image"; do
+  docker pull "$image" || fail "No se puede descargar $image. Verifica docker login ghcr.io, etiqueta y arquitectura."
+  image_platform="$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "$image")"
+  [[ "$image_platform" == "$server_platform" ]] || fail "Imagen $image_platform incompatible con este nodo $server_platform; no se asume emulación."
+done
 docker image inspect --format '{{json .Config.Healthcheck.Test}}' "$backend_image" |
   grep -q '/actuator/health/liveness' || fail 'La imagen debe incluir el healthcheck de liveness.'
+docker image inspect --format '{{json .Config.Healthcheck.Test}}' "$frontend_image" |
+  grep -q '/healthz' || fail 'La imagen frontend debe incluir el healthcheck de /healthz.'
 
 if [[ "$swarm_state" == inactive ]]; then
   printf 'Inicializando Swarm local de un nodo con advertise-addr 127.0.0.1.\n'
@@ -103,11 +115,13 @@ docker stack deploy --with-registry-auth --resolve-image always -c "$script_dir/
 
 # Swarm has no depends_on readiness gate; failed backend starts are retried.
 health_url="${SWARM_HEALTH_URL:-http://127.0.0.1:${BACKEND_HOST_PORT}/actuator/health/readiness}"
+frontend_url="${SWARM_FRONTEND_URL:-http://127.0.0.1:${FRONTEND_HOST_PORT}/healthz}"
+frontend_readiness_url="${SWARM_FRONTEND_READINESS_URL:-http://127.0.0.1:${FRONTEND_HOST_PORT}/api/actuator/health/readiness}"
 deadline=$((SECONDS + deploy_timeout))
 stable=0
 while (( SECONDS < deadline )); do
   ready=true
-  for service in backend mysql; do
+  for service in frontend backend mysql; do
     expected=2
     [[ "$service" != mysql ]] || expected=1
     update_state="$(docker service inspect --format '{{if .UpdateStatus}}{{.UpdateStatus.State}}{{end}}' "${STACK_NAME}_${service}")"
@@ -119,11 +133,14 @@ while (( SECONDS < deadline )); do
       awk '/^Running / {n++} END {print n+0}')"
     [[ "$count" == "$expected" ]] || ready=false
   done
-  if "$ready" && curl --fail --silent --max-time 5 "$health_url" | grep -Eq '"status"[[:space:]]*:[[:space:]]*"UP"'; then
+  if "$ready" \
+    && curl --fail --silent --max-time 5 "$health_url" | grep -Eq '"status"[[:space:]]*:[[:space:]]*"UP"' \
+    && curl --fail --silent --max-time 5 "$frontend_url" | grep -Eq '"status"[[:space:]]*:[[:space:]]*"UP"' \
+    && curl --fail --silent --max-time 5 "$frontend_readiness_url" | grep -Eq '"status"[[:space:]]*:[[:space:]]*"UP"'; then
     stable=$((stable + 1))
     if (( stable >= 3 )); then
       docker stack services "$STACK_NAME"
-      printf '\nRéplicas convergidas y readiness accesible. Revisar también la salud de cada task en su nodo.\n'
+      printf '\nFrontend y API disponibles; réplicas convergidas y readiness accesible. Revisar también la salud de cada task en su nodo.\n'
       printf 'docker stack services %s\ndocker stack ps --no-trunc %s\ndocker service ls\n' "$STACK_NAME" "$STACK_NAME"
       exit 0
     fi
