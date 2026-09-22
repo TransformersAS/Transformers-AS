@@ -189,14 +189,15 @@ Se ejecuta en un self-hosted runner (`[self-hosted, swarm-manager]`) con Docker,
 acceso directo al manager del Swarm, bajo el Environment de GitHub `production`.
 
 El job exporta `BACKEND_IMAGE_TAG` y `FRONTEND_IMAGE_TAG` en `sha-<SHA del push>` —así
-despliega exactamente la imagen que `publish` acaba de subir, nunca `latest`— y `STACK_NAME`,
-y termina llamando a `bash deploy.sh` sin `--local`, igual que en el cluster real. Las rutas a
-los archivos de secrets (`DB_PASSWORD_SECRET_FILE`, `MYSQL_ROOT_PASSWORD_SECRET_FILE`,
-`LOGISTICS_WEBHOOK_SECRET_FILE`) no están en el YAML ni se commitean: el job las lee de las
-Variables del Environment `production` (`vars.DB_PASSWORD_SECRET_FILE`, etc.), que se
-configuran una sola vez en Settings → Environments → production con las rutas reales del
-runner, fuera del repositorio. `deploy.sh` ya valida Docker/Swarm, espera health/readiness y
-sale con código distinto de cero si algo falla; el job de CD no duplica esa lógica.
+despliega exactamente la imagen que `publish` acaba de subir, nunca `latest`— y termina
+llamando a `bash deploy.sh` sin `--local`, igual que en el cluster real. Ni `STACK_NAME` ni las
+rutas a los archivos de secrets (`DB_PASSWORD_SECRET_FILE`, `MYSQL_ROOT_PASSWORD_SECRET_FILE`,
+`LOGISTICS_WEBHOOK_SECRET_FILE`) están en el YAML ni se commitean: el job las lee de las
+Variables del Environment `production` (`vars.STACK_NAME`, `vars.DB_PASSWORD_SECRET_FILE`,
+etc.), que se configuran una sola vez en Settings → Environments → production con los valores
+reales del runner, fuera del repositorio. `deploy.sh` ya valida Docker/Swarm, espera
+health/readiness y sale con código distinto de cero si algo falla; el job de CD no duplica esa
+lógica.
 
 El runner necesita el `docker login ghcr.io` manual descrito más abajo para poder hacer
 `docker pull` de las imágenes privadas: el workflow no vuelve a autenticar.

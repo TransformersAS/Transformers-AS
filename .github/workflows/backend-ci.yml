@@ -190,7 +190,7 @@ jobs:
           persist-credentials: false
       - name: Run deploy.sh against the real Swarm cluster
         env:
-          STACK_NAME: transformers
+          STACK_NAME: ${{ vars.STACK_NAME }}
           BACKEND_IMAGE_TAG: sha-${{ github.sha }}
           FRONTEND_IMAGE_TAG: sha-${{ github.sha }}
           DB_PASSWORD_SECRET_FILE: ${{ vars.DB_PASSWORD_SECRET_FILE }}
