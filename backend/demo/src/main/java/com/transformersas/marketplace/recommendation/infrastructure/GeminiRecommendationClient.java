@@ -25,6 +25,9 @@ public class GeminiRecommendationClient {
 
     private final String model;
 
+    @Value("${gemini.base-url:https://generativelanguage.googleapis.com}")
+    private String baseUrl = "https://generativelanguage.googleapis.com";
+
 
     public GeminiRecommendationClient(
 
@@ -173,7 +176,7 @@ public class GeminiRecommendationClient {
                 .post()
 
                 .uri(
-                    "https://generativelanguage.googleapis.com"
+                    baseUrl
                     + "/v1beta/models/"
                     + model
                     + ":generateContent"
