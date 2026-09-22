@@ -78,12 +78,15 @@ mostrar SmartScreen; verificar que la entrega proceda del equipo del proyecto.
 
 ### Si se descarga el código desde GitHub
 
-El ZIP de código fuente de GitHub **no incluye `Marketplace.exe`**, porque el binario
-no se versiona. Para preparar la entrega, un integrante del equipo puede ejecutar
-**Actions → Build Marketplace launcher → Run workflow** cuando el workflow esté
-publicado en GitHub. Descargar el artifact **`Marketplace-win-x64`**, descomprimirlo
-y colocar su `Marketplace.exe` junto a `compose.yaml` en el código fuente completo.
-El artifact del workflow contiene el ejecutable; necesita las carpetas del proyecto.
+El repositorio incluye **`Marketplace.exe` en la raíz**. Descargar **Code → Download ZIP**,
+descomprimir el proyecto completo, abrir Docker Desktop y hacer doble clic en el ejecutable.
+No descargar únicamente el `.exe`: necesita `compose.yaml`, `compose.demo.yaml`, `frontend/`
+y `backend/demo/` en la misma entrega.
+
+Para regenerar el ejecutable, un integrante del equipo puede ejecutar
+**Actions → Build Marketplace launcher → Run workflow**. Descargar el artifact
+**`Marketplace-win-x64`**, descomprimirlo y reemplazar `Marketplace.exe` en la raíz.
+El artifact contiene solo el ejecutable; necesita las carpetas del proyecto.
 
 También se puede construir desde la raíz del repositorio con **SDK .NET 8** instalado
 (solo en el equipo que prepara la entrega):

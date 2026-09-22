@@ -12,5 +12,4 @@ launcher/**/bin/
 launcher/**/obj/
 launcher-logs/
 artifacts/
-Marketplace.exe
 frontend/test-results-demo/
