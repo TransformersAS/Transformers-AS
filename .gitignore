@@ -6,3 +6,11 @@
 frontend/node_modules/
 frontend/dist/
 frontend/.angular/
+
+# Publicación local del launcher y diagnósticos; se distribuyen fuera de Git.
+launcher/**/bin/
+launcher/**/obj/
+launcher-logs/
+artifacts/
+Marketplace.exe
+frontend/test-results-demo/

@@ -1,0 +1,17 @@
+# Usar siempre con -p marketplace-demo --env-file .env.demo -f compose.yaml -f compose.demo.yaml.
+# El volumen queda separado del Compose de desarrollo y de Swarm.
+services:
+  backend:
+    environment:
+      SPRING_PROFILES_ACTIVE: demo
+      GEMINI_API_KEY: ""
+      SPRING_MAIL_HOST: ""
+      SPRING_MAIL_USERNAME: ""
+      SPRING_MAIL_PASSWORD: ""
+      MAIN_STORE_OWNER_EMAIL: ""
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "--max-time", "4", "http://127.0.0.1:8080/actuator/health/readiness"]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      start_period: 60s

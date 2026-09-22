@@ -13,6 +13,7 @@ com/transformersas/marketplace/auth/SessionAuthenticationTests.java
 com/transformersas/marketplace/catalog/CatalogAdminTests.java
 com/transformersas/marketplace/checkout/CheckoutReservationIntegrationTests.java
 com/transformersas/marketplace/claims/ClaimTests.java
+com/transformersas/marketplace/demo/DemoProvisioningIntegrationTests.java
 com/transformersas/marketplace/inventory/RestoreStockUseCaseTests.java
 com/transformersas/marketplace/logistics/CreateShipmentUseCaseTests.java
 com/transformersas/marketplace/logistics/LogisticsHttpIntegrationTests.java

@@ -1,14 +1,111 @@
-# Marketplace Backend — TransformersAS
+# Marketplace — TransformersAS
 
-Foundation del monolito modular: Java 21, Spring Boot 4.1.1, MySQL **8.4.11 LTS**,
-Flyway y Hibernate en `validate`. Todavía no hay casos de uso ni esquema de negocio.
-La carpeta física sigue siendo `backend/demo` para conservar rutas de Docker y CI;
-la identidad Maven es `com.transformersas:marketplace-backend` y el paquete base es
-`com.transformersas.marketplace`, con `MarketplaceApplication` como clase principal.
+Aplicación con frontend Angular/Ionic, backend Java 21 con Spring Boot y MySQL
+**8.4.11 LTS**. Docker Compose permite ejecutar el sistema completo; Flyway gestiona
+el esquema y Hibernate lo valida. El backend está en `backend/demo`.
 
-## Requisitos y arranque local
+## Instalación de la demo en Windows (profesor)
 
-- JDK **21**, seleccionado en `JAVA_HOME`.
+### Requisitos
+
+- **Docker Desktop instalado y abierto**, configurado para **Linux containers**.
+- Internet para descargar las imágenes y dependencias en la primera ejecución.
+- Puertos **4300, 8080 y 3307** libres.
+
+El ejecutable incluye .NET. No necesita instalar Java, Maven, Node, Git ni .NET,
+abrir una terminal o configurar contraseñas manualmente.
+
+### Descargar e iniciar
+
+1. Descargar la **entrega completa `Marketplace-demo.zip`** proporcionada por el equipo.
+2. Descomprimirla en una carpeta con permisos de escritura. No ejecutar desde dentro del ZIP.
+3. Comprobar que `Marketplace.exe` esté junto a los archivos y carpetas siguientes:
+
+   ```text
+   Transformers-AS/
+   ├── Marketplace.exe
+   ├── Cerrar Marketplace.cmd
+   ├── compose.yaml
+   ├── compose.demo.yaml
+   ├── frontend/
+   ├── backend/demo/
+   └── docs/
+   ```
+
+4. Abrir Docker Desktop y esperar a que el motor esté listo.
+5. Hacer doble clic en **Marketplace.exe**.
+6. Esperar mientras se construyen e inician MySQL, backend y frontend. La primera
+   ejecución puede tardar varios minutos.
+7. Cuando aparezca **«Marketplace está listo»**, el navegador se abrirá en
+   **http://localhost:4300**. Si no se abre automáticamente, entrar a esa dirección.
+
+El launcher genera la configuración y las contraseñas locales en `.env.demo`;
+crea también `.env` si no existe y conserva uno preexistente. Prepara automáticamente
+las cuentas y el pedido del perfil `demo` en un volumen propio de MySQL.
+**No elimine `.env.demo` después del primer inicio**, porque conserva las contraseñas
+con las que se creó esa base de datos.
+
+### Cuentas y pedido listos para la demostración
+
+| Caso | Correo | Contraseña | Datos preparados |
+|---|---|---|---|
+| CU-08 | `demo@marketplace.local` | `MarketplaceDemo123!` | Cuenta activa y verificada; roles COMPRADOR y VENDEDOR |
+| CU-11 | `comprador.demo@example.com` | `MarketplaceDemo123!` | Cuenta activa y verificada; rol COMPRADOR y un pedido Confirmado |
+
+Para CU-08, abrir **Ver cuenta**, iniciar sesión, cambiar el rol activo, consultar
+**Sesiones activas** y pulsar **Cerrar sesión**.
+
+Para CU-11, iniciar sesión con el comprador y abrir **Mis pedidos → Ver detalle →
+Cancelar pedido → Otro**. Escribir **Cancelación de demostración CU-11.** y confirmar.
+Al recargar, el pedido seguirá Cancelado y ya no ofrecerá la opción de cancelación.
+Pago y reembolso usan el simulador existente del proyecto; autenticación, sesiones,
+CSRF, inventario y persistencia en MySQL usan la implementación real.
+
+### Cerrar, volver a abrir y resetear
+
+- **Detener el sistema:** hacer doble clic en `Cerrar Marketplace.cmd`. Los datos se conservan.
+- **Cerrar solo la ventana del launcher:** los contenedores siguen ejecutándose.
+- **Volver a abrir o repetir la demo:** cerrar la ventana anterior y abrir otra vez
+  `Marketplace.exe`, con Docker Desktop activo. El mismo pedido demo cancelado vuelve
+  a Confirmado; no se duplican usuarios ni pedidos y los demás pedidos se conservan.
+- Si el navegador conserva una sesión anterior, pulsar **Cerrar sesión** antes de
+  empezar el guion con la cuenta CU-08.
+
+Si ocurre un error, la ventana permanece abierta. Comprobar Docker Desktop, Internet,
+los puertos indicados y que la entrega esté completamente descomprimida. El diagnóstico
+queda en `launcher-logs/marketplace.log`. El ejecutable no está firmado y Windows puede
+mostrar SmartScreen; verificar que la entrega proceda del equipo del proyecto.
+
+### Si se descarga el código desde GitHub
+
+El ZIP de código fuente de GitHub **no incluye `Marketplace.exe`**, porque el binario
+no se versiona. Para preparar la entrega, un integrante del equipo puede ejecutar
+**Actions → Build Marketplace launcher → Run workflow** cuando el workflow esté
+publicado en GitHub. Descargar el artifact **`Marketplace-win-x64`**, descomprimirlo
+y colocar su `Marketplace.exe` junto a `compose.yaml` en el código fuente completo.
+El artifact del workflow contiene el ejecutable; necesita las carpetas del proyecto.
+
+También se puede construir desde la raíz del repositorio con **SDK .NET 8** instalado
+(solo en el equipo que prepara la entrega):
+
+```text
+dotnet publish launcher/Marketplace/Marketplace.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=None -p:DebugSymbols=false -o .
+```
+
+El resultado es `Marketplace.exe` en la raíz, para Windows x64, con el runtime incluido.
+Para distribuirlo, empaquetar el ejecutable y el proyecto completo, conservando los
+archivos ocultos de construcción, pero excluyendo `.env`, `.env.demo`, `.git`,
+`node_modules`, `target` y los registros de desarrollo.
+
+Más información: [guía breve del profesor](docs/EJECUTABLE-DEMO.md) y
+[construcción, configuración y pruebas del launcher](launcher/README.md).
+Este arranque usa Compose; `deploy.sh` y `stack.yml` corresponden al escenario separado
+[de Docker Swarm](docs/swarm.md).
+
+## Arranque manual para desarrollo (alternativa al ejecutable)
+
+- JDK **21**, seleccionado en `JAVA_HOME`, para ejecutar el backend o sus pruebas desde el host.
+  No es necesario si todo se ejecuta con Docker Compose.
 - Docker con Compose v2; Docker Desktop activo en macOS.
 - No hace falta instalar Maven: usar el Wrapper del repositorio.
 
@@ -28,7 +125,7 @@ MYSQL_HOST_PORT=3307
 BACKEND_HOST_PORT=8080
 ```
 
-Levantar MySQL y backend:
+Levantar frontend, backend y MySQL:
 
 ```bash
 docker compose config --quiet
@@ -57,7 +154,9 @@ cd backend/demo
 
 Testcontainers arranca su propio MySQL 8.4.11 temporal. JaCoCo genera
 `backend/demo/target/site/jacoco/index.html`; Surefire guarda sus reportes en
-`backend/demo/target/surefire-reports/`. No hay un umbral obligatorio de cobertura.
+`backend/demo/target/surefire-reports/`. La configuración normal exige un mínimo
+de 95 % de cobertura de líneas. La suite exclusiva de integración se documenta en
+[COBERTURA-INTEGRACION-BACKEND.md](docs/COBERTURA-INTEGRACION-BACKEND.md).
 
 Para ejecutar Spring Boot desde el host, detener el backend Compose para liberar
 8080 y exportar `.env` en la terminal de desarrollo:
@@ -83,7 +182,7 @@ Cada módulo tiene un `package-info.java` que describe su responsabilidad:
 
 | Paquete | Responsabilidad |
 | --- | --- |
-| `auth` | Autenticación y autorización pendientes |
+| `auth` | Autenticación, roles activos y sesiones |
 | `users` | Usuarios, perfiles y cuentas |
 | `catalog` | Catálogo comercial |
 | `inventory` | Existencias, disponibilidad y reservas |
@@ -98,42 +197,13 @@ Cada módulo tiene un `package-info.java` que describe su responsabilidad:
 Los paquetes establecen organización, no aislamiento automático. No se añadió
 Spring Modulith. Evitar colocar lógica de un módulo de negocio en `shared`.
 
-## Seguridad provisional: NO es la seguridad final
+## Autenticación y datos demo
 
-`shared/DevelopmentSecurityConfiguration` aplica en el arranque actual, incluyendo
-las imágenes de demo. Permite sin autenticación `/actuator/health`, sus subrutas y
-**`/api/**` para desarrollo temporal**. No crea endpoints; el resto de rutas queda
-denegado. Permite el despacho interno de errores para preservar respuestas HTTP.
-
-No existen usuarios, credenciales predeterminadas, login, JWT ni autorización de
-negocio. Se excluye `UserDetailsServiceAutoConfiguration` para no generar el
-usuario/contraseña del template. Form login, HTTP Basic y logout están desactivados.
-Las rutas `/api/**` están temporalmente exentas de CSRF para permitir desarrollo
-de operaciones de escritura anónimas; esto debe revisarse con la autenticación real.
-
-**No usar esta política con datos reales o exposición pública.** Antes del CU de
-autenticación, acordar JWT o sesiones (y su almacenamiento), permisos, CSRF/CORS y
-pruebas; reemplazar la política abierta y revisar la exclusión de autoconfiguración.
-No se seleccionó JWT ni sesiones JDBC por añadir este starter.
-
-## Capacidades disponibles, todavía sin políticas de negocio
-
-- **Resilience4j:** `resilience4j-spring-boot4:2.4.0`, específico para Boot 4, más
-  `spring-boot-starter-aspectj` para soporte AOP. Versión explícita porque el módulo
-  Boot 4 no está incluido en el BOM 2.4.0. No existen instancias de circuit breaker,
-  reintentos, límites ni integraciones externas configuradas. La validación actual
-  comprueba arranque; cada integración necesitará pruebas de su política real.
-- **Spring Cache + Caffeine:** infraestructura habilitada con `@EnableCaching` y
-  `spring.cache.type=caffeine`. No hay `@Cacheable`, cachés ni TTL configurados.
-  Antes de usarla definir límites de tamaño, expiración e invalidación a partir de
-  mediciones. Caffeine es local a cada réplica; no es una caché distribuida.
-- **WireMock:** `wiremock-standalone:3.13.2` estable, exclusivamente `test`. Se usa
-  la distribución con dependencias aisladas para evitar conflictos de Jetty/Jackson
-  con Boot 4. No se arranca ningún servidor ni se crean stubs todavía.
-
-Referencias: [Resilience4j Boot 4 y BOM](https://github.com/resilience4j/resilience4j/issues/2427),
-[WireMock](https://wiremock.org/docs/download-and-installation/),
-[Spring Security en Boot](https://docs.spring.io/spring-boot/reference/web/spring-security.html).
+La aplicación utiliza autenticación real, Spring Session con persistencia JDBC,
+selección de rol activo y CSRF. Las cuentas y el pedido de la entrega Windows se
+preparan exclusivamente al activar el perfil `demo`; no se crean en el arranque
+normal de producción. El perfil `local` tiene su propia preparación de desarrollo
+y no equivale al fixture de la entrega Windows.
 
 ## Reglas del equipo
 
@@ -144,14 +214,13 @@ Referencias: [Resilience4j Boot 4 y BOM](https://github.com/resilience4j/resilie
   `backend/demo/src/main/resources/db/migration/`.
 - No usar `ddl-auto=update`, `create` ni `create-drop`; Hibernate solo valida.
 - No modificar migraciones aplicadas: añadir una versión nueva.
-- V1 queda pendiente hasta definir el primer esquema compartido; no añadir SQL vacío.
 - No hardcodear secrets. Compose usa `.env`; Swarm usa secrets/configtree.
 - Cada CU debe vivir en su módulo de negocio, con pruebas y contratos acordados.
 - No introducir políticas de resiliencia, caché o stubs sin una necesidad concreta.
 
 ## Infraestructura
 
-Compose es para desarrollo local. Swarm es para el despliegue distribuido/demo:
+Compose es para desarrollo local y para la entrega Windows. Swarm es para el despliegue distribuido:
 ver [docs/swarm.md](docs/swarm.md). `./deploy.sh --local` construye y despliega
 frontend, backend y MySQL desde este repositorio, y ejecuta su smoke test de
 health/readiness antes de terminar.
@@ -163,6 +232,6 @@ backend y frontend en push a ramas; solo `main` publica ambas en GHCR con tags
 rutas ni el nombre del paquete GHCR: el Dockerfile copia el JAR por patrón. No se
 añade CD remoto.
 
-Esta foundation no acredita disponibilidad ni rendimiento cuantitativos. Quedan
-pendientes las políticas de seguridad definitivas, contratos y esquema de cada CU,
-integraciones reales y validación física multi-nodo cuando exista infraestructura.
+La compilación del ejecutable Windows y las pruebas del flujo funcional se describen
+en [launcher/README.md](launcher/README.md), incluida la validación manual pendiente
+sobre Windows. Las pruebas locales no acreditan disponibilidad multi-nodo.

@@ -1,0 +1,20 @@
+name: Build Marketplace launcher
+on:
+  workflow_dispatch:
+jobs:
+  launcher:
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Publish self-contained Windows executable
+        run: dotnet publish launcher/Marketplace/Marketplace.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=None -p:DebugSymbols=false -o artifacts/launcher
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Marketplace-win-x64
+          path: artifacts/launcher/Marketplace.exe
+          if-no-files-found: error
