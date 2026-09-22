@@ -11,6 +11,7 @@ export interface CuentaSesion {
 export interface CredencialesLogin {
   email: string;
   password: string;
+  rememberMe: boolean;
 }
 
 export interface CambioRol {

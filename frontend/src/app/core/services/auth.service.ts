@@ -38,9 +38,10 @@ export class AuthService {
     this.obtenerCuentaActual().subscribe({ error: () => this.olvidar() });
   }
 
-  iniciarSesion(email: string, password: string): Observable<CuentaSesion> {
-    const credenciales: CredencialesLogin = { email, password };
-    const cuerpo = new HttpParams().set('email', credenciales.email).set('password', credenciales.password).toString();
+  iniciarSesion(email: string, password: string, rememberMe = false): Observable<CuentaSesion> {
+    const credenciales: CredencialesLogin = { email, password, rememberMe };
+    const cuerpo = new HttpParams().set('email', credenciales.email).set('password', credenciales.password)
+      .set('rememberMe', credenciales.rememberMe).toString();
     return this.refrescarCsrf().pipe(
       switchMap(() => this.http.post(`${API_BASE}/auth/login`, cuerpo,
         { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } })),

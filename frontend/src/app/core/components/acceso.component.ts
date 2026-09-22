@@ -3,7 +3,7 @@ import { DatePipe } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { IonButton, IonInput, IonItem, IonSelect, IonSelectOption, IonText } from '@ionic/angular/standalone';
+import { IonButton, IonCheckbox, IonInput, IonItem, IonSelect, IonSelectOption, IonText } from '@ionic/angular/standalone';
 import { Observable, catchError, finalize, of, switchMap, tap } from 'rxjs';
 import { AuthService, Rol } from '../services/auth.service';
 import { SesionActiva } from '../models/auth.model';
@@ -14,7 +14,7 @@ type Vista = 'cuenta' | 'sesiones' | 'password' | 'solicitar' | 'confirmar' | 'v
 @Component({
   selector: 'app-acceso',
   standalone: true,
-  imports: [FormsModule, DatePipe, PerfilResumenComponent, IonButton, IonInput, IonItem, IonSelect, IonSelectOption, IonText],
+  imports: [FormsModule, DatePipe, PerfilResumenComponent, IonButton, IonCheckbox, IonInput, IonItem, IonSelect, IonSelectOption, IonText],
   templateUrl: './acceso.component.html',
   styleUrl: './acceso.component.scss'
 })
@@ -26,6 +26,7 @@ export class AccesoComponent {
   vista: Vista = 'cuenta';
   correo = '';
   clave = '';
+  mantenerSesion = false;
   actual = '';
   nueva = '';
   confirmacion = '';
@@ -74,8 +75,9 @@ export class AccesoComponent {
   enviar(): void {
     if (!this.datosValidos()) return;
     this.correoSinVerificar = false;
-    this.ejecutar(this.auth.iniciarSesion(this.correo.trim(), this.clave), cuenta => {
+    this.ejecutar(this.auth.iniciarSesion(this.correo.trim(), this.clave, this.mantenerSesion), cuenta => {
       this.limpiarClaves();
+      this.mantenerSesion = false;
       this.sesiones = [];
       this.sesionesCargadas = false;
       this.pendiente = null;

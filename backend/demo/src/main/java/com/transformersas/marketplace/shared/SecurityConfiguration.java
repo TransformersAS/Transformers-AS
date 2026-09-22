@@ -3,6 +3,7 @@ package com.transformersas.marketplace.shared;
 import jakarta.servlet.DispatcherType;
 import com.transformersas.marketplace.auth.infrastructure.security.AccountPrincipal;
 import com.transformersas.marketplace.auth.infrastructure.security.EmailNotVerifiedException;
+import com.transformersas.marketplace.auth.infrastructure.security.LoginSessionPolicy;
 import com.transformersas.marketplace.users.domain.repository.UserAccountRepository;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -19,8 +20,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
-import org.springframework.session.web.http.CookieSerializer;
-import org.springframework.session.web.http.DefaultCookieSerializer;
+import org.springframework.boot.convert.DurationStyle;
+import java.time.temporal.ChronoUnit;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -34,12 +35,11 @@ public class SecurityConfiguration {
     }
 
     @Bean
-    CookieSerializer sessionCookieSerializer() {
-        var serializer = new DefaultCookieSerializer();
-        serializer.setUseHttpOnlyCookie(true);
-        serializer.setSameSite("Lax");
-        // Secure follows request.isSecure(), preserving local HTTP and enabling it on HTTPS.
-        return serializer;
+    LoginSessionPolicy sessionCookieSerializer(
+            @Value("${spring.session.timeout:30m}") String normalTimeout,
+            @Value("${app.session.persistent-timeout:7d}") String persistentTimeout) {
+        return new LoginSessionPolicy(DurationStyle.detectAndParse(normalTimeout, ChronoUnit.SECONDS),
+                DurationStyle.detectAndParse(persistentTimeout, ChronoUnit.SECONDS));
     }
 
     @Bean
@@ -77,7 +77,7 @@ public class SecurityConfiguration {
 
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http, DaoAuthenticationProvider provider,
-                                            SecurityContextRepository contexts) throws Exception {
+                                            SecurityContextRepository contexts, LoginSessionPolicy sessionPolicy) throws Exception {
         return http
                 .cors(Customizer.withDefaults())
                 .authenticationProvider(provider)
@@ -135,6 +135,7 @@ public class SecurityConfiguration {
                             var context = SecurityContextHolder.createEmptyContext();
                             context.setAuthentication(active);
                             SecurityContextHolder.setContext(context);
+                            sessionPolicy.onAuthenticationSuccess(request);
                             contexts.saveContext(context, request, response);
                             response.setStatus(204);
                         })
