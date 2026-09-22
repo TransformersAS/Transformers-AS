@@ -2,6 +2,8 @@ package com.transformersas.marketplace.shared;
 
 import jakarta.servlet.DispatcherType;
 import com.transformersas.marketplace.auth.infrastructure.security.AccountPrincipal;
+import com.transformersas.marketplace.auth.infrastructure.security.CurrentAccountSessionFilter;
+import org.springframework.security.web.context.SecurityContextHolderFilter;
 import com.transformersas.marketplace.auth.infrastructure.security.EmailNotVerifiedException;
 import com.transformersas.marketplace.auth.infrastructure.security.LoginSessionPolicy;
 import com.transformersas.marketplace.users.domain.repository.UserAccountRepository;
@@ -77,11 +79,14 @@ public class SecurityConfiguration {
 
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http, DaoAuthenticationProvider provider,
-                                            SecurityContextRepository contexts, LoginSessionPolicy sessionPolicy) throws Exception {
+                                            SecurityContextRepository contexts, LoginSessionPolicy sessionPolicy,
+                                            UserAccountRepository accounts) throws Exception {
         return http
                 .cors(Customizer.withDefaults())
                 .authenticationProvider(provider)
                 .securityContext(context -> context.securityContextRepository(contexts))
+                // Only register inside Spring Security, after loading the JDBC context and before authorization.
+                .addFilterAfter(new CurrentAccountSessionFilter(accounts, contexts), SecurityContextHolderFilter.class)
                 .authorizeHttpRequests(authorize -> authorize
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                         .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
