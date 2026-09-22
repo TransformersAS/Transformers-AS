@@ -14,8 +14,8 @@ aunque Swarm muestre sus dos réplicas disponibles. Si ocurrió la colisión,
 volver a publicar el puerto del servicio Swarm después de liberar el de Compose.
 
 El frontend publica el puerto 80 (18000 con `--local`) y reenvía `/api` a las
-réplicas backend. La prueba k6 se dirige normalmente al frontend, por ejemplo
-`BASE_URL=http://localhost:18000 k6 run scripts/k6/seller-register.js`.
+réplicas backend. Las pruebas k6 se dirigen normalmente al frontend, por ejemplo
+`BASE_URL=http://localhost:18000 k6 run scripts/k6/catalog-browse.js`.
 
 ## Arquitectura y límites
 
@@ -304,8 +304,12 @@ previsto para reemplazar la task:
 
 ```bash
 BASE_URL=http://localhost:18000 VUS=50 DURATION=3m \
-  k6 run --summary-export availability-k6.json scripts/k6/seller-register.js
+  k6 run --summary-export availability-k6.json scripts/k6/catalog-browse.js
 ```
+
+Se usa el guion de catálogo y no el de registro: son peticiones de lectura, así que el tráfico se
+mantiene constante sin saturar la CPU con el cifrado de contraseñas, y lo que se observe durante la
+caída se atribuye a la réplica que falta y no a una máquina sin CPU disponible.
 
 En el manager, obtener el contenedor de la task seleccionada:
 
@@ -343,29 +347,69 @@ dos equipos.
 
 ## Prueba de performance y comparación ASR
 
-El ASR global exige 50 y 100 usuarios concurrentes, P95 global `<= 4 s` y tasa
-de error `< 2 %`. No define un mínimo de throughput: k6 lo informa como
-`seller_register_throughput` (registros exitosos/s), por lo que se conserva para
-comparar corridas, no como un umbral inventado. El escenario crea correos únicos
-para que cada POST ejercite la persistencia real.
+Hay **dos guiones**, porque miden cosas distintas y el ASR (sección 36 de las decisiones
+arquitectónicas) fija metas por endpoint, no un único número:
 
-```bash
-# Ejecutar contra el frontend desplegado; guardar ambos outputs como evidencia.
-BASE_URL=http://localhost:18000 VUS=50 DURATION=1m \
-  k6 run --summary-export performance-50.json scripts/k6/seller-register.js
-BASE_URL=http://localhost:18000 VUS=100 DURATION=1m \
-  k6 run --summary-export performance-100.json scripts/k6/seller-register.js
+| Guion | Qué ejercita | Meta del ASR |
+| --- | --- | --- |
+| `scripts/k6/catalog-browse.js` | Navegación del catálogo: listar productos y abrir el detalle | P95 `<= 3 s`, error `< 2 %` |
+| `scripts/k6/seller-register.js` | Registro de vendedor, una escritura completa | P95 `<= 4 s` global, error `< 2 %` |
+
+**Cuál acredita el ASR de 100 usuarios.** El de catálogo. Es lo que hace la mayoría de las personas
+la mayor parte del tiempo, y ejercita el camino completo: Nginx, las réplicas del backend, el pool de
+conexiones, Hibernate y MySQL.
+
+**Por qué el de registro se presenta aparte.** Cifra la contraseña con BCrypt de coste 12, que está
+hecho para ser lento a propósito. Un registro cuesta del orden de 0,3 s de CPU **sin nadie más
+conectado**, así que con 100 usuarios en paralelo la máquina se satura y el P95 mide el cifrado, no la
+plataforma. Además nadie se registra cien veces por minuto. Sirve para comparar corridas entre sí y
+para ver cómo se comporta una escritura bajo carga, no para acreditar el tiempo de respuesta general.
+
+Ninguno de los dos define un mínimo de throughput, porque el ASR no lo fija: se informa
+(`catalog_throughput`, `seller_register_throughput`) para comparar corridas.
+
+### Ejecutar
+
+k6 no viene instalado. Se puede instalar (`winget install k6 --source winget`) o usar su imagen, que
+es lo que se probó aquí. Desde la raíz del repositorio, en PowerShell:
+
+```powershell
+docker run --rm -v "${PWD}\scripts\k6:/scripts" `
+  -e BASE_URL=http://host.docker.internal:4300 `
+  -e CATALOG_EMAIL=demo@marketplace.local -e CATALOG_PASSWORD=MarketplaceDemo123! `
+  -e VUS=50 -e DURATION=1m `
+  grafana/k6 run --summary-export /scripts/catalogo-50.json /scripts/catalog-browse.js
 ```
 
-| Medida | ASR / criterio |
-| --- | --- |
-| Concurrencia | Corridas de 50 y 100 VUs |
-| P95 registro vendedor | `<= 4 s` |
-| Error rate registro vendedor | `< 2 %` |
-| Throughput exitoso | Registrar y comparar entre 50/100; sin mínimo ASR |
+Y repetir con `VUS=100`, que es la corrida que acredita el ASR. Lo mismo para el otro guion cambiando
+el archivo por `seller-register.js` y el nombre del resumen.
 
-Para un diagnóstico corto se pueden cambiar `VUS`, `DURATION`, `P95_LIMIT_MS` y
-`ERROR_RATE_LIMIT`; no relajar los dos últimos cuando se esté acreditando el ASR.
+Desde un contenedor, el Marketplace publicado en el host se alcanza por `host.docker.internal`; con k6
+instalado en la máquina se usa `localhost`. Apuntar al **frontend** (4300 en Compose, 18000 con
+`./deploy.sh --local`, 80 en el cluster) para medir el camino real, incluido Nginx y el reparto entre
+réplicas; apuntar directamente al backend solo si se quiere aislar la API.
+
+Variables de los dos guiones: `BASE_URL`, `VUS`, `DURATION`, `P95_LIMIT_MS` y `ERROR_RATE_LIMIT`. No
+relajar los dos últimos cuando se esté acreditando el ASR. El de catálogo acepta además
+`CATALOG_EMAIL` y `CATALOG_PASSWORD`; si esa cuenta no existe, la crea al empezar, porque el registro
+es público.
+
+k6 termina con código 0 si se cumplen los umbrales y distinto de 0 si alguno se cruza, así que sirve
+tal cual en un pipeline.
+
+### Detalle que cuesta descubrir
+
+El catálogo exige sesión: sin ella responde 401. Cada usuario virtual inicia sesión **una sola vez** y
+reutiliza su cookie, porque el login también usa BCrypt y hacerlo en cada iteración volvería a medir el
+cifrado. Para eso el guion crea su propio frasco de cookies (`new http.CookieJar()`): k6 reinicia el
+frasco por defecto al empezar cada iteración, y sin ese detalle la sesión se pierde y todo responde 401
+a partir de la segunda vuelta.
+
+### Medición de referencia
+
+Con 5 usuarios virtuales contra un despliegue de desarrollo en un portátil, para tener un punto de
+partida, no para acreditar nada: P95 de 46 ms en listado y en detalle, 0 % de error y unas 60
+operaciones por segundo. Las corridas de 50 y 100 usuarios son las que hay que guardar como evidencia.
 
 ## Retirada explícita
 
