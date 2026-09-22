@@ -1,7 +1,9 @@
 # Baseline Docker Swarm
 
 Esta configuración es independiente de `compose.yaml`. No incluye CD remoto ni
-runner self-hosted. Ejecutar `deploy.sh` desde un manager con Docker y curl.
+runner self-hosted. Ejecutar `deploy.sh` desde un manager con Docker y curl. Un
+solo comando despliega frontend, backend y MySQL; espera sus probes antes de
+terminar.
 
 Compose y Swarm publican el backend en el puerto 8080 por defecto: no ejecutar
 ambos con ese puerto en el mismo host. Antes de probar Swarm, detener el backend
@@ -11,13 +13,14 @@ Desktop un contenedor Compose puede recibir las peticiones a `127.0.0.1:8080`
 aunque Swarm muestre sus dos réplicas disponibles. Si ocurrió la colisión,
 volver a publicar el puerto del servicio Swarm después de liberar el de Compose.
 
-La prueba de persistencia se ejecuta con `k6 run scripts/k6/seller-register.js`;
-para otro host/puerto usar `BASE_URL=http://host:puerto k6 run scripts/k6/seller-register.js`.
-Los POST deben devolver 201; un 401 con cuerpo vacío exige comprobar qué imagen
-está atendiendo realmente el puerto antes de modificar CSRF o las sesiones.
+El frontend publica el puerto 80 (18000 con `--local`) y reenvía `/api` a las
+réplicas backend. La prueba k6 se dirige normalmente al frontend, por ejemplo
+`BASE_URL=http://localhost:18000 k6 run scripts/k6/seller-register.js`.
 
 ## Arquitectura y límites
 
+- `frontend`: imagen privada de GHCR, dos réplicas Nginx, healthcheck `/healthz`
+  y proxy de `/api` al backend.
 - `backend`: imagen privada de GHCR, dos réplicas, healthcheck **liveness** heredado
   de la imagen, restart con 10 s de espera y actualización de una réplica a la vez.
   `start-first` requiere capacidad temporal para una tercera réplica. Un fallo
@@ -25,7 +28,7 @@ está atendiendo realmente el puerto antes de modificar CSRF o las sesiones.
 - `mysql`: MySQL 8.4.11 LTS, una réplica, volumen local `<stack>_mysql_data`, fijado al ID
   de un manager concreto. Las actualizaciones usan `stop-first` para evitar dos
   escritores simultáneos sobre ese volumen. **No hay HA ni replicación de MySQL.**
-- Ambos servicios comparten una red overlay `<stack>_internal`. El backend usa
+- Los tres servicios comparten una red overlay `<stack>_internal`. El backend usa
   `mysql:3306` por DNS de Swarm; MySQL no publica puertos al host.
 - El routing mesh publica el puerto del backend en los nodos del Swarm y dirige
   las conexiones a sus tasks, incluso si el nodo receptor no tiene una réplica.
@@ -143,8 +146,10 @@ Docker Desktop puede conservarla en su almacén de credenciales.
 --resolve-image always`, enviando la autenticación a los agentes de Swarm. Cada
 nodo necesita conectividad a GHCR. No se construye ninguna imagen desde el stack.
 
-`BACKEND_IMAGE_TAG=latest` sirve para pruebas iniciales. Preferir
-`BACKEND_IMAGE_TAG=sha-<SHA completo publicado>` para identificar una versión.
+`BACKEND_IMAGE_TAG=latest` y `FRONTEND_IMAGE_TAG=latest` sirven para pruebas
+iniciales. Si no se define `FRONTEND_IMAGE_TAG`, el script usa el tag del backend.
+Preferir el mismo `sha-<SHA completo publicado>` para identificar una versión
+coherente de ambas imágenes.
 Swarm resuelve el digest del registro. Las etiquetas pueden cambiar. MySQL está fijado a `8.4.11`;
 fijar una versión no equivale a fijar todo por digest.
 
@@ -153,6 +158,7 @@ Verificar arquitecturas antes de desplegar:
 ```bash
 docker info --format '{{.Architecture}}'
 docker manifest inspect ghcr.io/transformersas/transformers-as-backend:latest
+docker manifest inspect ghcr.io/transformersas/transformers-as-frontend:latest
 ```
 
 La CI publica para amd64 y arm64. Verificar el manifiesto de la etiqueta elegida:
@@ -177,7 +183,7 @@ git diff --check
 
 Los valores de validación son nombres/IDs ficticios, no contraseñas ni recursos.
 
-## Despliegue local de un solo nodo
+## Despliegue y smoke test en un solo comando
 
 Docker Desktop debe estar activo. El modo local puede inicializar un Swarm nuevo
 con `advertise-addr 127.0.0.1`; no es una dirección para incorporar otros equipos.
@@ -188,15 +194,18 @@ el backend de desarrollo en 8080. El routing mesh puede ser accesible desde la L
 ```bash
 docker login ghcr.io
 STACK_NAME=transformers-local \
-BACKEND_IMAGE_TAG=latest \
-BACKEND_HOST_PORT=18080 \
+BACKEND_IMAGE_TAG=sha-<SHA_PUBLICADO> \
+FRONTEND_IMAGE_TAG=sha-<SHA_PUBLICADO> \
 ./deploy.sh --local
 ```
 
-Introducir las contraseñas de prueba cuando se soliciten. Repetir el mismo comando
-reutiliza secrets y volumen. En automatización añadir las dos variables de rutas
-de secret antes del comando. El script no elimina recursos ante un timeout, para
-permitir diagnóstico. Es posible una creación parcial si falla algún paso.
+Introducir las contraseñas de prueba cuando se soliciten. En modo local el
+frontend queda en `http://localhost:18000` y la API directa en
+`http://localhost:18080`; en un cluster real los valores por defecto son 80 y
+8080 y se pueden cambiar con `FRONTEND_HOST_PORT` y `BACKEND_HOST_PORT`. Repetir
+el mismo comando reutiliza secrets y volumen. En automatización añadir las dos
+variables de rutas de secret antes del comando. El script no elimina recursos ante
+un timeout, para permitir diagnóstico.
 
 Comprobar:
 
@@ -206,12 +215,14 @@ docker stack services transformers-local
 docker stack ps --no-trunc transformers-local
 docker service ls
 docker service logs --tail 100 transformers-local_backend
+curl --fail http://localhost:18000/healthz
+curl --fail http://localhost:18000/api/actuator/health/readiness
 curl --fail http://localhost:18080/actuator/health/liveness
 curl --fail http://localhost:18080/actuator/health/readiness
 curl --fail http://localhost:18080/actuator/health
 
 # En cada nodo, comprobar los contenedores locales de cada servicio:
-for service in backend mysql; do
+for service in frontend backend mysql; do
   for container in $(docker ps -q --filter "label=com.docker.swarm.service.name=transformers-local_${service}"); do
     docker inspect --format '{{.Name}} {{.State.Health.Status}}' "$container"
   done
@@ -223,9 +234,10 @@ docker service inspect transformers-local_mysql \
   --format '{{json .Spec.TaskTemplate.ContainerSpec.Env}}'
 ```
 
-Esperado: mysql 1/1, backend 2/2, contenedores healthy, Actuator UP, URL JDBC
-`mysql:3306`, sin contraseñas en los arrays Env. Una respuesta de routing mesh no
-demuestra que ambas réplicas respondieron. No equivale a una prueba multi-nodo.
+Esperado: mysql 1/1, frontend 2/2 y backend 2/2, contenedores healthy,
+`/healthz` y Actuator UP, URL JDBC `mysql:3306`, sin contraseñas en los arrays
+Env. Una respuesta de routing mesh no demuestra que ambas réplicas respondieron.
+No equivale a una prueba multi-nodo.
 
 ## Futuro cluster con dos computadores
 
@@ -278,7 +290,7 @@ impedir recuperación con un único nodo disponible.
 Referencias: [placement](https://docs.docker.com/engine/swarm/services/),
 [routing mesh](https://docs.docker.com/engine/swarm/ingress/).
 
-## Demostración futura de pérdida de una réplica (NO ejecutada en esta fase)
+## Prueba de disponibilidad: tráfico, caída y recuperación
 
 Usando el nombre `transformers-local` y puerto 18080; ajustar en el cluster real.
 Primero confirmar 2/2 y localizar el nodo y el ID completo de una task:
@@ -287,15 +299,13 @@ Primero confirmar 2/2 y localizar el nodo y el ID completo de una task:
 docker service ps --no-trunc transformers-local_backend
 ```
 
-Desde otra terminal, emitir peticiones durante un intervalo limitado:
+Desde otra terminal, iniciar tráfico continuo a través del frontend. Dejarlo
+activo hasta que termine la recuperación; `DURATION` debe ser mayor que el tiempo
+previsto para reemplazar la task:
 
 ```bash
-for attempt in $(seq 1 60); do
-  date -u
-  curl --max-time 3 --silent --show-error --output /dev/null \
-    --write-out '%{http_code}\n' http://localhost:18080/actuator/health/readiness
-  sleep 1
-done
+BASE_URL=http://localhost:18000 VUS=50 DURATION=3m \
+  k6 run --summary-export availability-k6.json scripts/k6/seller-register.js
 ```
 
 En el manager, obtener el contenedor de la task seleccionada:
@@ -318,10 +328,45 @@ docker stack services transformers-local
 ```
 
 Esperado a comprobar: la réplica restante atiende tráfico y Swarm crea una task
-nueva hasta recuperar 2/2. Puede haber conexiones en vuelo fallidas o errores
-transitorios; no prometer cero errores. Registrar los códigos HTTP y tiempos
-reales. Matar una task no demuestra tolerancia a la pérdida de un computador;
-esa prueba, la overlay y las arquitecturas deben validarse con los dos equipos.
+nueva hasta recuperar 2/2. Verificarlo explícitamente con:
+
+```bash
+docker service ps --no-trunc transformers-local_backend
+docker service ls --filter name=transformers-local_backend
+curl --fail http://localhost:18000/api/actuator/health/readiness
+```
+
+El resumen y `availability-k6.json` registran P95, throughput y error rate
+durante la caída. Puede haber conexiones en vuelo fallidas o errores transitorios;
+no prometer cero errores. Matar una task no demuestra tolerancia a la pérdida de
+un computador; esa prueba, la overlay y las arquitecturas deben validarse con los
+dos equipos.
+
+## Prueba de performance y comparación ASR
+
+El ASR global exige 50 y 100 usuarios concurrentes, P95 global `<= 4 s` y tasa
+de error `< 2 %`. No define un mínimo de throughput: k6 lo informa como
+`seller_register_throughput` (registros exitosos/s), por lo que se conserva para
+comparar corridas, no como un umbral inventado. El escenario crea correos únicos
+para que cada POST ejercite la persistencia real.
+
+```bash
+# Ejecutar contra el frontend desplegado; guardar ambos outputs como evidencia.
+BASE_URL=http://localhost:18000 VUS=50 DURATION=1m \
+  k6 run --summary-export performance-50.json scripts/k6/seller-register.js
+BASE_URL=http://localhost:18000 VUS=100 DURATION=1m \
+  k6 run --summary-export performance-100.json scripts/k6/seller-register.js
+```
+
+| Medida | ASR / criterio |
+| --- | --- |
+| Concurrencia | Corridas de 50 y 100 VUs |
+| P95 registro vendedor | `<= 4 s` |
+| Error rate registro vendedor | `< 2 %` |
+| Throughput exitoso | Registrar y comparar entre 50/100; sin mínimo ASR |
+
+Para un diagnóstico corto se pueden cambiar `VUS`, `DURATION`, `P95_LIMIT_MS` y
+`ERROR_RATE_LIMIT`; no relajar los dos últimos cuando se esté acreditando el ASR.
 
 ## Retirada explícita
 

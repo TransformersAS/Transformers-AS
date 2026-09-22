@@ -1,4 +1,4 @@
-# Backend CI y publicación en GHCR
+# CI y publicación de imágenes en GHCR
 
 `backend-ci.yml` se ejecuta con push a cualquier rama, sin requerir Pull Requests.
 No se activa al publicar tags. No realiza despliegues.
@@ -8,14 +8,16 @@ No se activa al publicar tags. No realiza despliegues.
    MySQL temporal; no se carga `.env` ni se levanta Compose.
 2. Los reportes JaCoCo y Surefire disponibles se conservan durante 14 días,
    incluso si la prueba falla. Un fallo de Maven impide los jobs posteriores.
-3. Fuera de `main`, `build` construye y carga la imagen en el runner, sin publicarla.
-4. En `main`, `publish` construye y publica en GHCR usando `GITHUB_TOKEN`.
+3. Fuera de `main`, `build` construye y carga las imágenes backend y frontend en el runner, sin publicarlas.
+4. En `main`, `publish` construye y publica ambas imágenes en GHCR usando `GITHUB_TOKEN`.
    Solo este job recibe `packages: write`; los demás tienen `contents: read`.
 
 Para este repositorio, las etiquetas son:
 
 - `ghcr.io/transformersas/transformers-as-backend:latest`
 - `ghcr.io/transformersas/transformers-as-backend:sha-<SHA completo del commit>`
+- `ghcr.io/transformersas/transformers-as-frontend:latest`
+- `ghcr.io/transformersas/transformers-as-frontend:sha-<SHA completo del commit>`
 
 El nombre se deriva de `github.repository` en minúsculas. No se necesita
 metadata-action para estas dos etiquetas. `latest` sigue la publicación de main;
