@@ -31,7 +31,9 @@ for (const rememberMe of [false, true]) {
       if (path === '/api/recommendations') return json(200, { userId: 1, strategy: 'test', products: [] });
       return json(200, []);
     });
+    const initialSession = page.waitForResponse(response => new URL(response.url()).pathname === '/api/auth/me');
     await page.goto('/');
+    expect((await initialSession).status()).toBe(401);
     await page.getByRole('button', { name: 'Ver cuenta', exact: true }).first().click();
     const checkbox = page.getByRole('checkbox', { name: 'Mantener la sesión iniciada' });
     await expect(checkbox).not.toBeChecked();
@@ -46,9 +48,13 @@ for (const rememberMe of [false, true]) {
     expect(choices).toEqual([String(rememberMe)]);
 
     // The component/service are recreated; identity must be restored through /me.
+    const restoredSession = page.waitForResponse(response => new URL(response.url()).pathname === '/api/auth/me');
     await page.reload();
+    expect((await restoredSession).status()).toBe(200);
+    // Response arrival alone does not mean Angular has rendered the restored identity.
+    await expect(page.locator('.welcome-strip')).toContainText('Hola, person');
     await page.getByRole('button', { name: 'Ver cuenta', exact: true }).first().click();
-    await expect(page.getByRole('heading', { name: 'Seguridad de tu cuenta' })).toBeVisible();
+    await expect(page.getByRole('dialog', { name: 'Seguridad de tu cuenta' })).toBeVisible();
     await page.getByRole('button', { name: 'Cerrar sesión', exact: true }).click();
     await expect(page.getByRole('dialog')).toHaveCount(0);
     await page.getByRole('button', { name: 'Ver cuenta', exact: true }).first().click();

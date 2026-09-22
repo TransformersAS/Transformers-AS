@@ -44,22 +44,27 @@ for (const scenario of ['success', 'backend', 'network', 'csrf', 'refresh'] as c
       return json([]);
     });
     await page.goto('/');
+    await expect(page.locator('.welcome-strip')).toContainText('Hola, person');
     await page.getByRole('button', { name: 'Ver cuenta', exact: true }).first().click();
     await expect(page.getByRole('heading', { name: 'Seguridad de tu cuenta' })).toBeVisible();
     await page.getByRole('button', { name: 'Sesiones activas', exact: true }).click();
     await expect(page.locator('.sesiones li')).toHaveCount(3);
     const closeOthers = page.getByRole('button', { name: 'Cerrar las demás sesiones', exact: true });
+    const success = page.getByRole('status').filter({ hasText: /^Las demás sesiones se cerraron\. Esta sesión continúa activa\.$/ });
     await closeOthers.click();
     if (['backend', 'network', 'csrf'].includes(scenario)) {
       await expect(page.getByRole('alert')).toContainText(scenario === 'network'
         ? 'No se pudo conectar con el servidor' : 'No se pudo confirmar el cierre de las demás sesiones');
       await expect(page.locator('.sesiones li')).toHaveCount(3);
       await expect(page.getByRole('heading', { name: 'Seguridad de tu cuenta' })).toBeVisible();
-      await expect(page.getByRole('status')).toHaveCount(0);
+      await expect(success).toHaveCount(0);
+      await expect(closeOthers).toBeEnabled();
       expect(attempts).toBe(1);
       await closeOthers.click();
     }
-    await expect(page.getByRole('status')).toContainText('Las demás sesiones se cerraron. Esta sesión continúa activa.');
+    await expect(success).toBeVisible();
+    // The success notice can appear before the following list refresh finishes.
+    await expect(closeOthers).toBeEnabled();
     await expect(page.locator('.sesiones li')).toHaveCount(1);
     await expect(page.locator('.sesiones li')).toContainText('Esta es tu sesión actual');
     await expect(page.getByRole('heading', { name: 'Seguridad de tu cuenta' })).toBeVisible();
@@ -69,7 +74,10 @@ for (const scenario of ['success', 'backend', 'network', 'csrf', 'refresh'] as c
       await page.getByRole('button', { name: 'Actualizar', exact: true }).click();
     }
     await expect(page.getByRole('alert')).toHaveCount(0);
+    const restoredSession = page.waitForResponse(response => new URL(response.url()).pathname === '/api/auth/me');
     await page.reload();
+    expect((await restoredSession).status()).toBe(200);
+    await expect(page.locator('.welcome-strip')).toContainText('Hola, person');
     await page.getByRole('button', { name: 'Ver cuenta', exact: true }).first().click();
     await expect(page.getByRole('heading', { name: 'Seguridad de tu cuenta' })).toBeVisible();
     await page.getByRole('button', { name: 'Sesiones activas', exact: true }).click();
