@@ -1,10 +1,11 @@
 import { Component, EventEmitter, Output, effect, inject } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Subscription, finalize } from 'rxjs';
 import { AuthService } from '../../core/services/auth.service';
 import { PedidosService } from '../services/pedidos.service';
-import { DetallePedido, EstadoPedido, Pedido } from '../models/pedido.model';
+import { DetallePedido, EstadoPedido, MotivoCancelacion, Pedido } from '../models/pedido.model';
 import { ResumenPedidoComponent } from './resumen-pedido.component';
 import { SeguimientoLogisticoComponent } from '../../seguimiento/components/seguimiento-logistico.component';
 import { ConsultaDevolucionComponent } from '../../seguimiento/components/consulta-devolucion.component';
@@ -13,7 +14,7 @@ import { DevolverLineaComponent } from '../../devoluciones/components/devolver-l
 
 @Component({
   selector: 'app-mis-pedidos', standalone: true,
-  imports: [CommonModule, ResumenPedidoComponent, SeguimientoLogisticoComponent, ConsultaDevolucionComponent,
+  imports: [CommonModule, FormsModule, ResumenPedidoComponent, SeguimientoLogisticoComponent, ConsultaDevolucionComponent,
     DevolverLineaComponent],
   templateUrl: './mis-pedidos.component.html',
   styleUrl: './mis-pedidos.component.scss'
@@ -31,6 +32,27 @@ export class MisPedidosComponent {
   conflicto = false;
   error = '';
   exito = '';
+  motivo: MotivoCancelacion | '' = '';
+  explicacion = '';
+  readonly motivos: { codigo: MotivoCancelacion; etiqueta: string }[] = [
+    { codigo: 'CHANGED_MIND', etiqueta: 'Ya no quiero el pedido' },
+    { codigo: 'OTHER', etiqueta: 'Otro' }
+  ];
+
+  get puedeCancelar(): boolean {
+    return this.detalle?.status === 'CONFIRMED' || this.detalle?.status === 'IN_PREPARATION';
+  }
+
+  get motivoValido(): boolean {
+    return this.motivos.some(m => m.codigo === this.motivo)
+      && (this.motivo !== 'OTHER' || (this.explicacion.trim().length > 0 && this.explicacion.length <= 1000));
+  }
+
+  prepararCancelacion(): void {
+    this.motivo = '';
+    this.explicacion = '';
+    this.confirmar = true;
+  }
 
   constructor() {
     effect(onCleanup => {
@@ -76,21 +98,24 @@ export class MisPedidosComponent {
     }));
   }
 
-  solicitarCancelacion(): void {
+  cancelarPedido(): void {
     const pedido = this.detalle;
-    if (this.ocupada || !this.confirmar || this.conflicto || pedido?.status !== 'CONFIRMED'
+    if (this.ocupada || !this.confirmar || this.conflicto || !pedido || !this.puedeCancelar || !this.motivoValido
         || this.auth.cuenta()?.activeRole !== 'COMPRADOR') return;
     this.cancelando = true;
     this.error = this.exito = '';
-    this.peticiones.add(this.servicio.solicitarCancelacion(pedido.id).pipe(
+    this.peticiones.add(this.servicio.cancelarPedido(pedido.id, {
+      reasonCode: this.motivo as MotivoCancelacion,
+      ...(this.motivo === 'OTHER' ? { details: this.explicacion.trim() } : {})
+    }).pipe(
       finalize(() => this.cancelando = false)
     ).subscribe({
-      next: () => {
-        this.detalle = { ...pedido, status: 'CANCELLATION_REQUESTED' };
+      next: resultado => {
+        this.detalle = { ...pedido, status: resultado.status };
         this.pedidos = this.pedidos.map(p => p.id === pedido.id
-          ? { ...p, status: 'CANCELLATION_REQUESTED' } : p);
+          ? { ...p, status: resultado.status } : p);
         this.confirmar = false;
-        this.exito = 'Solicitud de cancelación enviada.';
+        this.exito = 'Pedido cancelado. ' + resultado.refund.message;
       },
       error: (error: HttpErrorResponse) => {
         this.confirmar = false;

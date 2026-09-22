@@ -3,9 +3,11 @@ package com.transformersas.marketplace.orders.infrastructure.web.controller;
 import com.transformersas.marketplace.auth.infrastructure.security.AccountPrincipal;
 import com.transformersas.marketplace.orders.application.usecase.FindOwnOrders;
 import com.transformersas.marketplace.orders.application.usecase.RequestOrderCancellation;
-import org.springframework.http.HttpStatus;
+import com.transformersas.marketplace.orders.infrastructure.web.request.CancelOrderRequest;
+import com.transformersas.marketplace.orders.infrastructure.web.response.CancelOrderResponse;
+import jakarta.validation.Valid;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.ResponseStatus;
 import com.transformersas.marketplace.orders.domain.model.Order;
 import com.transformersas.marketplace.orders.domain.model.OrderItem;
 import com.transformersas.marketplace.orders.domain.model.OrderStatus;
@@ -31,9 +33,9 @@ public class OrderController {
     }
 
     @PostMapping("/{id}/cancellation")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void requestCancellation(@PathVariable Long id, @AuthenticationPrincipal AccountPrincipal principal) {
-        cancellation.execute(id, principal);
+    public CancelOrderResponse requestCancellation(@PathVariable Long id, @AuthenticationPrincipal AccountPrincipal principal,
+                                                   @Valid @RequestBody CancelOrderRequest request) {
+        return CancelOrderResponse.from(cancellation.execute(id, principal, request.reasonCode(), request.details()));
     }
 
     public record OrderSummary(Long id, OrderStatus status, BigDecimal total,

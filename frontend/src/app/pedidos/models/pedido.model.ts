@@ -37,3 +37,15 @@ export interface DetallePedido extends Pedido {
   transactionId: string | null;
   items: ItemPedido[];
 }
+
+export type MotivoCancelacion = 'CHANGED_MIND' | 'OTHER';
+export interface CancelacionPedido {
+  reasonCode: MotivoCancelacion;
+  details?: string;
+}
+export interface ResultadoCancelacion {
+  orderId: number;
+  status: 'CANCELLED';
+  paymentStatus: 'APPROVED' | 'REFUND_PENDING' | 'REFUNDED';
+  refund: { status: 'NOT_APPLICABLE' | 'COMPLETED' | 'PENDING' | 'FAILED'; message: string };
+}

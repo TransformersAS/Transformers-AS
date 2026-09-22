@@ -63,10 +63,10 @@ class DomainBoundaryTests {
     void invalidIdentityCannotQueryOrCancelAnyOrder(AccountPrincipal principal) {
         var repository = mock(OrderRepository.class);
         var find = new FindOwnOrders(repository);
-        var cancel = new RequestOrderCancellation(repository);
+        var cancel = new RequestOrderCancellation(repository, mock(CancelOrderUseCase.class));
         unauthorized(() -> find.list(principal));
         unauthorized(() -> find.detail(1L, principal));
-        unauthorized(() -> cancel.execute(1L, principal));
+        unauthorized(() -> cancel.execute(1L, principal, CancellationReason.OTHER, "Motivo"));
         verifyNoInteractions(repository);
     }
     @Test

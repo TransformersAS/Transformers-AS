@@ -1,6 +1,7 @@
 package com.transformersas.marketplace.orders;
 
 import com.transformersas.marketplace.orders.application.usecase.CreateOrderUseCase;
+import com.transformersas.marketplace.payments.infrastructure.gateway.SimulatedRefundGateway;
 import com.transformersas.marketplace.orders.domain.model.Order;
 import com.transformersas.marketplace.orders.infrastructure.persistence.mapper.OrderMapper;
 import com.transformersas.marketplace.orders.infrastructure.persistence.repository.SpringDataOrderRepository;
@@ -51,6 +52,7 @@ class OrderOwnershipIntegrationTests {
     @Autowired SpringDataOrderRepository orders;
     @Autowired CreateOrderUseCase createOrder;
     @Autowired PlatformTransactionManager transactions;
+    @Autowired SimulatedRefundGateway refundGateway;
     private Long firstAccount;
     private Long secondAccount;
     private Long address;
@@ -59,6 +61,7 @@ class OrderOwnershipIntegrationTests {
 
     @BeforeEach
     void prepare() {
+        refundGateway.reset();
         for (String table : List.of("audit_events", "notifications", "refunds", "order_cancellations", "shipments",
                 "order_issues", "order_status_history", "order_items", "orders", "inventory_reservations", "cart_items", "carts",
                 "products", "addresses", "SPRING_SESSION", "user_account_roles", "user_accounts")) {
@@ -244,17 +247,31 @@ class OrderOwnershipIntegrationTests {
         }
     }
 
-    @Test
-    void cancellationChangesOnlyTheOwnedConfirmedOrderAndRepeatReturns409() throws Exception {
+    @ParameterizedTest
+    @ValueSource(strings = {"CONFIRMED", "IN_PREPARATION"})
+    void cancellationChangesOnlyTheOwnedOrderAndRepeatReturns409(String from) throws Exception {
         Long id = seedOrder(firstAccount, "cancel-target");
         Long ownOther = seedOrder(firstAccount, "own-other");
         Long foreign = seedOrder(secondAccount, "foreign");
         Long historical = seedOrder(null, "historical");
+        jdbc.update("UPDATE orders SET status=? WHERE id=?", from, id);
         Order before = load(id);
         Session session = login("first@example.com");
-        cancel(session, id, 204);
+        cancel(session, id, 200);
         Order after = load(id);
-        assertThat(after.status().name()).isEqualTo("CANCELLATION_REQUESTED");
+        assertThat(after.status().name()).isEqualTo("CANCELLED");
+        assertThat(after.paymentStatus().name()).isEqualTo("REFUNDED");
+        assertThat(jdbc.queryForObject("SELECT stock FROM products WHERE id=?", Integer.class, product)).isEqualTo(12);
+        assertThat(jdbc.queryForMap("SELECT initiator, reason_code, cancelled_by_id FROM order_cancellations WHERE order_id=?", id))
+                .containsEntry("initiator", "BUYER").containsEntry("reason_code", "CHANGED_MIND")
+                .containsEntry("cancelled_by_id", firstAccount);
+        assertThat(jdbc.queryForMap("SELECT from_status, to_status, actor_type, actor_id FROM order_status_history WHERE order_id=?", id))
+                .containsEntry("from_status", from).containsEntry("to_status", "CANCELLED")
+                .containsEntry("actor_type", "BUYER").containsEntry("actor_id", firstAccount);
+        assertThat(jdbc.queryForMap("SELECT status, amount FROM refunds WHERE order_id=?", id))
+                .containsEntry("status", "COMPLETED").containsEntry("amount", new BigDecimal("200.00"));
+        assertThat(jdbc.queryForList("SELECT recipient_type FROM notifications WHERE reference_type='ORDER' AND reference_id=?", String.class, id.toString()))
+                .containsExactlyInAnyOrder("BUYER", "STORE");
         assertThat(after.id()).isEqualTo(before.id());
         assertThat(after.accountId()).isEqualTo(before.accountId());
         assertThat(after.total()).isEqualByComparingTo(before.total());
@@ -269,7 +286,7 @@ class OrderOwnershipIntegrationTests {
         }
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM orders", Integer.class)).isEqualTo(4);
         mvc.perform(get("/api/orders/{id}", id).cookie(session.cookie())).andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("CANCELLATION_REQUESTED"));
+                .andExpect(jsonPath("$.status").value("CANCELLED"));
     }
 
     @Test
@@ -281,7 +298,7 @@ class OrderOwnershipIntegrationTests {
             mvc.perform(post("/api/orders/{id}/cancellation", id).cookie(session.cookie())
                             .header(session.header(), session.token()).header("X-Account-Id", secondAccount)
                             .param("accountId", secondAccount.toString()).contentType("application/json")
-                            .content("{\"accountId\":" + secondAccount + ",\"buyerId\":" + secondAccount + "}"))
+                            .content("{\"reasonCode\":\"CHANGED_MIND\"}"))
                     .andExpect(status().isNotFound()).andExpect(jsonPath("$.message").value("Pedido no encontrado"));
         }
         assertThat(load(foreign).status().name()).isEqualTo("CONFIRMED");
@@ -329,7 +346,8 @@ class OrderOwnershipIntegrationTests {
                     ready.countDown();
                     if (!start.await(10, java.util.concurrent.TimeUnit.SECONDS)) throw new AssertionError("Start timed out");
                     return mvc.perform(post("/api/orders/{id}/cancellation", id).cookie(session.cookie())
-                                    .header(session.header(), session.token()))
+                                    .header(session.header(), session.token()).contentType("application/json")
+                                    .content("{\"reasonCode\":\"CHANGED_MIND\"}"))
                             .andReturn().getResponse().getStatus();
                 }));
             }
@@ -337,16 +355,68 @@ class OrderOwnershipIntegrationTests {
             start.countDown();
             assertThat(bothReady).isTrue();
             assertThat(List.of(results.get(0).get(20, java.util.concurrent.TimeUnit.SECONDS),
-                    results.get(1).get(20, java.util.concurrent.TimeUnit.SECONDS))).containsExactlyInAnyOrder(204, 409);
+                    results.get(1).get(20, java.util.concurrent.TimeUnit.SECONDS))).containsExactlyInAnyOrder(200, 409);
         }
-        assertThat(load(id).status().name()).isEqualTo("CANCELLATION_REQUESTED");
+        assertThat(load(id).status().name()).isEqualTo("CANCELLED");
         assertThat(load(unaffected).status().name()).isEqualTo("CONFIRMED");
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM orders", Integer.class)).isEqualTo(2);
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"READY_FOR_DISPATCH", "DELIVERED", "CANCELLED", "CANCELLATION_REQUESTED"})
+    void cancellationRejectsNonCancelableStatesWithoutEffects(String state) throws Exception {
+        Long id = seedOrder(firstAccount, "invalid-state");
+        jdbc.update("UPDATE orders SET status=? WHERE id=?", state, id);
+        cancel(login("first@example.com"), id, 409);
+        assertThat(load(id).status().name()).isEqualTo(state);
+        assertThat(jdbc.queryForObject("SELECT stock FROM products WHERE id=?", Integer.class, product)).isEqualTo(10);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM order_cancellations", Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM refunds", Integer.class)).isZero();
+    }
+
+    @Test
+    void otherRequiresExplanationAndPersistsIt() throws Exception {
+        Long id = seedOrder(firstAccount, "other-reason");
+        Session session = login("first@example.com");
+        for (String body : List.of("{}", "{\"reasonCode\":\"OTHER\"}",
+                "{\"reasonCode\":\"OTHER\",\"details\":\"   \"}", "{\"reasonCode\":\"OUT_OF_STOCK\"}")) {
+            mvc.perform(post("/api/orders/{id}/cancellation", id).cookie(session.cookie())
+                    .header(session.header(), session.token()).contentType("application/json").content(body))
+                    .andExpect(status().isBadRequest());
+        }
+        assertThat(load(id).status().name()).isEqualTo("CONFIRMED");
+        mvc.perform(post("/api/orders/{id}/cancellation", id).cookie(session.cookie())
+                .header(session.header(), session.token()).contentType("application/json")
+                .content("{\"reasonCode\":\"OTHER\",\"details\":\"  Equivoqué la dirección  \"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("CANCELLED"))
+                .andExpect(jsonPath("$.refund.status").value("COMPLETED"));
+        assertThat(jdbc.queryForMap("SELECT reason_code, details FROM order_cancellations WHERE order_id=?", id))
+                .containsEntry("reason_code", "OTHER").containsEntry("details", "Equivoqué la dirección");
+    }
+
+    @Test
+    void pendingRefundKeepsTheOrderCancelledAndDoesNotRestoreStockTwice() throws Exception {
+        Long id = seedOrder(firstAccount, "pending-refund");
+        Session session = login("first@example.com");
+        refundGateway.setMode(SimulatedRefundGateway.Mode.PENDING);
+        mvc.perform(post("/api/orders/{id}/cancellation", id).cookie(session.cookie())
+                .header(session.header(), session.token()).contentType("application/json")
+                .content("{\"reasonCode\":\"CHANGED_MIND\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("CANCELLED"))
+                .andExpect(jsonPath("$.paymentStatus").value("REFUND_PENDING"))
+                .andExpect(jsonPath("$.refund.status").value("PENDING"));
+        cancel(session, id, 409);
+        assertThat(load(id).status().name()).isEqualTo("CANCELLED");
+        assertThat(load(id).paymentStatus().name()).isEqualTo("REFUND_PENDING");
+        assertThat(jdbc.queryForObject("SELECT stock FROM products WHERE id=?", Integer.class, product)).isEqualTo(12);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM refunds", Integer.class)).isEqualTo(1);
+        assertThat(refundGateway.requestCount()).isEqualTo(1);
+    }
+
     private void cancel(Session session, Long id, int expectedStatus) throws Exception {
         mvc.perform(post("/api/orders/{id}/cancellation", id).cookie(session.cookie())
-                        .header(session.header(), session.token()))
+                        .header(session.header(), session.token()).contentType("application/json")
+                        .content("{\"reasonCode\":\"CHANGED_MIND\"}"))
                 .andExpect(status().is(expectedStatus));
     }
 

@@ -4,7 +4,7 @@
   <h2 id="titulo-pedidos">Mis pedidos</h2>
   <ng-container *ngIf="auth.cuenta()?.activeRole === 'COMPRADOR'">
     <p *ngIf="cargando" role="status">Cargando pedidos…</p>
-    <p *ngIf="cancelando" role="status">Enviando solicitud…</p>
+    <p *ngIf="cancelando" role="status">Cancelando pedido…</p>
     <p *ngIf="error" class="error" role="alert">{{ error }}</p>
     <p *ngIf="exito" class="exito" role="status">{{ exito }}</p>
     <ng-container *ngIf="!detalle">
@@ -38,11 +38,22 @@
         [id]="pedido.id" (estadoCambio)="estadoActualizado($event)"></app-seguimiento-logistico>
       <p *ngIf="pedido.status === 'CANCELLATION_REQUESTED'">La cancelación de este pedido ya fue solicitada.</p>
       <button *ngIf="conflicto" type="button" [disabled]="ocupada" (click)="verDetalle(pedido.id)">Actualizar detalle</button>
-      <button *ngIf="pedido.status === 'CONFIRMED' && !confirmar && !conflicto" type="button"
-        [disabled]="ocupada" (click)="confirmar = true">Solicitar cancelación</button>
+      <button *ngIf="puedeCancelar && !confirmar && !conflicto" type="button"
+        [disabled]="ocupada" (click)="prepararCancelacion()">Cancelar pedido</button>
       <div *ngIf="confirmar" class="confirmacion">
-        <p>¿Solicitar la cancelación del pedido #{{ pedido.id }}? Esto enviará una solicitud; no confirma su cancelación definitiva.</p>
-        <button type="button" [disabled]="ocupada" (click)="solicitarCancelacion()">Confirmar solicitud</button>
+        <label for="motivo-cancelacion">Motivo de cancelación</label>
+        <select id="motivo-cancelacion" [(ngModel)]="motivo" [disabled]="ocupada" required>
+          <option value="" disabled>Selecciona un motivo</option>
+          <option *ngFor="let opcion of motivos" [value]="opcion.codigo">{{ opcion.etiqueta }}</option>
+        </select>
+        <ng-container *ngIf="motivo === 'OTHER'">
+          <label for="explicacion-cancelacion">Explica el motivo (obligatorio)</label>
+          <textarea id="explicacion-cancelacion" [(ngModel)]="explicacion" [disabled]="ocupada"
+            required maxlength="1000"></textarea>
+          <p *ngIf="!explicacion.trim()">Debes explicar el motivo para continuar.</p>
+        </ng-container>
+        <p>¿Confirmas la cancelación definitiva del pedido #{{ pedido.id }}?</p>
+        <button type="button" [disabled]="ocupada || !motivoValido" (click)="cancelarPedido()">Confirmar cancelación</button>
         <button type="button" [disabled]="ocupada" (click)="confirmar = false">Volver</button>
       </div>
     </ng-container>
