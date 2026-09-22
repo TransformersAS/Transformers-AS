@@ -7,6 +7,7 @@ import com.transformersas.marketplace.cart.CartItemRepository;
 import com.transformersas.marketplace.cart.CartRepository;
 import com.transformersas.marketplace.checkout.dto.CheckoutPreviewRequest;
 import com.transformersas.marketplace.checkout.dto.CheckoutPreviewResponse;
+import com.transformersas.marketplace.shared.error.BusinessException;   
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -130,6 +131,18 @@ public class CheckoutService {
 
         BigDecimal subtotal = BigDecimal.ZERO;
 
+        /*
+         * CU-03:
+         *
+         * El checkout actual genera un único pedido.
+         * Por lo tanto, todos los productos del carrito
+         * deben pertenecer a una misma tienda.
+         *
+         * La validación se hace en preview(),
+         * ANTES de intentar procesar el pago.
+         */
+        Long storeId = null;
+
 
         for (CartItem item : items) {
 
@@ -177,6 +190,42 @@ public class CheckoutService {
                         HttpStatus.CONFLICT,
                         "No hay suficiente stock para "
                                 + product.getName()
+                );
+            }
+
+
+            // ===============================
+            // 4.1 VALIDAR UNA SOLA TIENDA
+            // ===============================
+
+            Long productStoreId =
+                    product.getStoreId();
+
+
+            if (productStoreId == null) {
+
+                throw new ResponseStatusException(
+                        HttpStatus.CONFLICT,
+                        "El producto "
+                                + product.getName()
+                                + " no tiene una tienda asociada"
+                );
+            }
+
+
+            /*
+             * El primer producto establece cuál es
+             * la tienda esperada para todo el carrito.
+             */
+            if (storeId == null) {
+
+                storeId = productStoreId;
+
+            } else if (!storeId.equals(productStoreId)) {
+
+                throw BusinessException.conflict(
+                "MULTI_STORE_CART",
+                "El carrito contiene productos de varias tiendas; compra cada tienda por separado"
                 );
             }
 

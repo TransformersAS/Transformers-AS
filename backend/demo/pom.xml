@@ -30,6 +30,7 @@
 		<java.version>21</java.version>
 		<resilience4j.version>2.4.0</resilience4j.version>
 		<wiremock.version>3.13.2</wiremock.version>
+		<poi.version>5.4.1</poi.version>
 	</properties>
 	<dependencies>
         <dependency>
@@ -72,6 +73,12 @@
 			<groupId>org.awaitility</groupId>
 			<artifactId>awaitility</artifactId>
 			<scope>test</scope>
+		</dependency>
+		<!-- Lectura y escritura de plantillas Excel (.xlsx) para las cargas masivas de CU-15 -->
+		<dependency>
+			<groupId>org.apache.poi</groupId>
+			<artifactId>poi-ooxml</artifactId>
+			<version>${poi.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>

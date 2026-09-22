@@ -9,6 +9,7 @@ import com.transformersas.marketplace.payments.domain.repository.RefundGateway;
 import com.transformersas.marketplace.payments.domain.repository.RefundRepository;
 import com.transformersas.marketplace.shared.audit.AuditOutcome;
 import com.transformersas.marketplace.shared.audit.AuditRecorder;
+import com.transformersas.marketplace.shared.error.BusinessException;
 import com.transformersas.marketplace.shared.web.CorrelationContext;
 
 import org.slf4j.Logger;
@@ -64,6 +65,7 @@ public class RequestRefundUseCase {
     }
 
     private Refund register(RefundCommand command) {
+        ensureWithinOrderTotal(command);
         var insertion = refunds.insertIfAbsent(new Refund(null, command.orderId(), command.amount(),
                 command.idempotencyKey(), RefundStatus.PENDING, null, 0, null, CorrelationContext.current(),
                 LocalDateTime.now()));
@@ -73,6 +75,29 @@ public class RequestRefundUseCase {
                             "idempotencyKey", command.idempotencyKey(), "amount", command.amount().toPlainString()));
         }
         return insertion.refund();
+    }
+
+    /**
+     * Ningún pedido se reembolsa por más de lo que costó (orders.total): lo ya reembolsado o en curso, sin contar lo que
+     * falló, más este reembolso no puede superarlo, sea cual sea la causa (cancelación, reclamación o devolución). Repetir
+     * una clave ya registrada no vuelve a contar; solo se recalcula si ese reembolso había fallado, porque reintentarlo lo
+     * devuelve a la suma. El total incluye el envío; un límite por línea de pedido necesitaría guardar la línea en refunds.
+     */
+    private void ensureWithinOrderTotal(RefundCommand command) {
+        RefundRepository.Ledger ledger = refunds.lockLedger(command.orderId(), command.idempotencyKey())
+                .orElseThrow(() -> new IllegalArgumentException("El pedido del reembolso no existe"));
+        java.math.BigDecimal amount = command.amount();
+        if (ledger.existing().isPresent()) {
+            if (ledger.existing().get().status() != RefundStatus.FAILED) {
+                return;
+            }
+            amount = ledger.existing().get().amount();
+        }
+        if (ledger.refundedNotFailed().add(amount).compareTo(ledger.orderTotal()) > 0) {
+            throw BusinessException.conflict("REFUND_EXCEEDS_ORDER_TOTAL",
+                    "El reembolso supera lo pagado por el pedido: total " + ledger.orderTotal().toPlainString()
+                            + ", ya reembolsado " + ledger.refundedNotFailed().toPlainString());
+        }
     }
 
     private Refund process(Refund refund, RefundCommand command) {

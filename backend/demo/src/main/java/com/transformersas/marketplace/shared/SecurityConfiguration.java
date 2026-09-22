@@ -80,6 +80,10 @@ public class SecurityConfiguration {
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/password-recovery/request",
                                 "/api/auth/password-recovery/confirm").permitAll()
+                        // Registro de vendedores (CU-12): un visitante lee las condiciones, se registra y confirma su
+                        // correo sin sesión. Habilitar el rol con una cuenta existente sí exige sesión.
+                        .requestMatchers(HttpMethod.GET, "/api/sellers/terms").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/sellers/register", "/api/sellers/verify-email").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/auth/validation/comprador").hasRole("COMPRADOR")
                         .requestMatchers(HttpMethod.GET, "/api/auth/validation/vendedor").hasRole("VENDEDOR")
                         .requestMatchers(HttpMethod.HEAD, "/api/auth/validation/comprador").hasRole("COMPRADOR")
@@ -96,6 +100,11 @@ public class SecurityConfiguration {
                         // El servicio logístico no tiene sesión: se autentica con la firma HMAC del cuerpo.
                         .requestMatchers(HttpMethod.POST, "/api/logistics/webhooks/**").permitAll()
                         .requestMatchers("/api/support/**").hasRole("SOPORTE")
+                        // Reclamaciones de compra (CU-13): el comprador; el vendedor pasa por /api/seller/** y soporte por
+                        // /api/support/**.
+                        .requestMatchers("/api/claims/**").hasRole("COMPRADOR")
+                        // Administración del catálogo (CU-17): categorías, marcas y atributos.
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/**").authenticated()
                         .anyRequest().denyAll())
                 // Sin sesión no hay token CSRF que enviar: el webhook se protege con la firma del cuerpo.

@@ -64,6 +64,18 @@ import { AccesoComponent } from './core/components/acceso.component';
 
 import { ColaSoporteComponent } from './panel-admin-soporte/components/cola-soporte.component';
 import { PedidosRecibidosComponent } from './panel-vendedor/components/pedidos-recibidos.component';
+import { CatalogoAdminComponent } from './panel-admin-catalogo/components/catalogo-admin.component';
+import { InventarioComponent } from './panel-vendedor/components/inventario.component';
+import { MisProductosComponent } from './panel-vendedor/components/mis-productos.component';
+import { MiTiendaComponent } from './panel-vendedor/components/mi-tienda.component';
+import { ReclamacionesComponent } from './reclamaciones-devoluciones/components/reclamaciones.component';
+import { RegistroVendedorComponent } from './registro-vendedor/components/registro-vendedor.component';
+import { MisReportesComponent } from './reportes/components/mis-reportes.component';
+import { ReportarContenidoComponent } from './reportes/components/reportar-contenido.component';
+import { ReportesService } from './reportes/services/reportes.service';
+import { DevolucionesRecibidasComponent } from './devoluciones/components/devoluciones-recibidas.component';
+import { MisDevolucionesComponent } from './devoluciones/components/mis-devoluciones.component';
+import { DevolucionesService } from './devoluciones/services/devoluciones.service';
 
 import {
   CheckoutService
@@ -89,6 +101,13 @@ import {
   PaymentResponse
 } from './checkout/models/payment.model';
 
+import {
+  RecommendationService
+} from './recomendaciones/services/recommendation.service';
+
+import {
+  InteractionService
+} from './recomendaciones/services/interaction.service';
 
 @Component({
   selector: 'app-root',
@@ -107,7 +126,17 @@ import {
     AccesoComponent,
     MisPedidosComponent,
     ColaSoporteComponent,
-    PedidosRecibidosComponent
+    PedidosRecibidosComponent,
+    CatalogoAdminComponent,
+    MisProductosComponent,
+    InventarioComponent,
+    MiTiendaComponent,
+    ReclamacionesComponent,
+    RegistroVendedorComponent,
+    MisReportesComponent,
+    ReportarContenidoComponent,
+    MisDevolucionesComponent,
+    DevolucionesRecibidasComponent
   ],
 
   templateUrl: './app.component.html',
@@ -125,6 +154,12 @@ export class AppComponent {
   private readonly carrito =
     inject(CarritoService);
 
+  /** Panel "Mis reportes" (CU-20): su visibilidad y el reporte a mostrar viven en el servicio. */
+  protected readonly reportes = inject(ReportesService);
+
+  /** Paneles de devoluciones (CU-19): su visibilidad y la devolución a mostrar viven en el servicio. */
+  protected readonly devoluciones = inject(DevolucionesService);
+
   private readonly auth =
     inject(AuthService);
 
@@ -140,6 +175,12 @@ export class AppComponent {
   private readonly http =
     inject(HttpClient);
 
+  private readonly recommendation =
+  inject(RecommendationService);
+
+  private readonly interaction =
+  inject(InteractionService);
+
 
   // =========================================================
   // CATÁLOGO
@@ -151,6 +192,8 @@ export class AppComponent {
   readonly categorias$ =
     this.catalogo.obtenerCategorias();
 
+  recommendations$ =
+  this.recommendation.getRecommendations(1);
 
   // =========================================================
   // CARRITO
@@ -163,6 +206,8 @@ export class AppComponent {
     this.carrito.total$;
 
   mostrarCarrito = false;
+ 
+   searchTerm = '';
 
 
   // =========================================================
@@ -221,6 +266,24 @@ export class AppComponent {
   /** Panel de pedidos recibidos del vendedor (CU-23); "mostrarPedidos" es el de "Mis pedidos" del comprador. */
   mostrarPedidosRecibidos = false;
 
+  /** Panel del administrador para configurar categorías, marcas y atributos (CU-17). */
+  mostrarCatalogoAdmin = false;
+
+  /** Panel del vendedor para publicar y mantener sus productos (CU-14). */
+  mostrarMisProductos = false;
+
+  /** Panel del vendedor para controlar su inventario (CU-15). */
+  mostrarInventario = false;
+
+  /** "Mi tienda" del vendedor (CU-18). */
+  mostrarMiTienda = false;
+
+  /** Reclamaciones de compra (CU-13): la ven el comprador, el vendedor y soporte, cada uno a su manera. */
+  mostrarReclamaciones = false;
+
+  /** Registro de vendedores (CU-12): lo abre el botón "Conocer el espacio vendedor" de la portada. */
+  mostrarRegistroVendedor = false;
+
   get esComprador(): boolean {
     return this.auth.cuenta()?.activeRole === 'COMPRADOR';
   }
@@ -237,6 +300,11 @@ export class AppComponent {
   /** Los pedidos recibidos (CU-23) solo se muestran con el rol activo VENDEDOR; el backend lo exige igualmente. */
   get esVendedor(): boolean {
     return this.auth.cuenta()?.activeRole === 'VENDEDOR';
+  }
+
+  /** La configuración del catálogo (CU-17) solo se muestra con el rol activo ADMIN; el backend lo exige igualmente. */
+  get esAdmin(): boolean {
+    return this.auth.cuenta()?.activeRole === 'ADMIN';
   }
 
 
@@ -271,12 +339,98 @@ export class AppComponent {
   // =========================================================
 
   agregarAlCarrito(
-    id: number
-  ): void {
+  id: number
+): void {
 
-    this.carrito.agregar(id);
+  this.carrito.agregar(id);
+
+  this.interaction.register({
+    userId: 1,
+    productId: id,
+    interactionType: 'ADD_TO_CART',
+    searchTerm: null
+  }).subscribe({
+
+    next: () => {
+      console.log(
+        'Interacción ADD_TO_CART registrada'
+      );
+    },
+
+    error: error => {
+      console.error(
+        'No se pudo registrar la interacción',
+        error
+      );
+    }
+  });
+}
+verProducto(
+  id: number
+): void {
+
+  this.interaction.register({
+    userId: 1,
+    productId: id,
+    interactionType: 'VIEW',
+    searchTerm: null
+  }).subscribe({
+
+    next: () => {
+      console.log(
+        'Interacción VIEW registrada:',
+        id
+      );
+    },
+
+    error: error => {
+      console.error(
+        'No se pudo registrar VIEW',
+        error
+      );
+    }
+  });
+}
+
+buscarProductos(): void {
+
+  const term =
+    this.searchTerm.trim();
+
+  if (!term) {
+    return;
   }
 
+  this.interaction.register({
+    userId: 1,
+    productId: null,
+    interactionType: 'SEARCH',
+    searchTerm: term
+  }).subscribe({
+
+    next: () => {
+
+      console.log(
+        'Interacción SEARCH registrada:',
+        term
+      );
+
+      // Volvemos a consultar a Gemini
+      // para que considere la nueva búsqueda.
+      this.recommendations$ =
+        this.recommendation
+          .getRecommendations(1);
+    },
+
+    error: error => {
+
+      console.error(
+        'No se pudo registrar la búsqueda',
+        error
+      );
+    }
+  });
+}
 
   // =========================================================
   // CONTADOR DEL CARRITO
@@ -683,6 +837,9 @@ export class AppComponent {
           ) {
 
             this.carrito.refrescar();
+            this.recommendations$ =
+            this.recommendation
+             .getRecommendations(1);
           }
         },
 

@@ -48,6 +48,7 @@ class SellerCancelOrderTests extends AbstractIntegrationTest {
 
     private Long sellerAccountId;
     private Session seller;
+    private Session otherSeller;
     private long product;
 
     @BeforeEach
@@ -56,9 +57,10 @@ class SellerCancelOrderTests extends AbstractIntegrationTest {
         refundGateway.reset();
         logistics.reset();
         notices.reset();
-        sellerAccountId = createAccount("seller@example.com", "VENDEDOR");
-        seller = login("seller@example.com");
         seedStore(2, "Otra tienda");
+        seller = sellerOfStore("seller@example.com", 1);
+        sellerAccountId = accountIdOf("seller@example.com");
+        otherSeller = sellerOfStore("seller2@example.com", 2);
         product = seedProduct(1, "Lámpara", 5, "100.00");
     }
 
@@ -407,10 +409,10 @@ class SellerCancelOrderTests extends AbstractIntegrationTest {
     void rnf003_anotherStoreCannotCancelTheOrder() throws Exception {
         long order = seedOrder(1, "CONFIRMED", product, 1, "100.00");
 
-        performAsSeller(seller, 2, post("/api/seller/orders/" + order + "/cancel").contentType("application/json")
+        performAsSeller(otherSeller, 2, post("/api/seller/orders/" + order + "/cancel").contentType("application/json")
                 .content("{\"reasonCode\":\"OUT_OF_STOCK\"}")).andExpect(status().isNotFound());
-        perform(seller, post("/api/seller/orders/" + order + "/cancel").contentType("application/json")
-                .content("{\"reasonCode\":\"OUT_OF_STOCK\"}")).andExpect(status().isUnauthorized());
+        perform(sessionWithRole("sintienda@example.com", "VENDEDOR"), post("/api/seller/orders/" + order + "/cancel")
+                .contentType("application/json").content("{\"reasonCode\":\"OUT_OF_STOCK\"}")).andExpect(status().isUnauthorized());
         Session buyer = sessionWithRole("buyer@example.com", "COMPRADOR");
         performAsSeller(buyer, 1, post("/api/seller/orders/" + order + "/cancel").contentType("application/json")
                 .content("{\"reasonCode\":\"OUT_OF_STOCK\"}")).andExpect(status().isForbidden());

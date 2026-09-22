@@ -26,10 +26,12 @@
       <p *ngIf="pedido.transactionId">Transacción: {{ pedido.transactionId }}</p>
       <h3>Productos</h3>
       <ul>
-        <li *ngFor="let item of pedido.items">
+        <li *ngFor="let item of pedido.items; let i = index">
           <strong>{{ item.productName }}</strong> (producto #{{ item.productId }})
           <p>Cantidad: {{ item.quantity }} · Precio unitario: {{ item.unitPrice | number:'1.2-2' }}</p>
           <p>Subtotal: {{ item.subtotal | number:'1.2-2' }}</p>
+          <app-devolver-linea [pedidoId]="pedido.id" [productoId]="item.productId" [posicion]="i"
+            [entregado]="pedido.status === 'DELIVERED'"></app-devolver-linea>
         </li>
       </ul>
       <app-seguimiento-logistico *ngIf="conSeguimiento(pedido.status)" tipo="pedido" rol="comprador"

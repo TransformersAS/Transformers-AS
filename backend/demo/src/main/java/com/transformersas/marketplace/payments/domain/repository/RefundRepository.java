@@ -14,6 +14,13 @@ public interface RefundRepository {
 
     Optional<Refund> findByIdempotencyKey(String idempotencyKey);
 
+    /**
+     * Bloquea la fila del pedido hasta que termine la transacción, con lo que dos reembolsos del mismo pedido se
+     * serializan, y lee con lecturas actuales su total, lo ya reembolsado o en curso (todo lo que no falló) y el
+     * reembolso con esa clave, si existe. Debe llamarse dentro de una transacción. Vacío si el pedido no existe.
+     */
+    Optional<Ledger> lockLedger(Long orderId, String idempotencyKey);
+
     Optional<Refund> findById(Long id);
 
     /** Compare-and-set hacia COMPLETED. Devuelve false si ya estaba completado (solo el primero audita). Cuenta el intento. */
@@ -26,5 +33,9 @@ public interface RefundRepository {
     void markFailed(Long id, String error);
 
     record Insertion(Refund refund, boolean created) {
+    }
+
+    /** Estado de los reembolsos de un pedido, leído con su fila bloqueada. */
+    record Ledger(java.math.BigDecimal orderTotal, java.math.BigDecimal refundedNotFailed, Optional<Refund> existing) {
     }
 }

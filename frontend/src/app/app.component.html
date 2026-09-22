@@ -19,22 +19,25 @@
       </a>
 
 
-      <!-- Buscador -->
+     <!-- Buscador -->
       <label
-        class="search"
-        aria-label="Buscar productos"
-      >
+    class="search"
+     aria-label="Buscar productos"
+    >
 
-        <ion-icon
-          name="search-outline"
-        ></ion-icon>
+  <ion-icon
+    name="search-outline"
+    (click)="buscarProductos()"
+  ></ion-icon>
 
-        <input
-          type="search"
-          placeholder="¿Qué estás buscando hoy?"
-        >
+  <input
+    type="search"
+    placeholder="¿Qué estás buscando hoy?"
+    [(ngModel)]="searchTerm"
+    (keyup.enter)="buscarProductos()"
+  >
 
-      </label>
+</label>
 
 
       <!-- Acciones rápidas -->
@@ -1023,7 +1026,86 @@
 
       </section>
 
+      <!-- ====================================================== -->
+<!-- RECOMENDACIONES PERSONALIZADAS -->
+<!-- ====================================================== -->
 
+<section
+  class="recommendations-section"
+  *ngIf="recommendations$ | async as recommendation"
+>
+
+  <div
+    class="recommendations-container"
+    *ngIf="recommendation.products.length > 0"
+  >
+
+    <div class="recommendations-header">
+
+      <div>
+        <span class="recommendations-eyebrow">
+          SELECCIONADO PARA TI
+        </span>
+
+        <h2>
+          Recomendado para ti
+        </h2>
+
+        <p>
+          Productos elegidos según tus intereses
+          y actividad en el marketplace.
+        </p>
+      </div>
+
+    </div>
+
+    <div class="recommendations-grid">
+
+      <article
+        class="recommendation-card"
+        *ngFor="let product of recommendation.products"
+         (click)="verProducto(product.id)"
+      >
+
+        <div class="recommendation-category">
+          {{ product.category }}
+        </div>
+
+        <h3>
+          {{ product.name }}
+        </h3>
+
+        <p class="recommendation-description">
+          {{ product.description }}
+        </p>
+
+        <div class="recommendation-footer">
+
+          <strong>
+            {{ product.price | currency:'COP':'symbol-narrow':'1.0-0' }}
+          </strong>
+
+          <span>
+            {{ product.stock }} disponibles
+          </span>
+
+        </div>
+
+        <button
+          type="button"
+          class="recommendation-button"
+          (click)="agregarAlCarrito(product.id)"
+        >
+          Agregar
+        </button>
+
+      </article>
+
+    </div>
+
+  </div>
+
+</section>
 
       <!-- ================================================= -->
       <!-- CATÁLOGO -->
@@ -1192,6 +1274,8 @@
 
               </button>
 
+              <app-reportar-contenido tipo="PUBLICACION" [contenidoId]="producto.id"></app-reportar-contenido>
+
             </div>
 
           </article>
@@ -1236,7 +1320,7 @@
         </div>
 
 
-        <button type="button">
+        <button type="button" (click)="mostrarRegistroVendedor = true">
 
           Conocer el espacio vendedor
 
@@ -1327,6 +1411,126 @@
 
 <div class="panel-pedidos" *ngIf="esVendedor && mostrarPedidosRecibidos">
   <app-pedidos-recibidos (cerrar)="mostrarPedidosRecibidos = false"></app-pedidos-recibidos>
+</div>
+
+<!-- Mis productos (CU-14): solo con el rol activo VENDEDOR -->
+<button
+  *ngIf="esVendedor && !mostrarMisProductos"
+  type="button"
+  class="boton-pedidos boton-productos"
+  (click)="mostrarMisProductos = true"
+>
+  Mis productos
+</button>
+
+<div class="panel-pedidos" *ngIf="esVendedor && mostrarMisProductos">
+  <app-mis-productos (cerrar)="mostrarMisProductos = false"></app-mis-productos>
+</div>
+
+<!-- Inventario (CU-15): solo con el rol activo VENDEDOR -->
+<button
+  *ngIf="esVendedor && !mostrarInventario"
+  type="button"
+  class="boton-pedidos boton-inventario"
+  (click)="mostrarInventario = true"
+>
+  Inventario
+</button>
+
+<div class="panel-pedidos" *ngIf="esVendedor && mostrarInventario">
+  <app-inventario (cerrar)="mostrarInventario = false"></app-inventario>
+</div>
+
+<!-- Estructura del catálogo (CU-17): solo con el rol activo ADMIN -->
+<button
+  *ngIf="esAdmin && !mostrarCatalogoAdmin"
+  type="button"
+  class="boton-pedidos"
+  (click)="mostrarCatalogoAdmin = true"
+>
+  Configurar catálogo
+</button>
+
+<div class="panel-pedidos" *ngIf="esAdmin && mostrarCatalogoAdmin">
+  <app-catalogo-admin (cerrar)="mostrarCatalogoAdmin = false"></app-catalogo-admin>
+</div>
+
+<!-- Mi tienda (CU-18): solo con el rol activo VENDEDOR -->
+<button
+  *ngIf="esVendedor && !mostrarMiTienda"
+  type="button"
+  class="boton-pedidos boton-tienda"
+  (click)="mostrarMiTienda = true"
+>
+  Mi tienda
+</button>
+
+<div class="panel-pedidos" *ngIf="esVendedor && mostrarMiTienda">
+  <app-mi-tienda (cerrar)="mostrarMiTienda = false"></app-mi-tienda>
+</div>
+
+<!-- Reclamaciones de compra (CU-13): comprador, vendedor y soporte -->
+<button
+  *ngIf="(esComprador || esVendedor || esSoporte) && !mostrarReclamaciones"
+  type="button"
+  class="boton-pedidos"
+  [class.boton-reclamaciones-soporte]="esSoporte"
+  [class.boton-reclamaciones-vendedor]="esVendedor"
+  (click)="mostrarReclamaciones = true"
+>
+  {{ esVendedor ? 'Reclamaciones' : esSoporte ? 'Reclamaciones escaladas' : 'Mis reclamaciones' }}
+</button>
+
+<div class="panel-pedidos" *ngIf="(esComprador || esVendedor || esSoporte) && mostrarReclamaciones">
+  <app-reclamaciones (cerrar)="mostrarReclamaciones = false"></app-reclamaciones>
+</div>
+
+<!-- Mis reportes (CU-20): con el rol activo COMPRADOR o VENDEDOR -->
+<button
+  *ngIf="(esComprador || esVendedor) && !reportes.panelAbierto()"
+  type="button"
+  class="boton-pedidos boton-reportes"
+  [class.boton-reportes-vendedor]="esVendedor"
+  (click)="reportes.abrirPanel()"
+>
+  Mis reportes
+</button>
+
+<div class="panel-pedidos" *ngIf="(esComprador || esVendedor) && reportes.panelAbierto()">
+  <app-mis-reportes (cerrar)="reportes.cerrarPanel()"></app-mis-reportes>
+</div>
+
+<!-- Mis devoluciones (CU-19): con el rol activo COMPRADOR -->
+<button
+  *ngIf="esComprador && !devoluciones.panelCompradorAbierto()"
+  type="button"
+  class="boton-pedidos boton-devoluciones"
+  (click)="devoluciones.abrirPanelComprador()"
+>
+  Mis devoluciones
+</button>
+
+<div class="panel-pedidos" *ngIf="esComprador && devoluciones.panelCompradorAbierto()">
+  <app-mis-devoluciones (cerrar)="devoluciones.cerrarPanelComprador()"></app-mis-devoluciones>
+</div>
+
+<!-- Devoluciones recibidas (CU-19): con el rol activo VENDEDOR -->
+<button
+  *ngIf="esVendedor && !devoluciones.panelVendedorAbierto()"
+  type="button"
+  class="boton-pedidos boton-devoluciones-vendedor"
+  (click)="devoluciones.abrirPanelVendedor()"
+>
+  Devoluciones recibidas
+</button>
+
+<div class="panel-pedidos" *ngIf="esVendedor && devoluciones.panelVendedorAbierto()">
+  <app-devoluciones-recibidas (cerrar)="devoluciones.cerrarPanelVendedor()"></app-devoluciones-recibidas>
+</div>
+
+<!-- Registro de vendedores (CU-12): abierto a cualquier visitante, con o sin sesión -->
+<div class="panel-pedidos" *ngIf="mostrarRegistroVendedor">
+  <app-registro-vendedor (cerrar)="mostrarRegistroVendedor = false"></app-registro-vendedor>
 </div>
 
 </ion-app>

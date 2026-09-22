@@ -13,10 +13,17 @@ const ENDPOINTS_SIN_LIMPIEZA_POR_401 = new Set([
   `${API_BASE}/auth/password-recovery/confirm`
 ]);
 
+/** El backend responde 401 con este código a una sesión válida cuya cuenta aún no tiene tienda (CU-18). */
+const CODIGO_SESION_VALIDA_SIN_TIENDA = 'STORE_IDENTITY_MISSING';
+
+function esSesionValidaSinTienda(error: HttpErrorResponse): boolean {
+  return (error.error as { code?: string } | null)?.code === CODIGO_SESION_VALIDA_SIN_TIENDA;
+}
+
 /**
  * Llamadas a la API con la cookie de sesión y, en las que modifican datos, el token CSRF. Solo
- * actúa sobre rutas relativas de la API propia. Un 401 protegido limpia el estado local,
- * sin iniciar peticiones adicionales ni reintentar login, logout o recuperación.
+ * actúa sobre rutas relativas de la API propia. Un 401 protegido limpia el estado local, salvo el de una sesión
+ * válida sin tienda asociada, sin iniciar peticiones adicionales ni reintentar login, logout o recuperación.
  */
 export const sessionInterceptor: HttpInterceptorFn = (req, next) => {
   const ruta = req.url.split(/[?#]/, 1)[0];
@@ -34,7 +41,7 @@ export const sessionInterceptor: HttpInterceptorFn = (req, next) => {
 
   return enviar.pipe(
     catchError((error: HttpErrorResponse) => {
-      if (error.status === 401 && !ENDPOINTS_SIN_LIMPIEZA_POR_401.has(ruta)) {
+      if (error.status === 401 && !ENDPOINTS_SIN_LIMPIEZA_POR_401.has(ruta) && !esSesionValidaSinTienda(error)) {
         auth.sesionExpirada();
       } else if (error.status === 403 && modifica) {
         // Un 403 al modificar suele ser un token CSRF vencido: la próxima vez se pide uno nuevo.

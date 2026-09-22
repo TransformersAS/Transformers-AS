@@ -48,7 +48,11 @@ class RequestRefundUseCaseTests extends AbstractIntegrationTest {
     }
 
     private RefundCommand command(String key) {
-        return new RefundCommand(order, new BigDecimal("100.00"), key, ActorType.SELLER, 15L);
+        return command(key, "100.00");
+    }
+
+    private RefundCommand command(String key, String amount) {
+        return new RefundCommand(order, new BigDecimal(amount), key, ActorType.SELLER, 15L);
     }
 
     private List<String> auditActions() {
@@ -90,8 +94,9 @@ class RequestRefundUseCaseTests extends AbstractIntegrationTest {
 
     @Test
     void differentKeysAreDifferentRefunds() {
-        useCase.execute(command("order-cancel-" + order));
-        useCase.execute(command("return-77"));
+        // Dos causas distintas del mismo pedido: entre las dos no pueden pasar del total (100).
+        useCase.execute(command("order-cancel-" + order, "50.00"));
+        useCase.execute(command("return-77", "50.00"));
 
         assertThat(count("refunds")).isEqualTo(2);
         assertThat(gateway.distinctRefunds()).isEqualTo(2);
@@ -108,8 +113,8 @@ class RequestRefundUseCaseTests extends AbstractIntegrationTest {
     @Test
     void registerPendingStoresAPendingRefundOnceAndItRollsBackWithTheCallersTransaction() {
         tx.executeWithoutResult(status -> {
-            useCase.registerPending(command("order-cancel-" + order));
-            useCase.registerPending(command("order-cancel-" + order)); // idempotente
+            useCase.registerPending(command("order-cancel-" + order, "50.00"));
+            useCase.registerPending(command("order-cancel-" + order, "50.00")); // idempotente
         });
 
         assertThat(jdbc.queryForMap("SELECT status, attempts FROM refunds")).containsEntry("status", "PENDING")
@@ -118,7 +123,7 @@ class RequestRefundUseCaseTests extends AbstractIntegrationTest {
         assertThat(gateway.requestCount()).isZero(); // registrar no llama a la pasarela
 
         assertThatThrownBy(() -> tx.executeWithoutResult(status -> {
-            useCase.registerPending(command("return-1"));
+            useCase.registerPending(command("return-1", "50.00"));
             throw new IllegalStateException("fallo inyectado");
         })).hasMessage("fallo inyectado");
         assertThat(count("refunds")).isEqualTo(1);

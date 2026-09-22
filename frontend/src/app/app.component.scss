@@ -1752,6 +1752,165 @@ footer > div {
   }
 }
 
+/* =========================================================
+   RECOMENDACIONES PERSONALIZADAS
+   ========================================================= */
+
+.recommendations-section {
+  padding: 50px 6%;
+  background: #f8f6f1;
+}
+
+.recommendations-container {
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.recommendations-header {
+  margin-bottom: 28px;
+}
+
+.recommendations-eyebrow {
+  display: block;
+
+  margin-bottom: 8px;
+
+  color: #61757c;
+
+  font-size: 12px;
+  font-weight: 700;
+
+  letter-spacing: 2px;
+}
+
+.recommendations-header h2 {
+  margin: 0 0 8px;
+
+  font-size: 32px;
+  font-weight: 600;
+
+  color: #111;
+}
+
+.recommendations-header p {
+  margin: 0;
+
+  color: #69797e;
+
+  font-size: 15px;
+}
+
+.recommendations-grid {
+  display: grid;
+
+  grid-template-columns:
+    repeat(auto-fit, minmax(220px, 1fr));
+
+  gap: 20px;
+}
+
+.recommendation-card {
+  display: flex;
+  flex-direction: column;
+
+  min-height: 250px;
+
+  padding: 24px;
+
+  border: 1px solid #e1ded6;
+  border-radius: 14px;
+
+  background: #fff;
+
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.recommendation-card:hover {
+  transform: translateY(-4px);
+
+  box-shadow:
+    0 10px 25px rgba(0, 0, 0, 0.07);
+}
+
+.recommendation-category {
+  margin-bottom: 12px;
+
+  color: #71838a;
+
+  font-size: 11px;
+  font-weight: 700;
+
+  letter-spacing: 1.4px;
+
+  text-transform: uppercase;
+}
+
+.recommendation-card h3 {
+  margin: 0 0 12px;
+
+  color: #111;
+
+  font-size: 19px;
+}
+
+.recommendation-description {
+  flex: 1;
+
+  margin: 0 0 22px;
+
+  color: #66757a;
+
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.recommendation-footer {
+  display: flex;
+
+  justify-content: space-between;
+  align-items: center;
+
+  gap: 10px;
+
+  margin-bottom: 18px;
+}
+
+.recommendation-footer strong {
+  color: #111;
+
+  font-size: 18px;
+}
+
+.recommendation-footer span {
+  color: #688078;
+
+  font-size: 12px;
+}
+
+.recommendation-button {
+  width: 100%;
+
+  padding: 12px;
+
+  border: none;
+  border-radius: 8px;
+
+  background: #173740;
+
+  color: #fff;
+
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+
+  cursor: pointer;
+}
+
+.recommendation-button:hover {
+  opacity: 0.92;
+}
 /* Moderación de reportes (solo soporte) */
 .boton-moderacion {
   position: fixed;
@@ -1806,6 +1965,21 @@ footer > div {
   cursor: pointer;
 }
 
+/* "Mis productos" (vendedor): tercer nivel de la pila, encima de "Mi tienda", para que no se tapen. */
+.boton-productos {
+  bottom: 8.5rem;
+}
+
+/* Reclamaciones (CU-13): el comprador solo tiene este botón; soporte lo pone sobre "Moderación de reportes" y el
+   vendedor en el cuarto nivel de su pila (pedidos, tienda, productos y reclamaciones). */
+.boton-reclamaciones-soporte {
+  bottom: 4.5rem;
+}
+
+.boton-reclamaciones-vendedor {
+  bottom: 12.25rem;
+}
+
 .panel-pedidos {
   position: fixed;
   inset: 0;
@@ -1813,4 +1987,70 @@ footer > div {
   display: flex;
   flex-direction: column;
   background: #fff;
+}
+
+/* "Mi tienda" (CU-18): mismo botón flotante que "Pedidos recibidos", encima de él. */
+.boton-tienda {
+  bottom: 4.75rem;
+}
+
+/* "Mis reportes" (CU-20). Comprador: encima de "Mis reclamaciones" (1rem). Vendedor: quinto nivel de la pila, encima de
+   Pedidos recibidos (1rem), Mi tienda (4.75rem), Mis productos (8.5rem) y Reclamaciones (12.25rem). */
+.boton-reportes {
+  bottom: 4.75rem;
+}
+
+.boton-reportes-vendedor {
+  bottom: 16rem;
+}
+
+/* "Inventario" (CU-15): sexto nivel de la pila del vendedor, encima de Mis reportes (16rem). */
+.boton-inventario {
+  bottom: 19.75rem;
+}
+
+/* "Mis devoluciones" (CU-19). Comprador: encima de "Mis reportes" (4.75rem). Vendedor: séptimo nivel de la pila, encima de
+   Inventario (19.75rem). */
+.boton-devoluciones {
+  bottom: 8.5rem;
+}
+
+.boton-devoluciones-vendedor {
+  bottom: 23.5rem;
+}
+
+/* Ventanas bajas (por ejemplo un teléfono en horizontal): la pila de botones flotantes se compacta para que los siete
+   del vendedor quepan sin salirse de la pantalla ni tapar la pantalla completa. */
+@media (max-height: 27rem) {
+  .boton-pedidos {
+    bottom: 0.5rem;
+    padding: 0.3rem 0.8rem;
+    font-size: 0.8rem;
+  }
+
+  .boton-tienda,
+  .boton-reportes {
+    bottom: 2.5rem;
+  }
+
+  .boton-productos,
+  .boton-devoluciones {
+    bottom: 4.5rem;
+  }
+
+  .boton-reclamaciones-vendedor {
+    bottom: 6.5rem;
+  }
+
+  .boton-reportes-vendedor {
+    bottom: 8.5rem;
+  }
+
+  .boton-inventario {
+    bottom: 10.5rem;
+  }
+
+  .boton-devoluciones-vendedor {
+    bottom: 12.5rem;
+  }
 }

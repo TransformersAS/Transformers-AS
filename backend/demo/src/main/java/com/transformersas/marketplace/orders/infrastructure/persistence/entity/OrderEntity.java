@@ -72,6 +72,7 @@ public class OrderEntity {
     private LocalDateTime createdAt;
 
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("id ASC")
     @BatchSize(size = 100)
     private List<OrderItemEntity> items = new ArrayList<>();
 
