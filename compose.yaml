@@ -23,6 +23,9 @@ services:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-}
       # Opcional: correo de la cuenta VENDEDOR que será dueña de la tienda principal (ver docs/swarm.md).
       MAIN_STORE_OWNER_EMAIL: ${MAIN_STORE_OWNER_EMAIL:-}
+      # Opcional, solo desarrollo (CU-21): con ambas definidas, crea la cuenta de soporte si no existe (ver .env.example).
+      SUPPORT_ACCOUNT_EMAIL: ${SUPPORT_ACCOUNT_EMAIL:-}
+      SUPPORT_ACCOUNT_PASSWORD: ${SUPPORT_ACCOUNT_PASSWORD:-}
       # Seguimiento logístico (CU-24/CU-25). Sin secreto el webhook del proveedor queda cerrado; en demostración,
       # LOGISTICS_SIMULATED_SCRIPT=HAPPY_PATH hace avanzar cada envío por sí solo cada LOGISTICS_SIMULATED_STEP.
       LOGISTICS_WEBHOOK_SECRET: ${LOGISTICS_WEBHOOK_SECRET:-}
