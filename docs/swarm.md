@@ -528,11 +528,35 @@ cifrado. Para eso el guion crea su propio frasco de cookies (`new http.CookieJar
 frasco por defecto al empezar cada iteración, y sin ese detalle la sesión se pierde y todo responde 401
 a partir de la segunda vuelta.
 
+**`CATALOG_EMAIL` por defecto ya no funciona sola desde que existe verificación de email (CU-08).**
+`setup()` registra la cuenta si no existe, pero una cuenta recién autorregistrada queda con
+`email_verified_at` en `NULL`; el login autentica bien la contraseña y luego rechaza con 403 por email
+no verificado, no con 401. Usar `CATALOG_EMAIL`/`CATALOG_PASSWORD` apuntando a una cuenta que ya tenga
+el email verificado —por ejemplo cualquiera creada por `scripts/performance-demo-seed.sh`, que inserta
+`email_verified_at` directamente— evita el problema sin tocar el guion.
+
 ### Medición de referencia
 
 Con 5 usuarios virtuales contra un despliegue de desarrollo en un portátil, para tener un punto de
 partida, no para acreditar nada: P95 de 46 ms en listado y en detalle, 0 % de error y unas 60
-operaciones por segundo. Las corridas de 50 y 100 usuarios son las que hay que guardar como evidencia.
+operaciones por segundo.
+
+### Corridas reales de evidencia (50 y 100 VUs)
+
+Ejecutadas contra el Swarm local (`./deploy.sh --local`, no Compose): dos réplicas de backend detrás
+del routing mesh, frontend en `http://localhost:18000`, base `marketplace_performance_demo` sembrada
+con `scripts/performance-demo-seed.sh` (1.000 productos, escala completa del ASR), autenticando con
+`comprador@marketplace.demo` (cuenta del seed, ya verificada). `DURATION=1m`, sin relajar
+`P95_LIMIT_MS` (3000) ni `ERROR_RATE_LIMIT` (0.02).
+
+| VUs | P95 listado | P95 detalle | Error rate | Throughput (`catalog_throughput`) | Iteraciones completas | ¿Cumple ASR? |
+| --- | --- | --- | --- | --- | --- | --- |
+| 50 | 811 ms | 539 ms | 0,00 % | 66,4/s | 4.010 | Sí |
+| 100 | 1,50 s | 1,18 s | 0,00 % | 79,6/s | 4.862 | Sí |
+
+Ambas corridas cumplen el ASR (P95 `<= 3 s`, error `< 2 %`) con margen amplio; ningún threshold de k6
+falló, así que no hay limitación del entorno que documentar en esta prueba. Resúmenes completos de k6
+en `docs/evidence/performance/catalog-browse-50vus.json` y `catalog-browse-100vus.json`.
 
 ## Retirada explícita
 
