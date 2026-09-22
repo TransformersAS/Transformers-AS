@@ -45,6 +45,13 @@ services:
         uid: "10001"
         gid: "10001"
         mode: 0400
+      # El nombre del archivo es la propiedad que lee Spring: sin este secreto el webhook del
+      # servicio logistico queda cerrado y CU-24/CU-25 no reciben novedades (401 WEBHOOK_NOT_CONFIGURED).
+      - source: logistics_webhook_secret
+        target: logistics.webhook.secret
+        uid: "10001"
+        gid: "10001"
+        mode: 0400
     networks:
       - internal
     ports:
@@ -130,3 +137,6 @@ secrets:
   mysql_root_password:
     external: true
     name: ${MYSQL_ROOT_PASSWORD_SECRET:?Set MYSQL_ROOT_PASSWORD_SECRET}
+  logistics_webhook_secret:
+    external: true
+    name: ${LOGISTICS_WEBHOOK_SECRET:?Set LOGISTICS_WEBHOOK_SECRET}

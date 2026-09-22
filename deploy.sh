@@ -20,6 +20,7 @@ export DB_NAME="${DB_NAME:-marketplace}"
 export DB_USER="${DB_USER:-marketplace_app}"
 export DB_PASSWORD_SECRET="${DB_PASSWORD_SECRET:-${STACK_NAME}_db_password_v1}"
 export MYSQL_ROOT_PASSWORD_SECRET="${MYSQL_ROOT_PASSWORD_SECRET:-${STACK_NAME}_mysql_root_password_v1}"
+export LOGISTICS_WEBHOOK_SECRET="${LOGISTICS_WEBHOOK_SECRET:-${STACK_NAME}_logistics_webhook_secret_v1}"
 if "$local_mode"; then
   export BACKEND_HOST_PORT="${BACKEND_HOST_PORT:-18080}"
   export FRONTEND_HOST_PORT="${FRONTEND_HOST_PORT:-18000}"
@@ -39,7 +40,7 @@ deploy_timeout="${DEPLOY_TIMEOUT_SECONDS:-600}"
 (( FRONTEND_HOST_PORT <= 65535 )) || fail 'FRONTEND_HOST_PORT fuera de rango.'
 [[ "$BACKEND_HOST_PORT" != "$FRONTEND_HOST_PORT" ]] || fail 'Los puertos publicados de frontend y backend deben ser distintos.'
 [[ "$deploy_timeout" =~ ^[1-9][0-9]{0,3}$ ]] || fail 'DEPLOY_TIMEOUT_SECONDS debe estar entre 1 y 9999.'
-for secret_name in "$DB_PASSWORD_SECRET" "$MYSQL_ROOT_PASSWORD_SECRET"; do
+for secret_name in "$DB_PASSWORD_SECRET" "$MYSQL_ROOT_PASSWORD_SECRET" "$LOGISTICS_WEBHOOK_SECRET"; do
   [[ "$secret_name" =~ ^[a-zA-Z0-9][a-zA-Z0-9_.-]*$ ]] || fail 'Nombre de secret no válido.'
 done
 [[ "$DB_PASSWORD_SECRET" != "$MYSQL_ROOT_PASSWORD_SECRET" ]] || fail 'Usa secrets distintos para aplicación y root.'
@@ -122,6 +123,23 @@ ensure_secret() {
 }
 ensure_secret "$DB_PASSWORD_SECRET" "${DB_PASSWORD_SECRET_FILE:-}"
 ensure_secret "$MYSQL_ROOT_PASSWORD_SECRET" "${MYSQL_ROOT_PASSWORD_SECRET_FILE:-}"
+
+# El secreto del webhook logístico no lo escribe una persona: si no se entrega un archivo se genera
+# uno aleatorio, para que el webhook quede abierto en vez de rechazar todo con 401. Para poder enviar
+# novedades a mano (CU-24/CU-25) hay que crearlo antes con LOGISTICS_WEBHOOK_SECRET_FILE y ese valor.
+if docker secret inspect "$LOGISTICS_WEBHOOK_SECRET" >/dev/null 2>&1; then
+  printf 'Reutilizando secret %s (no se cambia su contenido).\n' "$LOGISTICS_WEBHOOK_SECRET"
+elif [[ -n "${LOGISTICS_WEBHOOK_SECRET_FILE:-}" ]]; then
+  ensure_secret "$LOGISTICS_WEBHOOK_SECRET" "$LOGISTICS_WEBHOOK_SECRET_FILE"
+else
+  printf 'Generando secret aleatorio %s para el webhook logístico.\n' "$LOGISTICS_WEBHOOK_SECRET"
+  # od lee exactamente 24 bytes y termina: evita la tubería que head cortaría, que con pipefail
+  # abortaría el despliegue. Resultado: 48 caracteres hexadecimales, sin salto de línea.
+  generated="$(od -An -tx1 -N 24 /dev/urandom | tr -d ' \n')"
+  [[ ${#generated} -eq 48 ]] || fail 'No se pudo generar el secreto del webhook.'
+  printf '%s' "$generated" | docker secret create "$LOGISTICS_WEBHOOK_SECRET" - >/dev/null
+  unset generated
+fi
 
 if "$local_mode"; then
   # El Swarm de un nodo usa las imágenes locales recién construidas, sin consultar GHCR.
