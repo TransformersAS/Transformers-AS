@@ -221,6 +221,51 @@ class PersistentSessionIntegrationTests extends AbstractIntegrationTest {
         mvc.perform(get("/api/auth/me").cookie(current)).andExpect(status().isOk());
     }
 
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void revokeOthersKeepsCurrentSessionAndOtherAccount(boolean persistent) throws Exception {
+        Cookie current = login(persistent);
+        Cookie normal = login(false);
+        Cookie remembered = login(true);
+        createAccount("unaffected@example.com", "COMPRADOR");
+        Cookie unrelated = login("unaffected@example.com").cookie();
+        mvc.perform(get("/api/auth/sessions").cookie(current)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(3));
+
+        mvc.perform(post("/api/auth/sessions/revoke-others").cookie(current))
+                .andExpect(status().isForbidden());
+        mvc.perform(post("/api/auth/sessions/revoke-others").cookie(current)
+                .header("X-CSRF-TOKEN", "invalid-csrf")).andExpect(status().isForbidden());
+        for (Cookie cookie : new Cookie[]{current, normal, remembered, unrelated}) {
+            mvc.perform(get("/api/auth/me").cookie(cookie)).andExpect(status().isOk());
+        }
+
+        mvc.perform(csrf(current).apply(post("/api/auth/sessions/revoke-others")))
+                .andExpect(status().isNoContent());
+        for (Cookie cookie : new Cookie[]{normal, remembered}) {
+            assertThat(sessions.findById(id(cookie))).isNull();
+            mvc.perform(get("/api/auth/me").cookie(cookie)).andExpect(status().isUnauthorized());
+        }
+        mvc.perform(get("/api/auth/me").cookie(current)).andExpect(status().isOk());
+        mvc.perform(get("/api/auth/me").cookie(unrelated)).andExpect(status().isOk());
+        assertStoredTimeout(current, persistent ? PERSISTENT_SECONDS : NORMAL_SECONDS);
+        mvc.perform(get("/api/auth/sessions").cookie(current)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].current").value(true));
+        // Repeating the operation with no other sessions is safe.
+        mvc.perform(csrf(current).apply(post("/api/auth/sessions/revoke-others")))
+                .andExpect(status().isNoContent());
+        mvc.perform(get("/api/auth/me").cookie(current)).andExpect(status().isOk());
+    }
+
+    @Test
+    void anonymousCannotRevokeOthersEvenWithValidCsrf() throws Exception {
+        Cookie authenticated = login(true);
+        mvc.perform(csrf(null).apply(post("/api/auth/sessions/revoke-others")))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/auth/me").cookie(authenticated)).andExpect(status().isOk());
+    }
+
     @Test
     void passwordChangeRevokesOtherPersistentSessionsAndKeepsCurrentPolicy() throws Exception {
         Cookie current = login(true);

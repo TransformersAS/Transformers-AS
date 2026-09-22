@@ -19,6 +19,8 @@
       <h3>Sesiones activas</h3>
       <ion-button size="small" fill="clear" [disabled]="enviando" (click)="cargarSesiones()">Actualizar</ion-button>
       @if (sesionesCargadas && !sesiones.length && !enviando) { <p>No hay sesiones activas para mostrar.</p> }
+      <ion-button color="danger" fill="outline" [disabled]="enviando || !sesionesCargadas" (click)="cerrarDemasSesiones()">Cerrar las demás sesiones</ion-button>
+      <p class="ayuda">Conserva tu acceso en este navegador y cierra las otras sesiones de tu cuenta.</p>
       <ul class="sesiones">
         @for (sesion of sesiones; track sesion.id) {
           <li>

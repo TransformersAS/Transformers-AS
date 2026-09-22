@@ -93,6 +93,10 @@ export class AuthService {
     return this.http.get<SesionActiva[]>(`${API_BASE}/auth/sessions`);
   }
 
+  cerrarDemasSesiones(): Observable<void> {
+    return this.http.post<void>(`${API_BASE}/auth/sessions/revoke-others`, {});
+  }
+
   /** Recibe una sesión de listarSesiones(); solo limpia la cuenta si se revoca la actual. */
   revocarSesion(sesion: SesionActiva): Observable<void> {
     return this.http.delete<void>(`${API_BASE}/auth/sessions/${encodeURIComponent(sesion.id)}`).pipe(

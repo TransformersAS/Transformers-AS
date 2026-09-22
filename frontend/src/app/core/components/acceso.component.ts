@@ -127,6 +127,25 @@ export class AccesoComponent {
     }, 'No se pudieron cargar las sesiones. Intenta actualizar.');
   }
 
+  cerrarDemasSesiones(): void {
+    if (this.enviando) return;
+    const operacion = this.auth.cerrarDemasSesiones().pipe(
+      tap(() => {
+        this.pendiente = null;
+        this.sesiones = this.sesiones.filter(sesion => sesion.current);
+        this.exito = 'Las demás sesiones se cerraron. Esta sesión continúa activa.';
+      }),
+      switchMap(() => this.auth.listarSesiones().pipe(
+        catchError(() => {
+          this.error = 'Las demás sesiones se cerraron, pero no se pudo actualizar la lista. Pulsa Actualizar.';
+          return of(this.sesiones);
+        })
+      ))
+    );
+    this.ejecutar(operacion, sesiones => { this.sesiones = sesiones; },
+      'No se pudo confirmar el cierre de las demás sesiones. Actualiza la lista e inténtalo de nuevo.');
+  }
+
   pedirRevocacion(sesion: SesionActiva): void {
     if (this.enviando) return;
     this.pendiente = sesion;
