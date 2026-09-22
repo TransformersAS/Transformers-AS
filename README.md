@@ -152,8 +152,9 @@ Referencias: [Resilience4j Boot 4 y BOM](https://github.com/resilience4j/resilie
 ## Infraestructura
 
 Compose es para desarrollo local. Swarm es para el despliegue distribuido/demo:
-ver [docs/swarm.md](docs/swarm.md). `./deploy.sh --local` despliega frontend,
-backend y MySQL y ejecuta su smoke test de health/readiness antes de terminar.
+ver [docs/swarm.md](docs/swarm.md). `./deploy.sh --local` construye y despliega
+frontend, backend y MySQL desde este repositorio, y ejecuta su smoke test de
+health/readiness antes de terminar.
 MySQL permanece en una sola réplica y **no tiene HA**.
 
 La [CI](.github/workflows/backend-ci.yml) ejecuta Maven y construye las imágenes

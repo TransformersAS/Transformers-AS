@@ -192,15 +192,14 @@ Compose ni elimina volúmenes. El puerto local predeterminado es 18080 para evit
 el backend de desarrollo en 8080. El routing mesh puede ser accesible desde la LAN.
 
 ```bash
-docker login ghcr.io
-STACK_NAME=transformers-local \
-BACKEND_IMAGE_TAG=sha-<SHA_PUBLICADO> \
-FRONTEND_IMAGE_TAG=sha-<SHA_PUBLICADO> \
-./deploy.sh --local
+STACK_NAME=transformers-local ./deploy.sh --local
 ```
 
-Introducir las contraseñas de prueba cuando se soliciten. En modo local el
-frontend queda en `http://localhost:18000` y la API directa en
+El modo `--local` construye las dos imágenes desde este repositorio con los mismos
+Dockerfile que publica la CI, así que se ensaya el artefacto real; no requiere
+`docker login` ni imágenes publicadas. La primera construcción tarda varios minutos,
+porque el frontend instala sus dependencias y compila dentro de la imagen. Introducir las contraseñas de prueba
+cuando se soliciten. En modo local el frontend queda en `http://localhost:18000` y la API directa en
 `http://localhost:18080`; en un cluster real los valores por defecto son 80 y
 8080 y se pueden cambiar con `FRONTEND_HOST_PORT` y `BACKEND_HOST_PORT`. Repetir
 el mismo comando reutiliza secrets y volumen. En automatización añadir las dos

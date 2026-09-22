@@ -54,12 +54,24 @@ case "$swarm_state" in
   *) fail "Estado Swarm no apto: $swarm_state" ;;
 esac
 
-# Check private-registry access and CPU compatibility before changing Swarm.
+# En modo local se construyen ambas imágenes desde este repositorio. Un cluster
+# real siempre descarga imágenes inmutables desde GHCR para que todos los nodos
+# ejecuten el mismo artefacto.
 backend_image="ghcr.io/transformersas/transformers-as-backend:${BACKEND_IMAGE_TAG}"
 frontend_image="ghcr.io/transformersas/transformers-as-frontend:${FRONTEND_IMAGE_TAG}"
 server_platform="$(docker version --format '{{.Server.Os}}/{{.Server.Arch}}')"
+if "$local_mode"; then
+  # Los mismos Dockerfile que publica la CI, para ensayar el artefacto real. La primera vez
+  # tarda varios minutos: el frontend instala sus dependencias y compila dentro de la imagen.
+  printf 'Construyendo backend y frontend desde este repositorio para el Swarm local.\n'
+  docker build --tag "$backend_image" "$script_dir/backend/demo"
+  docker build --file "$script_dir/frontend/Dockerfile" --tag "$frontend_image" "$script_dir/frontend"
+else
+  for image in "$backend_image" "$frontend_image"; do
+    docker pull "$image" || fail "No se puede descargar $image. Verifica docker login ghcr.io, etiqueta y arquitectura."
+  done
+fi
 for image in "$backend_image" "$frontend_image"; do
-  docker pull "$image" || fail "No se puede descargar $image. Verifica docker login ghcr.io, etiqueta y arquitectura."
   image_platform="$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "$image")"
   [[ "$image_platform" == "$server_platform" ]] || fail "Imagen $image_platform incompatible con este nodo $server_platform; no se asume emulación."
 done
@@ -111,7 +123,12 @@ ensure_secret() {
 ensure_secret "$DB_PASSWORD_SECRET" "${DB_PASSWORD_SECRET_FILE:-}"
 ensure_secret "$MYSQL_ROOT_PASSWORD_SECRET" "${MYSQL_ROOT_PASSWORD_SECRET_FILE:-}"
 
-docker stack deploy --with-registry-auth --resolve-image always -c "$script_dir/stack.yml" "$STACK_NAME"
+if "$local_mode"; then
+  # El Swarm de un nodo usa las imágenes locales recién construidas, sin consultar GHCR.
+  docker stack deploy --resolve-image never -c "$script_dir/stack.yml" "$STACK_NAME"
+else
+  docker stack deploy --with-registry-auth --resolve-image always -c "$script_dir/stack.yml" "$STACK_NAME"
+fi
 
 # Swarm has no depends_on readiness gate; failed backend starts are retried.
 health_url="${SWARM_HEALTH_URL:-http://127.0.0.1:${BACKEND_HOST_PORT}/actuator/health/readiness}"
