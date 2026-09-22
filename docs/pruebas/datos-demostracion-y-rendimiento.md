@@ -5,8 +5,8 @@ El generador `scripts/performance-demo-seed.sh` utiliza MySQL real, sin modifica
 las migraciones Flyway ni los seeds CU-20/CU-23 existentes. Su implementación SQL por lotes
 está en `scripts/performance-demo-seed.py` (Python 3 sin dependencias externas).
 
-La [escala documentada en las decisiones arquitectónicas](Decisiones_Arquitectonicas_Marketplace.md)
-es de 100 usuarios concurrentes, 1.000 productos y analítica sobre 10.000 pedidos simulados.
+La escala citada del documento de decisiones arquitectónicas (actualmente ausente
+del repositorio) es de 100 usuarios concurrentes, 1.000 productos y analítica sobre 10.000 pedidos simulados.
 100 usuarios virtuales concurrentes **no requieren técnicamente 100 cuentas diferentes**;
 el pool facilita pruebas k6 con identidades, cookies y sesiones independientes. Crear estos
 datos no demuestra por sí mismo que se cumplan los RNF: hay que ejecutar y medir la carga.

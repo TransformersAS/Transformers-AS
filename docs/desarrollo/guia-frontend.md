@@ -4,7 +4,10 @@ Aplicación Ionic + Angular standalone, preparada para navegador como PWA y para
 
 ## Ejecutar
 
+Ejecutar estos comandos desde `frontend/`:
+
 ```bash
+cd frontend
 npm install
 npm start
 ```

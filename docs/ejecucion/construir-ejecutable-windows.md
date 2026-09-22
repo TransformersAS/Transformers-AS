@@ -1,6 +1,6 @@
 # Construcción y validación de la entrega Windows
 
-El profesor sigue [EJECUTABLE-DEMO.md](../docs/EJECUTABLE-DEMO.md). Solo necesita Docker Desktop
+El profesor sigue [iniciar-demo-windows.md](iniciar-demo-windows.md). Solo necesita Docker Desktop
 con Linux containers. .NET SDK 8 es necesario únicamente para **construir** el launcher.
 
 Desde la raíz del repositorio, en macOS o Windows con SDK 8:

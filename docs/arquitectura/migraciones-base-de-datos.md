@@ -1,6 +1,10 @@
 # Migraciones del esquema
 
-Flyway ejecuta automáticamente las migraciones de este directorio al iniciar
+> Nota de contexto: este documento describe la etapa inicial del proyecto. Las
+> afirmaciones sobre la ausencia de migraciones son históricas; consultar los SQL
+> actuales en `backend/demo/src/main/resources/db/migration/`.
+
+Flyway ejecuta automáticamente las migraciones de `backend/demo/src/main/resources/db/migration/` al iniciar
 Spring Boot, usando el mismo datasource configurado mediante las variables DB_*.
 Hibernate únicamente valida el esquema (`ddl-auto=validate`); la inicialización
 mediante `schema.sql` y `data.sql` está deshabilitada.

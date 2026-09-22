@@ -120,7 +120,7 @@ Creados:
 - `backend/demo/scripts/integration-suite.py`: descubre/verifica la lista mediante anotaciones y herencia.
 - `backend/demo/scripts/run-integration-coverage.sh`: audita y ejecuta `clean verify` con el perfil estricto.
 - `backend/demo/scripts/integration-coverage-report.py`: calcula totales, verifica nombres de clases reportadas y enumera todas las líneas missed.
-- `docs/COBERTURA-INTEGRACION-BACKEND.md`: comandos, alcance, pruebas y límites del resultado.
+- `docs/pruebas/cobertura-integracion-backend.md`: comandos, alcance, pruebas y límites del resultado.
 
 No se añadieron dependencias, exclusiones de cobertura ni cambios funcionales para eliminar defensas. No se modificaron los tests unitarios existentes. No se hizo commit.
 

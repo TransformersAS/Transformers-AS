@@ -1,5 +1,7 @@
 # Marketplace — TransformersAS
 
+La documentación está organizada por tema en el [índice de documentación](docs/README.md).
+
 Aplicación con frontend Angular/Ionic, backend Java 21 con Spring Boot y MySQL
 **8.4.11 LTS**. Docker Compose permite ejecutar el sistema completo; Flyway gestiona
 el esquema y Hibernate lo valida. El backend está en `backend/demo`.
@@ -100,10 +102,10 @@ Para distribuirlo, empaquetar el ejecutable y el proyecto completo, conservando 
 archivos ocultos de construcción, pero excluyendo `.env`, `.env.demo`, `.git`,
 `node_modules`, `target` y los registros de desarrollo.
 
-Más información: [guía breve del profesor](docs/EJECUTABLE-DEMO.md) y
-[construcción, configuración y pruebas del launcher](launcher/README.md).
+Más información: [guía breve del profesor](docs/ejecucion/iniciar-demo-windows.md) y
+[construcción, configuración y pruebas del launcher](docs/ejecucion/construir-ejecutable-windows.md).
 Este arranque usa Compose; `deploy.sh` y `stack.yml` corresponden al escenario separado
-[de Docker Swarm](docs/swarm.md).
+[de Docker Swarm](docs/despliegue/docker-swarm.md).
 
 ## Arranque manual para desarrollo (alternativa al ejecutable)
 
@@ -159,7 +161,7 @@ Testcontainers arranca su propio MySQL 8.4.11 temporal. JaCoCo genera
 `backend/demo/target/site/jacoco/index.html`; Surefire guarda sus reportes en
 `backend/demo/target/surefire-reports/`. La configuración normal exige un mínimo
 de 95 % de cobertura de líneas. La suite exclusiva de integración se documenta en
-[COBERTURA-INTEGRACION-BACKEND.md](docs/COBERTURA-INTEGRACION-BACKEND.md).
+[guía de cobertura de integración](docs/pruebas/cobertura-integracion-backend.md).
 
 Para ejecutar Spring Boot desde el host, detener el backend Compose para liberar
 8080 y exportar `.env` en la terminal de desarrollo:
@@ -224,7 +226,7 @@ y no equivale al fixture de la entrega Windows.
 ## Infraestructura
 
 Compose es para desarrollo local y para la entrega Windows. Swarm es para el despliegue distribuido:
-ver [docs/swarm.md](docs/swarm.md). `./deploy.sh --local` construye y despliega
+ver [guía de Docker Swarm](docs/despliegue/docker-swarm.md). `./deploy.sh --local` construye y despliega
 frontend, backend y MySQL desde este repositorio, y ejecuta su smoke test de
 health/readiness antes de terminar.
 MySQL permanece en una sola réplica y **no tiene HA**.
@@ -236,5 +238,5 @@ rutas ni el nombre del paquete GHCR: el Dockerfile copia el JAR por patrón. No 
 añade CD remoto.
 
 La compilación del ejecutable Windows y las pruebas del flujo funcional se describen
-en [launcher/README.md](launcher/README.md), incluida la validación manual pendiente
+en [construcción del ejecutable de Windows](docs/ejecucion/construir-ejecutable-windows.md), incluida la validación manual pendiente
 sobre Windows. Las pruebas locales no acreditan disponibilidad multi-nodo.

@@ -1,6 +1,6 @@
 # CI y publicación de imágenes en GHCR
 
-`backend-ci.yml` se ejecuta con push a cualquier rama, sin requerir Pull Requests.
+El workflow `.github/workflows/backend-ci.yml` se ejecuta con push a cualquier rama, sin requerir Pull Requests.
 No se activa al publicar tags. No realiza despliegues.
 
 1. `validate` usa Java 21 y Docker del runner GitHub-hosted `ubuntu-24.04` para

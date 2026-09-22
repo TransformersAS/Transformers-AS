@@ -475,7 +475,7 @@ Usa 14300 por defecto (`CU08_E2E_PORT` permite cambiarlo), proyecto Compose inde
 
 ### Qué ejecuta realmente CI
 
-`.github/workflows/backend-ci.yml` se activa por push a ramas. `validate` ejecuta `./mvnw clean verify`; `frontend-e2e` instala Node 22/Chrome, construye frontend, ejecuta Playwright normal Chrome y el script real CU-08. `build`/`publish` dependen de `validate`, no de `frontend-e2e`. La existencia del workflow no acredita una ejecución verde del commit presentado. Ver también `docs/CU-08-pruebas.md`.
+`.github/workflows/backend-ci.yml` se activa por push a ramas. `validate` ejecuta `./mvnw clean verify`; `frontend-e2e` instala Node 22/Chrome, construye frontend, ejecuta Playwright normal Chrome y el script real CU-08. `build`/`publish` dependen de `validate`, no de `frontend-e2e`. La existencia del workflow no acredita una ejecución verde del commit presentado. Ver también `docs/pruebas/cu-08-autenticacion-y-sesiones.md`.
 
 ## 7. CU-11 — Consulta y cancelación de pedidos
 
@@ -882,9 +882,9 @@ Rutas relativas a Transformers-AS. En las tablas Java, **M** = `backend/demo/src
 | E2E real CU-08 | `frontend/e2e-real/account-session.spec.ts`; `frontend/playwright.real.config.ts`; `scripts/cu08-real-e2e.sh`; `scripts/cu08-real-seed.sql`; `compose.e2e.yaml` |
 | Configuración frontend/pruebas | `frontend/package.json`; `frontend/playwright.config.ts`; `frontend/nginx.conf`; `frontend/Dockerfile` |
 | Arranque | `compose.yaml`; `.env.example`; `backend/demo/Dockerfile`; `backend/demo/src/main/resources/application.properties`; `backend/demo/pom.xml` |
-| Alternativa Swarm | `stack.yml`; `deploy.sh`; `docs/swarm.md` |
+| Alternativa Swarm | `stack.yml`; `deploy.sh`; `docs/despliegue/docker-swarm.md` |
 | CI | `.github/workflows/backend-ci.yml` |
-| Documentación CU-08 | `docs/CU-08-pruebas.md`; `docs/persistent-sessions.md`; `docs/current-account-session.md`; `docs/email-verification.md`; `docs/password-recovery-smtp.md`; `docs/buyer-account-isolation.md` |
+| Documentación CU-08 | `docs/pruebas/cu-08-autenticacion-y-sesiones.md`; `docs/seguridad/mantener-sesion-iniciada.md`; `docs/seguridad/permisos-vigentes-en-sesion.md`; `docs/seguridad/verificacion-correo.md`; `docs/seguridad/recuperacion-contrasena-smtp.md`; `docs/seguridad/aislamiento-cuentas-compradores.md` |
 | Referencia externa CU-11 | `../Transformers-Integration-Tests/tests/e2e/checkout-order-cancellation.spec.ts`; `../Transformers-Integration-Tests/tests/helpers/account.ts`; `../Transformers-Integration-Tests/playwright.config.ts` |
 
 Migraciones relevantes, todas bajo `backend/demo/src/main/resources/db/migration/`:

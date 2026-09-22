@@ -12,21 +12,21 @@ Las rutas de la tabla son relativas a `backend/demo/src/test/java/com/transforme
 
 | Archivo / ruta relativa | Tipo | Qué valida |
 | --- | --- | --- |
-| [SessionAuthenticationTests.java](../backend/demo/src/test/java/com/transformersas/marketplace/auth/SessionAuthenticationTests.java) | Integración y seguridad | Login, credenciales genéricas, rotación de sesión, CSRF, roles activos, logout, listado/revocación, cambio y recuperación de contraseña; consumo concurrente del token. |
-| [PersistentSessionIntegrationTests.java](../backend/demo/src/test/java/com/transformersas/marketplace/auth/PersistentSessionIntegrationTests.java) | Integración JDBC | rememberMe, cookie normal/persistente, duración, restauración y expiración; logout, revocación y cierre de las demás sesiones conservando la actual y otras cuentas. |
-| [CurrentAccountSessionIntegrationTests.java](../backend/demo/src/test/java/com/transformersas/marketplace/auth/CurrentAccountSessionIntegrationTests.java) | Integración y autorización | Cambios de cuenta/roles después del login: cuenta inactiva o eliminada, rol retirado, /me actualizado y ausencia de selección automática; ambas modalidades de sesión. |
-| [EmailVerificationIntegrationTests.java](../backend/demo/src/test/java/com/transformersas/marketplace/auth/EmailVerificationIntegrationTests.java) | Integración MySQL + SMTP local | Rechazo de login sin correo verificado, envío/reenvío, verificación, hash, expiración, consumo único/concurrente, CSRF y fallo SMTP. |
-| [PasswordRecoverySmtpIntegrationTests.java](../backend/demo/src/test/java/com/transformersas/marketplace/auth/PasswordRecoverySmtpIntegrationTests.java) | Integración MySQL + SMTP local | Mensaje recibido en GreenMail, token utilizable sin texto plano en persistencia, respuesta genérica, fallo SMTP, contraseña nueva y revocación; separación de verificación y recuperación. |
-| [BuyerIsolationIntegrationTests.java](../backend/demo/src/test/java/com/transformersas/marketplace/auth/BuyerIsolationIntegrationTests.java) | Integración y aislamiento | Rol COMPRADOR activo; carrito, direcciones, checkout, reservas y pagos propios; rechazo de identificadores ajenos, suplantaciones y datos antiguos sin dueño. |
-| [BuyerOwnershipMigrationTests.java](../backend/demo/src/test/java/com/transformersas/marketplace/auth/BuyerOwnershipMigrationTests.java) | Integración de migración | Migración de recursos a propiedad por cuenta: conserva filas antiguas sin asignarles un propietario e impone integridad. |
-| [RemainingAccessBlockersTests.java](../backend/demo/src/test/java/com/transformersas/marketplace/auth/RemainingAccessBlockersTests.java) | Integración y autorización | B1: creación rechazada para COMPRADOR/SOPORTE/ADMIN o sin rol activo, vendedor usa su tienda y no una ajena. B2: interacciones y recomendaciones usan el principal aunque el cliente envíe otro userId; rechazo anónimo. |
-| [SessionSellerActorProviderTests.java](../backend/demo/src/test/java/com/transformersas/marketplace/auth/SessionSellerActorProviderTests.java) | Unitaria con colaboradores simulados | Identidad del vendedor, exigencia de rol activo y resolución de tienda; rechaza cabeceras inválidas y propaga rechazo de propiedad. |
-| [application/usecase/ManageAccountSessionsTests.java](../backend/demo/src/test/java/com/transformersas/marketplace/auth/application/usecase/ManageAccountSessionsTests.java) | Unitaria con repositorio simulado | Filtrado de sesiones propias autenticadas/no expiradas, identificador de gestión y revocación sin borrar sesiones ajenas. |
-| [application/usecase/RecoverAccountPasswordValidationTests.java](../backend/demo/src/test/java/com/transformersas/marketplace/auth/application/usecase/RecoverAccountPasswordValidationTests.java) | Unitaria | Correo ausente/excesivo y tokens mal formados se descartan antes de consultas, notificaciones o cambios de sesiones. |
-| [infrastructure/notification/RecoveryNotificationConfigurationTests.java](../backend/demo/src/test/java/com/transformersas/marketplace/auth/infrastructure/notification/RecoveryNotificationConfigurationTests.java) | Configuración y adaptador | Adaptador SMTP predeterminado o reemplazable, remitente independiente, fallo por configuración ausente y ausencia de secretos en logs. |
-| [infrastructure/notification/SmtpEmailVerificationNotifierTests.java](../backend/demo/src/test/java/com/transformersas/marketplace/auth/infrastructure/notification/SmtpEmailVerificationNotifierTests.java) | Unitaria de adaptador | Ausencia de transporte SMTP o remitente produce error, sin fingir entrega. |
+| [SessionAuthenticationTests.java](../../backend/demo/src/test/java/com/transformersas/marketplace/auth/SessionAuthenticationTests.java) | Integración y seguridad | Login, credenciales genéricas, rotación de sesión, CSRF, roles activos, logout, listado/revocación, cambio y recuperación de contraseña; consumo concurrente del token. |
+| [PersistentSessionIntegrationTests.java](../../backend/demo/src/test/java/com/transformersas/marketplace/auth/PersistentSessionIntegrationTests.java) | Integración JDBC | rememberMe, cookie normal/persistente, duración, restauración y expiración; logout, revocación y cierre de las demás sesiones conservando la actual y otras cuentas. |
+| [CurrentAccountSessionIntegrationTests.java](../../backend/demo/src/test/java/com/transformersas/marketplace/auth/CurrentAccountSessionIntegrationTests.java) | Integración y autorización | Cambios de cuenta/roles después del login: cuenta inactiva o eliminada, rol retirado, /me actualizado y ausencia de selección automática; ambas modalidades de sesión. |
+| [EmailVerificationIntegrationTests.java](../../backend/demo/src/test/java/com/transformersas/marketplace/auth/EmailVerificationIntegrationTests.java) | Integración MySQL + SMTP local | Rechazo de login sin correo verificado, envío/reenvío, verificación, hash, expiración, consumo único/concurrente, CSRF y fallo SMTP. |
+| [PasswordRecoverySmtpIntegrationTests.java](../../backend/demo/src/test/java/com/transformersas/marketplace/auth/PasswordRecoverySmtpIntegrationTests.java) | Integración MySQL + SMTP local | Mensaje recibido en GreenMail, token utilizable sin texto plano en persistencia, respuesta genérica, fallo SMTP, contraseña nueva y revocación; separación de verificación y recuperación. |
+| [BuyerIsolationIntegrationTests.java](../../backend/demo/src/test/java/com/transformersas/marketplace/auth/BuyerIsolationIntegrationTests.java) | Integración y aislamiento | Rol COMPRADOR activo; carrito, direcciones, checkout, reservas y pagos propios; rechazo de identificadores ajenos, suplantaciones y datos antiguos sin dueño. |
+| [BuyerOwnershipMigrationTests.java](../../backend/demo/src/test/java/com/transformersas/marketplace/auth/BuyerOwnershipMigrationTests.java) | Integración de migración | Migración de recursos a propiedad por cuenta: conserva filas antiguas sin asignarles un propietario e impone integridad. |
+| [RemainingAccessBlockersTests.java](../../backend/demo/src/test/java/com/transformersas/marketplace/auth/RemainingAccessBlockersTests.java) | Integración y autorización | B1: creación rechazada para COMPRADOR/SOPORTE/ADMIN o sin rol activo, vendedor usa su tienda y no una ajena. B2: interacciones y recomendaciones usan el principal aunque el cliente envíe otro userId; rechazo anónimo. |
+| [SessionSellerActorProviderTests.java](../../backend/demo/src/test/java/com/transformersas/marketplace/auth/SessionSellerActorProviderTests.java) | Unitaria con colaboradores simulados | Identidad del vendedor, exigencia de rol activo y resolución de tienda; rechaza cabeceras inválidas y propaga rechazo de propiedad. |
+| [application/usecase/ManageAccountSessionsTests.java](../../backend/demo/src/test/java/com/transformersas/marketplace/auth/application/usecase/ManageAccountSessionsTests.java) | Unitaria con repositorio simulado | Filtrado de sesiones propias autenticadas/no expiradas, identificador de gestión y revocación sin borrar sesiones ajenas. |
+| [application/usecase/RecoverAccountPasswordValidationTests.java](../../backend/demo/src/test/java/com/transformersas/marketplace/auth/application/usecase/RecoverAccountPasswordValidationTests.java) | Unitaria | Correo ausente/excesivo y tokens mal formados se descartan antes de consultas, notificaciones o cambios de sesiones. |
+| [infrastructure/notification/RecoveryNotificationConfigurationTests.java](../../backend/demo/src/test/java/com/transformersas/marketplace/auth/infrastructure/notification/RecoveryNotificationConfigurationTests.java) | Configuración y adaptador | Adaptador SMTP predeterminado o reemplazable, remitente independiente, fallo por configuración ausente y ausencia de secretos en logs. |
+| [infrastructure/notification/SmtpEmailVerificationNotifierTests.java](../../backend/demo/src/test/java/com/transformersas/marketplace/auth/infrastructure/notification/SmtpEmailVerificationNotifierTests.java) | Unitaria de adaptador | Ausencia de transporte SMTP o remitente produce error, sin fingir entrega. |
 
-La infraestructura compartida está en [backend/demo/src/test/java/com/transformersas/marketplace/support/AbstractIntegrationTest.java](../backend/demo/src/test/java/com/transformersas/marketplace/support/AbstractIntegrationTest.java). No todas las clases usan el mismo contexto: `SessionAuthenticationTests` dispone de su propia configuración de integración. Las pruebas unitarias con colaboradores simulados no sustituyen las pruebas JDBC.
+La infraestructura compartida está en [backend/demo/src/test/java/com/transformersas/marketplace/support/AbstractIntegrationTest.java](../../backend/demo/src/test/java/com/transformersas/marketplace/support/AbstractIntegrationTest.java). No todas las clases usan el mismo contexto: `SessionAuthenticationTests` dispone de su propia configuración de integración. Las pruebas unitarias con colaboradores simulados no sustituyen las pruebas JDBC.
 
 ## 3. Playwright de interfaz
 
@@ -34,19 +34,19 @@ Las pruebas siguientes ejercitan componentes Angular/Ionic, `AuthService` y el i
 
 | Archivo | Casos por proyecto | Flujo y frontend validado |
 | --- | ---: | --- |
-| [email-verification.spec.ts](../frontend/e2e/email-verification.spec.ts) | 1 | Login bloqueado por correo pendiente, opción de reenvío, error de entrega y confirmación desde el panel de acceso. |
-| [persistent-session.spec.ts](../frontend/e2e/persistent-session.spec.ts) | 2 | Checkbox rememberMe, parámetro enviado, restauración mediante /me y limpieza de la opción tras logout. |
-| [logout.spec.ts](../frontend/e2e/logout.spec.ts) | 12 | Éxito y errores de backend/red/401/CSRF/obtención de CSRF; conserva identidad ante fallo y limpia solo tras éxito, en ambas modalidades. |
-| [revoke-other-sessions.spec.ts](../frontend/e2e/revoke-other-sessions.spec.ts) | 5 | Acción de cierre de otras sesiones, lista actualizada, errores de backend/red/CSRF y fallo al recargar la lista. |
-| [remaining-access-blockers.spec.ts](../frontend/e2e/remaining-access-blockers.spec.ts) | 2 | Único rol con activeRole nulo: selección explícita. Cuenta A → logout → cuenta B: no muestra el carrito anterior aunque falle la nueva carga. |
+| [email-verification.spec.ts](../../frontend/e2e/email-verification.spec.ts) | 1 | Login bloqueado por correo pendiente, opción de reenvío, error de entrega y confirmación desde el panel de acceso. |
+| [persistent-session.spec.ts](../../frontend/e2e/persistent-session.spec.ts) | 2 | Checkbox rememberMe, parámetro enviado, restauración mediante /me y limpieza de la opción tras logout. |
+| [logout.spec.ts](../../frontend/e2e/logout.spec.ts) | 12 | Éxito y errores de backend/red/401/CSRF/obtención de CSRF; conserva identidad ante fallo y limpia solo tras éxito, en ambas modalidades. |
+| [revoke-other-sessions.spec.ts](../../frontend/e2e/revoke-other-sessions.spec.ts) | 5 | Acción de cierre de otras sesiones, lista actualizada, errores de backend/red/CSRF y fallo al recargar la lista. |
+| [remaining-access-blockers.spec.ts](../../frontend/e2e/remaining-access-blockers.spec.ts) | 2 | Único rol con activeRole nulo: selección explícita. Cuenta A → logout → cuenta B: no muestra el carrito anterior aunque falle la nueva carga. |
 
-Son **22 casos de CU-08**. La suite normal Chrome suma **23** al incluir [home.spec.ts](../frontend/e2e/home.spec.ts), una prueba general de portada que no se cuenta como cobertura específica de CU-08. Los números se obtienen de las declaraciones y bucles de parametrización actuales.
+Son **22 casos de CU-08**. La suite normal Chrome suma **23** al incluir [home.spec.ts](../../frontend/e2e/home.spec.ts), una prueba general de portada que no se cuenta como cobertura específica de CU-08. Los números se obtienen de las declaraciones y bucles de parametrización actuales.
 
-La configuración [frontend/playwright.config.ts](../frontend/playwright.config.ts) ofrece Chrome, Edge y mobile; CI selecciona Chrome. Desactiva live reload/HMR del servidor de desarrollo para que una recarga ajena a la prueba no destruya el panel. Esa configuración no cambia la autenticación de producción.
+La configuración [frontend/playwright.config.ts](../../frontend/playwright.config.ts) ofrece Chrome, Edge y mobile; CI selecciona Chrome. Desactiva live reload/HMR del servidor de desarrollo para que una recarga ajena a la prueba no destruya el panel. Esa configuración no cambia la autenticación de producción.
 
 ## 4. E2E real CU-08
 
-Archivo: [frontend/e2e-real/account-session.spec.ts](../frontend/e2e-real/account-session.spec.ts). Contiene un caso:
+Archivo: [frontend/e2e-real/account-session.spec.ts](../../frontend/e2e-real/account-session.spec.ts). Contiene un caso:
 
 1. Abre el frontend e introduce las credenciales de la fixture desde la UI.
 2. Comprueba el panel autenticado y la identidad visible.
@@ -60,12 +60,12 @@ Archivo: [frontend/e2e-real/account-session.spec.ts](../frontend/e2e-real/accoun
 
 | Infraestructura | Función |
 | --- | --- |
-| [compose.e2e.yaml](../compose.e2e.yaml) | Levanta MySQL, backend y frontend aislados; construye con los Dockerfiles del repositorio y espera healthchecks. Solo publica el frontend en loopback. |
-| [scripts/cu08-real-e2e.sh](../scripts/cu08-real-e2e.sh) | Crea un proyecto Compose desechable, construye/espera servicios, ejecuta el seed y Playwright; registra limpieza con `trap EXIT`. |
-| [scripts/cu08-real-seed.sql](../scripts/cu08-real-seed.sql) | Inserta la cuenta verificada y su rol después de Flyway. |
-| [frontend/playwright.real.config.ts](../frontend/playwright.real.config.ts) | Suite independiente en `e2e-real`, Chrome, un worker, cero reintentos; informe HTML y traza en fallos. |
+| [compose.e2e.yaml](../../compose.e2e.yaml) | Levanta MySQL, backend y frontend aislados; construye con los Dockerfiles del repositorio y espera healthchecks. Solo publica el frontend en loopback. |
+| [scripts/cu08-real-e2e.sh](../../scripts/cu08-real-e2e.sh) | Crea un proyecto Compose desechable, construye/espera servicios, ejecuta el seed y Playwright; registra limpieza con `trap EXIT`. |
+| [scripts/cu08-real-seed.sql](../../scripts/cu08-real-seed.sql) | Inserta la cuenta verificada y su rol después de Flyway. |
+| [frontend/playwright.real.config.ts](../../frontend/playwright.real.config.ts) | Suite independiente en `e2e-real`, Chrome, un worker, cero reintentos; informe HTML y traza en fallos. |
 
-Los archivos [frontend/Dockerfile](../frontend/Dockerfile), [frontend/nginx.conf](../frontend/nginx.conf) y [backend/demo/Dockerfile](../backend/demo/Dockerfile) materializan el recorrido navegador → Nginx/frontend → Spring → MySQL. El proxy `/api` de Nginx dirige las llamadas al backend del mismo entorno.
+Los archivos [frontend/Dockerfile](../../frontend/Dockerfile), [frontend/nginx.conf](../../frontend/nginx.conf) y [backend/demo/Dockerfile](../../backend/demo/Dockerfile) materializan el recorrido navegador → Nginx/frontend → Spring → MySQL. El proxy `/api` de Nginx dirige las llamadas al backend del mismo entorno.
 
 ## 5. Datos de prueba
 
@@ -79,14 +79,14 @@ Al salir, incluso tras un fallo normal del comando, el trap solicita `down --vol
 
 Requisitos: Java 21 y Docker disponible para backend; Node/npm y Chrome de Playwright para navegador; Docker Compose para el E2E real. Los comandos siguientes se ejecutan desde la raíz, salvo los bloques que cambian de directorio.
 
-Pruebas backend relacionadas, con el wrapper y clases existentes en [backend/demo/pom.xml](../backend/demo/pom.xml):
+Pruebas backend relacionadas, con el wrapper y clases existentes en [backend/demo/pom.xml](../../backend/demo/pom.xml):
 
 ```bash
 cd backend/demo
 ./mvnw -Dtest=SessionAuthenticationTests,PersistentSessionIntegrationTests,CurrentAccountSessionIntegrationTests,EmailVerificationIntegrationTests,PasswordRecoverySmtpIntegrationTests,BuyerIsolationIntegrationTests,BuyerOwnershipMigrationTests,RemainingAccessBlockersTests,SessionSellerActorProviderTests,ManageAccountSessionsTests,RecoverAccountPasswordValidationTests,RecoveryNotificationConfigurationTests,SmtpEmailVerificationNotifierTests test
 ```
 
-Preparación y Playwright normal, según [frontend/package.json](../frontend/package.json) y su configuración:
+Preparación y Playwright normal, según [frontend/package.json](../../frontend/package.json) y su configuración:
 
 ```bash
 cd frontend
@@ -116,7 +116,7 @@ Estas instrucciones describen comandos disponibles; no implican que se hayan vue
 
 ## 7. CI / GitHub Actions
 
-Workflow: [.github/workflows/backend-ci.yml](../.github/workflows/backend-ci.yml). Se activa por push a ramas.
+Workflow: [.github/workflows/backend-ci.yml](../../.github/workflows/backend-ci.yml). Se activa por push a ramas.
 
 | Job | Ejecución y efecto del fallo |
 | --- | --- |
