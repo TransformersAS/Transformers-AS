@@ -1,5 +1,6 @@
 package com.transformersas.marketplace.reservation;
 
+import com.transformersas.marketplace.auth.infrastructure.security.BuyerAccess;
 import com.transformersas.marketplace.cart.Cart;
 import com.transformersas.marketplace.cart.CartItem;
 import com.transformersas.marketplace.cart.CartItemRepository;
@@ -52,7 +53,8 @@ public class InventoryReservationService {
     // =========================================================
 
     @Transactional
-    public List<ReservationResponse> reserveCart() {
+    public List<ReservationResponse> reserveCart(Long accountId) {
+        BuyerAccess.requireAccountId(accountId);
 
         /*
          * Antes de calcular disponibilidad,
@@ -66,9 +68,7 @@ public class InventoryReservationService {
         // =========================
 
         Cart cart = cartRepository
-                .findAll()
-                .stream()
-                .findFirst()
+                .findByAccountId(accountId)
                 .orElseThrow(
                         () -> new ResponseStatusException(
                                 HttpStatus.BAD_REQUEST,
@@ -217,6 +217,7 @@ public class InventoryReservationService {
                     new InventoryReservation();
 
 
+            reservation.setAccountId(accountId);
             reservation.setProduct(
                     item.getProduct()
             );
@@ -290,8 +291,9 @@ public class InventoryReservationService {
 
     @Transactional
     public void confirmReservations(
-            List<Long> reservationIds
+            Long accountId, List<Long> reservationIds
     ) {
+        BuyerAccess.requireAccountId(accountId);
 
         /*
          * Primero limpiamos reservas vencidas.
@@ -310,9 +312,7 @@ public class InventoryReservationService {
 
 
         List<InventoryReservation> reservations =
-                reservationRepository.findAllById(
-                        reservationIds
-                );
+                ownedReservations(accountId, reservationIds);
 
 
         /*
@@ -454,8 +454,9 @@ public class InventoryReservationService {
 
     @Transactional
     public void releaseReservations(
-            List<Long> reservationIds
+            Long accountId, List<Long> reservationIds
     ) {
+        BuyerAccess.requireAccountId(accountId);
 
         if (reservationIds == null
                 || reservationIds.isEmpty()) {
@@ -465,9 +466,7 @@ public class InventoryReservationService {
 
 
         List<InventoryReservation> reservations =
-                reservationRepository.findAllById(
-                        reservationIds
-                );
+                ownedReservations(accountId, reservationIds);
 
 
         for (
@@ -494,6 +493,23 @@ public class InventoryReservationService {
         );
     }
 
+
+    @Transactional(readOnly = true)
+    public void validateOwnership(Long accountId, List<Long> reservationIds) {
+        ownedReservations(accountId, reservationIds);
+    }
+
+    private List<InventoryReservation> ownedReservations(Long accountId, List<Long> ids) {
+        BuyerAccess.requireAccountId(accountId);
+        if (ids == null || ids.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Debe indicar las reservas a confirmar");
+        }
+        var reservations = reservationRepository.findByAccountIdAndIdIn(accountId, ids);
+        if (reservations.size() != ids.size()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Una o más reservas no existen");
+        }
+        return reservations;
+    }
 
     // =========================================================
     // EXPIRAR RESERVAS VENCIDAS

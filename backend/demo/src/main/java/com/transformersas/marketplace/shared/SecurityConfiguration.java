@@ -116,6 +116,9 @@ public class SecurityConfiguration {
                         .requestMatchers("/api/claims/**").hasRole("COMPRADOR")
                         // Administración del catálogo (CU-17): categorías, marcas y atributos.
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                        .requestMatchers("/api/cart", "/api/cart/**", "/api/addresses", "/api/addresses/**",
+                                "/api/checkout/preview", "/api/reservations/cart", "/api/payments/process")
+                                .hasRole("COMPRADOR")
                         .requestMatchers("/api/**").authenticated()
                         .anyRequest().denyAll())
                 // Sin sesión no hay token CSRF que enviar: el webhook se protege con la firma del cuerpo.

@@ -45,7 +45,7 @@ class CheckoutOrderCreationTests extends AbstractIntegrationTest {
     void approvedCheckoutCreatesOrderWithStoreSnapshotPaymentStatusAndInitialHistory() throws Exception {
         buyer = sessionWithRole("buyer@example.com", "COMPRADOR");
         long product = seedProduct(1, "Lámpara", 10, "100.00");
-        long address = seedAddress();
+        long address = seedAddress(buyer);
         addToCart(product, 2);
 
         JsonNode payment = json.readTree(pay(reserveCart(), address).andExpect(status().isOk())
@@ -75,7 +75,7 @@ class CheckoutOrderCreationTests extends AbstractIntegrationTest {
     void editingTheAddressAfterPurchaseDoesNotChangeTheDeliverySnapshot() throws Exception {
         buyer = sessionWithRole("buyer@example.com", "COMPRADOR");
         long product = seedProduct(1, "Lámpara", 10, "100.00");
-        long address = seedAddress();
+        long address = seedAddress(buyer);
         addToCart(product, 1);
         long orderId = json.readTree(pay(reserveCart(), address).andExpect(status().isOk()).andReturn().getResponse()
                 .getContentAsString()).get("orderId").asLong();
@@ -95,7 +95,7 @@ class CheckoutOrderCreationTests extends AbstractIntegrationTest {
         seedStore(2, "Otra tienda");
         long first = seedProduct(1, "De tienda 1", 10, "100.00");
         long second = seedProduct(2, "De tienda 2", 10, "50.00");
-        long address = seedAddress();
+        long address = seedAddress(buyer);
         addToCart(first, 1);
         addToCart(second, 1);
         List<Long> reservations = reserveCart();

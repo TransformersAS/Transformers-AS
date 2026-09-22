@@ -152,6 +152,14 @@ public abstract class AbstractIntegrationTest {
         return jdbc.queryForObject("SELECT MAX(id) FROM addresses", Long.class);
     }
 
+    protected long seedAddress(Session buyer) throws Exception {
+        long accountId = json.readTree(perform(buyer, get("/api/auth/me")).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString()).get("accountId").asLong();
+        long address = seedAddress();
+        jdbc.update("UPDATE addresses SET account_id=? WHERE id=?", accountId, address);
+        return address;
+    }
+
     /**
      * Inserta un pedido de una línea directamente en BD (sin pasar por el checkout), con su snapshot de entrega
      * y el registro inicial de historial. Devuelve el id del pedido.
@@ -182,7 +190,7 @@ public abstract class AbstractIntegrationTest {
      * devuelve el id del pedido creado. La dirección se siembra por BD.
      */
     protected long checkoutOrder(Session buyer, long productId, int quantity) throws Exception {
-        long address = seedAddress();
+        long address = seedAddress(buyer);
         perform(buyer, post("/api/cart/items").contentType("application/json")
                 .content("{\"productId\":" + productId + ",\"quantity\":" + quantity + "}"))
                 .andExpect(status().isCreated());

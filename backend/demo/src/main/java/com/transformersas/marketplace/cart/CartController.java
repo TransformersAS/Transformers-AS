@@ -1,5 +1,8 @@
 package com.transformersas.marketplace.cart;
 
+import com.transformersas.marketplace.auth.infrastructure.security.AccountPrincipal;
+import com.transformersas.marketplace.auth.infrastructure.security.BuyerAccess;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -21,31 +24,34 @@ public class CartController {
     }
 
     @GetMapping
-    public CartResponse getCart() {
-        return cartService.getCart();
+    public CartResponse getCart(@AuthenticationPrincipal AccountPrincipal principal) {
+        return cartService.getCart(BuyerAccess.accountId(principal));
     }
 
     @PostMapping("/items")
     @ResponseStatus(HttpStatus.CREATED)
     public CartItemResponse addItem(
+            @AuthenticationPrincipal AccountPrincipal principal,
             @Valid @RequestBody AddCartItemRequest request
     ) {
-        return cartService.addItem(request);
+        return cartService.addItem(BuyerAccess.accountId(principal), request);
     }
 
     @PatchMapping("/items/{itemId}")
     public CartItemResponse updateQuantity(
+            @AuthenticationPrincipal AccountPrincipal principal,
             @PathVariable Long itemId,
             @Valid @RequestBody UpdateCartItemRequest request
     ) {
-        return cartService.updateQuantity(itemId, request);
+        return cartService.updateQuantity(BuyerAccess.accountId(principal), itemId, request);
     }
 
     @DeleteMapping("/items/{itemId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteItem(
+            @AuthenticationPrincipal AccountPrincipal principal,
             @PathVariable Long itemId
     ) {
-        cartService.deleteItem(itemId);
+        cartService.deleteItem(BuyerAccess.accountId(principal), itemId);
     }
 }

@@ -38,6 +38,8 @@ class CheckoutReservationIntegrationTests {
     @Autowired com.transformersas.marketplace.reservation.InventoryReservationRepository reservationRepository;
     @Autowired com.transformersas.marketplace.cart.CartService cartService;
     @Autowired com.transformersas.marketplace.orders.application.usecase.CreateOrderUseCase createOrder;
+    private static final String PASSWORD_HASH = new org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder(4).encode("TestPassword!123");
+    long accountId;
     long addressId;
     long cartId;
 
@@ -48,10 +50,17 @@ class CheckoutReservationIntegrationTests {
         jdbc.update("DELETE FROM carts");
         jdbc.update("DELETE FROM products");
         jdbc.update("DELETE FROM addresses");
+        jdbc.update("DELETE FROM user_account_roles");
+        jdbc.update("DELETE FROM user_accounts");
+        jdbc.update("INSERT INTO user_accounts(email,password_hash,status,email_verified_at) VALUES ('buyer@example.com',?,'ACTIVA',CURRENT_TIMESTAMP(6))", PASSWORD_HASH);
+        jdbc.update("INSERT INTO user_account_roles(account_id,role) SELECT id,'COMPRADOR' FROM user_accounts");
+        accountId = jdbc.queryForObject("SELECT id FROM user_accounts", Long.class);
         jdbc.update("INSERT INTO addresses(recipient_name,street,city,department,phone) VALUES ('Ana','Calle 1','Bogota','Bogota','3001234567')");
         addressId = jdbc.queryForObject("SELECT id FROM addresses", Long.class);
         jdbc.update("INSERT INTO carts () VALUES ()");
         cartId = jdbc.queryForObject("SELECT id FROM carts", Long.class);
+        jdbc.update("UPDATE carts SET account_id=?", accountId);
+        jdbc.update("UPDATE addresses SET account_id=?", accountId);
     }
 
     @Test
@@ -62,7 +71,7 @@ class CheckoutReservationIntegrationTests {
         long expired = reservation(first, 50, "ACTIVE", -5);
         reservation(first, 50, "RELEASED", 5);
         reservation(first, 50, "CONFIRMED", 5);
-        var result = reservations.reserveCart();
+        var result = reservations.reserveCart(accountId);
         assertThat(result).hasSize(2);
         var response = result.stream().filter(r -> r.productId() == first).findFirst().orElseThrow();
         assertThat(response.productName()).isEqualTo("Primero");
@@ -82,7 +91,7 @@ class CheckoutReservationIntegrationTests {
         item("Disponible", "10", 10, 1);
         long scarce = item("Escaso", "20", 3, 2);
         reservation(scarce, 2, "ACTIVE", 5);
-        error(reservations::reserveCart, 409, "Disponible: 1");
+        error(() -> reservations.reserveCart(accountId), 409, "Disponible: 1");
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM inventory_reservations", Integer.class)).isEqualTo(1);
         assertThat(stock(scarce)).isEqualTo(3);
     }
@@ -91,12 +100,12 @@ class CheckoutReservationIntegrationTests {
     void confirmsMultipleReservationsAndAllowsExactStockBoundary() {
         long first = item("Primero", "10", 2, 2);
         long second = item("Segundo", "20", 5, 1);
-        var ids = reservations.reserveCart().stream().map(r -> r.id()).toList();
-        reservations.confirmReservations(ids);
+        var ids = reservations.reserveCart(accountId).stream().map(r -> r.id()).toList();
+        reservations.confirmReservations(accountId, ids);
         assertThat(stock(first)).isZero();
         assertThat(stock(second)).isEqualTo(4);
         ids.forEach(id -> assertThat(status(id)).isEqualTo("CONFIRMED"));
-        error(() -> reservations.confirmReservations(ids), 409, "ya no está activa");
+        error(() -> reservations.confirmReservations(accountId, ids), 409, "ya no está activa");
         assertThat(stock(second)).isEqualTo(4);
     }
 
@@ -106,7 +115,7 @@ class CheckoutReservationIntegrationTests {
         long second = item("Segundo", "20", 1, 1);
         long valid = reservation(first, 1, "ACTIVE", 5);
         long invalid = reservation(second, 2, "ACTIVE", 5);
-        error(() -> reservations.confirmReservations(List.of(valid, invalid)), 409, "Stock insuficiente");
+        error(() -> reservations.confirmReservations(accountId, List.of(valid, invalid)), 409, "Stock insuficiente");
         assertThat(stock(first)).isEqualTo(5);
         assertThat(stock(second)).isEqualTo(1);
         assertThat(status(valid)).isEqualTo("ACTIVE");
@@ -117,7 +126,7 @@ class CheckoutReservationIntegrationTests {
     void missingReservationRejectsWholeConfirmation() {
         long product = item("Producto", "10", 3, 1);
         long id = reservation(product, 1, "ACTIVE", 5);
-        error(() -> reservations.confirmReservations(List.of(id, Long.MAX_VALUE)), 404, "no existen");
+        error(() -> reservations.confirmReservations(accountId, List.of(id, Long.MAX_VALUE)), 404, "no existen");
         assertThat(status(id)).isEqualTo("ACTIVE");
         assertThat(stock(product)).isEqualTo(3);
     }
@@ -132,7 +141,7 @@ class CheckoutReservationIntegrationTests {
         assertThat(status(expired)).isEqualTo("EXPIRED");
         assertThat(status(future)).isEqualTo("ACTIVE");
         assertThat(status(confirmed)).isEqualTo("CONFIRMED");
-        error(() -> reservations.confirmReservations(List.of(expired)), 409, "ya no está activa");
+        error(() -> reservations.confirmReservations(accountId, List.of(expired)), 409, "ya no está activa");
         assertThat(stock(product)).isEqualTo(3);
     }
 
@@ -142,9 +151,11 @@ class CheckoutReservationIntegrationTests {
         long active = reservation(product, 1, "ACTIVE", 5);
         long confirmed = reservation(product, 1, "CONFIRMED", 5);
         long expired = reservation(product, 1, "EXPIRED", -5);
-        reservations.releaseReservations(List.of(active, confirmed, expired, Long.MAX_VALUE));
-        reservations.releaseReservations(null);
-        reservations.releaseReservations(List.of());
+        error(() -> reservations.releaseReservations(accountId, List.of(active, Long.MAX_VALUE)), 404, "no existen");
+        assertThat(status(active)).isEqualTo("ACTIVE");
+        reservations.releaseReservations(accountId, List.of(active, confirmed, expired));
+        reservations.releaseReservations(accountId, null);
+        reservations.releaseReservations(accountId, List.of());
         assertThat(status(active)).isEqualTo("RELEASED");
         assertThat(status(confirmed)).isEqualTo("CONFIRMED");
         assertThat(status(expired)).isEqualTo("EXPIRED");
@@ -153,26 +164,26 @@ class CheckoutReservationIntegrationTests {
 
     @Test
     void rejectsMissingAndEmptyCartInBothServices() {
-        error(reservations::reserveCart, 400, "vacío");
-        error(() -> checkout.preview(request("STANDARD", null)), 400, "vacío");
+        error(() -> reservations.reserveCart(accountId), 400, "vacío");
+        error(() -> checkout.preview(accountId, request("STANDARD", null)), 400, "vacío");
         jdbc.update("DELETE FROM carts");
-        error(reservations::reserveCart, 400, "No existe un carrito");
-        error(() -> checkout.preview(request("STANDARD", null)), 400, "No existe un carrito");
+        error(() -> reservations.reserveCart(accountId), 400, "No existe un carrito");
+        error(() -> checkout.preview(accountId, request("STANDARD", null)), 400, "No existe un carrito");
     }
 
     @Test
     void rejectsInactiveProductInBothServices() {
         long product = item("Inactivo", "10", 3, 1);
         jdbc.update("UPDATE products SET active=false WHERE id=?", product);
-        error(reservations::reserveCart, 400, "no está disponible");
-        error(() -> checkout.preview(request("STANDARD", null)), 400, "no está disponible");
+        error(() -> reservations.reserveCart(accountId), 400, "no está disponible");
+        error(() -> checkout.preview(accountId, request("STANDARD", null)), 400, "no está disponible");
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM inventory_reservations", Integer.class)).isZero();
     }
 
     @Test
     void checkoutRejectsInsufficientStock() {
         item("Escaso", "10", 0, 1);
-        error(() -> checkout.preview(request("STANDARD", null)), 409, "No hay suficiente stock");
+        error(() -> checkout.preview(accountId, request("STANDARD", null)), 409, "No hay suficiente stock");
     }
     @Test
 void checkoutRejectsCartWithProductsFromDifferentStores() {
@@ -213,7 +224,7 @@ void checkoutRejectsCartWithProductsFromDifferentStores() {
     );
 
     assertThatThrownBy(
-            () -> checkout.preview(
+            () -> checkout.preview(accountId,
                     request("STANDARD", null)
             )
     ).isInstanceOf(BusinessException.class);
@@ -221,15 +232,15 @@ void checkoutRejectsCartWithProductsFromDifferentStores() {
 
     @Test
     void checkoutValidatesRequestAndAddressBeforeReadingCart() {
-        error(() -> checkout.preview(null), 400, "solicitud de checkout");
-        error(() -> checkout.preview(new CheckoutPreviewRequest(null, "STANDARD", null)), 400, "dirección de entrega");
-        error(() -> checkout.preview(new CheckoutPreviewRequest(Long.MAX_VALUE, "STANDARD", null)), 404, "no existe");
+        error(() -> checkout.preview(accountId, null), 400, "solicitud de checkout");
+        error(() -> checkout.preview(accountId, new CheckoutPreviewRequest(null, "STANDARD", null)), 400, "dirección de entrega");
+        error(() -> checkout.preview(accountId, new CheckoutPreviewRequest(Long.MAX_VALUE, "STANDARD", null)), 404, "no existe");
     }
 
     @ParameterizedTest @NullAndEmptySource @ValueSource(strings = {"  ", "DRONE"})
     void checkoutRejectsMissingOrUnknownShipping(String shipping) {
         item("Producto", "10", 1, 1);
-        error(() -> checkout.preview(request(shipping, null)), 400,
+        error(() -> checkout.preview(accountId, request(shipping, null)), 400,
                 "DRONE".equals(shipping) ? "inválido" : "Debe seleccionar un método de envío");
     }
 
@@ -237,7 +248,7 @@ void checkoutRejectsCartWithProductsFromDifferentStores() {
     void checkoutAddsItemsAndRoundsDiscountHalfUpWithoutMutatingInventoryOrCart() {
         long product = item("Primero", "12.55", 2, 2);
         item("Segundo", "0.05", 1, 1);
-        var result = checkout.preview(request(" express ", " desc10 "));
+        var result = checkout.preview(accountId, request(" express ", " desc10 "));
         assertThat(result.subtotal()).isEqualByComparingTo("25.15");
         assertThat(result.discount()).isEqualByComparingTo("2.52");
         assertThat(result.shippingCost()).isEqualByComparingTo("20000");
@@ -251,7 +262,7 @@ void checkoutRejectsCartWithProductsFromDifferentStores() {
     @ParameterizedTest @NullAndEmptySource @ValueSource(strings = {"  ", "UNKNOWN"})
     void checkoutAbsentAndInvalidCouponsDoNotDiscountOrBlockCheckout(String coupon) {
         item("Producto", "12.55", 1, 1);
-        var result = checkout.preview(request(" standard ", coupon));
+        var result = checkout.preview(accountId, request(" standard ", coupon));
         assertThat(result.subtotal()).isEqualByComparingTo("12.55");
         assertThat(result.discount()).isEqualByComparingTo("0");
         assertThat(result.shippingCost()).isEqualByComparingTo("10000");
@@ -265,9 +276,9 @@ void checkoutRejectsCartWithProductsFromDifferentStores() {
     void cartRejectsInvalidQuantitiesWithoutChangingPersistedItems(Integer quantity) {
         long product = item("Producto", "12.55", 5, 2);
         long itemId = jdbc.queryForObject("SELECT id FROM cart_items", Long.class);
-        error(() -> cartService.addItem(new com.transformersas.marketplace.cart.dto.AddCartItemRequest(product, quantity)),
+        error(() -> cartService.addItem(accountId, new com.transformersas.marketplace.cart.dto.AddCartItemRequest(product, quantity)),
                 400, "mayor que cero");
-        error(() -> cartService.updateQuantity(itemId, new com.transformersas.marketplace.cart.dto.UpdateCartItemRequest(quantity)),
+        error(() -> cartService.updateQuantity(accountId, itemId, new com.transformersas.marketplace.cart.dto.UpdateCartItemRequest(quantity)),
                 400, "mayor que cero");
         assertThat(jdbc.queryForObject("SELECT quantity FROM cart_items WHERE id=?", Integer.class, itemId)).isEqualTo(2);
         assertThat(stock(product)).isEqualTo(5);
@@ -275,9 +286,6 @@ void checkoutRejectsCartWithProductsFromDifferentStores() {
 
     @Test
     void orderCreationRejectsEmptyAndMissingCartWithoutPersistingOrder() {
-        String hash = new org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder(4).encode("TestPassword!123");
-        jdbc.update("INSERT INTO user_accounts(email,password_hash,status,email_verified_at) VALUES ('buyer@example.com',?,'ACTIVA',CURRENT_TIMESTAMP(6))", hash);
-        long accountId = jdbc.queryForObject("SELECT id FROM user_accounts WHERE email='buyer@example.com'", Long.class);
         int ordersBefore = jdbc.queryForObject("SELECT COUNT(*) FROM orders", Integer.class);
         error(() -> createOrder.execute(accountId, addressId, "STANDARD", "transaction", new java.math.BigDecimal("10000")),
                 400, "vacío");
@@ -292,7 +300,10 @@ void checkoutRejectsCartWithProductsFromDifferentStores() {
     void reservationEndpointPersistsCartReservationsAndReturnsTheirPublicDetails() throws Exception {
         long product = item("Reservable", "10", 3, 2);
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/reservations/cart")
-                        .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("buyer").roles("COMPRADOR"))
+                        .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user(new com.transformersas.marketplace.auth.infrastructure.security.AccountPrincipal(
+                                new com.transformersas.marketplace.users.domain.model.UserAccount(accountId, "buyer@example.com", PASSWORD_HASH,
+                                        com.transformersas.marketplace.users.domain.model.AccountStatus.ACTIVA,
+                                        java.util.Set.of(com.transformersas.marketplace.users.domain.model.Role.COMPRADOR)))))
                         .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf()))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$[0].productId").value(product))
@@ -313,8 +324,8 @@ void checkoutRejectsCartWithProductsFromDifferentStores() {
     }
     private long reservation(long product, int quantity, String status, int minutes) {
         LocalDateTime now = LocalDateTime.now();
-        jdbc.update("INSERT INTO inventory_reservations(product_id,quantity,status,created_at,expires_at) VALUES (?,?,?,?,?)",
-                product, quantity, status, now.minusMinutes(10), now.plusMinutes(minutes));
+        jdbc.update("INSERT INTO inventory_reservations(account_id,product_id,quantity,status,created_at,expires_at) VALUES (?,?,?,?,?,?)",
+                accountId, product, quantity, status, now.minusMinutes(10), now.plusMinutes(minutes));
         return jdbc.queryForObject("SELECT MAX(id) FROM inventory_reservations", Long.class);
     }
     private String status(long id) {

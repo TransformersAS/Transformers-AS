@@ -69,13 +69,15 @@ public class ProcessPaymentUseCase {
          */
         CheckoutPreviewResponse preview =
                 checkoutService.preview(
-                        new CheckoutPreviewRequest(
+                        accountId, new CheckoutPreviewRequest(
                                 addressId,
                                 shippingMethod,
                                 couponCode
                         )
                 );
 
+
+        reservationService.validateOwnership(accountId, reservationIds);
 
         /*
          * Se contacta la pasarela.
@@ -103,7 +105,7 @@ public class ProcessPaymentUseCase {
              */
             reservationService
                     .confirmReservations(
-                            reservationIds
+                            accountId, reservationIds
                     );
 
 
@@ -138,7 +140,7 @@ public class ProcessPaymentUseCase {
              */
             reservationService
                     .releaseReservations(
-                            reservationIds
+                            accountId, reservationIds
                     );
         }
 

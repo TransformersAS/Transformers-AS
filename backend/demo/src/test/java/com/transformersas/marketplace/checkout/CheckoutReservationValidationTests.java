@@ -41,9 +41,9 @@ class CheckoutReservationValidationTests {
         item = new CartItem();
         item.setProduct(product);
         item.setQuantity(1);
-        when(carts.findAll()).thenReturn(List.of(cart));
+        when(carts.findByAccountId(1L)).thenReturn(java.util.Optional.of(cart));
         when(items.findByCartId(1L)).thenReturn(List.of(item));
-        when(addresses.existsById(1L)).thenReturn(true);
+        when(addresses.existsByIdAndAccountId(1L, 1L)).thenReturn(true);
     }
     @Test
     void missingProductIsRejectedByBothServices() {
@@ -63,28 +63,28 @@ class CheckoutReservationValidationTests {
     @Test
     void missingStockIsRejectedByBothServices() {
         product.setStock(null);
-        rejects(reservations::reserveCart, 409, "no tiene stock válido");
-        rejects(() -> checkout.preview(new CheckoutPreviewRequest(1L, "STANDARD", null)), 409, "No hay suficiente stock");
+        rejects(() -> reservations.reserveCart(1L), 409, "no tiene stock válido");
+        rejects(() -> checkout.preview(1L, new CheckoutPreviewRequest(1L, "STANDARD", null)), 409, "No hay suficiente stock");
         verifyNoWrites();
     }
     @Test
     void negativeStockCannotBeReserved() {
         product.setStock(-1);
-        rejects(reservations::reserveCart, 409, "no tiene stock válido");
+        rejects(() -> reservations.reserveCart(1L), 409, "no tiene stock válido");
         verifyNoWrites();
     }
     @Test
     void confirmationRequiresIds() {
-        rejects(() -> reservations.confirmReservations(null), 400, "Debe indicar las reservas");
-        rejects(() -> reservations.confirmReservations(List.of()), 400, "Debe indicar las reservas");
-        verify(repository, never()).findAllById(any());
+        rejects(() -> reservations.confirmReservations(1L, null), 400, "Debe indicar las reservas");
+        rejects(() -> reservations.confirmReservations(1L, List.of()), 400, "Debe indicar las reservas");
+        verify(repository, never()).findByAccountIdAndIdIn(any(), any());
         verifyNoWrites();
     }
     @Test
     void confirmationRejectsMissingProduct() {
         var reservation = activeReservation();
         reservation.setProduct(null);
-        rejects(() -> reservations.confirmReservations(List.of(1L)), 409, "no existe");
+        rejects(() -> reservations.confirmReservations(1L, List.of(1L)), 409, "no existe");
         assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.ACTIVE);
         verifyNoWrites();
     }
@@ -92,7 +92,7 @@ class CheckoutReservationValidationTests {
     void confirmationRejectsMissingStock() {
         var reservation = activeReservation();
         product.setStock(null);
-        rejects(() -> reservations.confirmReservations(List.of(1L)), 409, "Stock insuficiente");
+        rejects(() -> reservations.confirmReservations(1L, List.of(1L)), 409, "Stock insuficiente");
         assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.ACTIVE);
         verifyNoWrites();
     }
@@ -101,7 +101,7 @@ class CheckoutReservationValidationTests {
         var reservation = activeReservation();
         // Model expiry between the cleanup query and validation, without timing-dependent sleeps.
         reservation.setExpiresAt(LocalDateTime.now().minusSeconds(1));
-        rejects(() -> reservations.confirmReservations(List.of(1L)), 409, "ha expirado");
+        rejects(() -> reservations.confirmReservations(1L, List.of(1L)), 409, "ha expirado");
         assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.EXPIRED);
         verify(repository).save(reservation);
         verify(repository, never()).saveAll(any());
@@ -114,12 +114,12 @@ class CheckoutReservationValidationTests {
         reservation.setQuantity(1);
         reservation.setStatus(ReservationStatus.ACTIVE);
         reservation.setExpiresAt(LocalDateTime.now().plusMinutes(5));
-        when(repository.findAllById(List.of(1L))).thenReturn(List.of(reservation));
+        when(repository.findByAccountIdAndIdIn(1L, List.of(1L))).thenReturn(List.of(reservation));
         return reservation;
     }
     private void rejectsBoth(int status, String reason) {
-        rejects(reservations::reserveCart, status, reason);
-        rejects(() -> checkout.preview(new CheckoutPreviewRequest(1L, "STANDARD", null)), status, reason);
+        rejects(() -> reservations.reserveCart(1L), status, reason);
+        rejects(() -> checkout.preview(1L, new CheckoutPreviewRequest(1L, "STANDARD", null)), status, reason);
         verifyNoWrites();
     }
     private void verifyNoWrites() {

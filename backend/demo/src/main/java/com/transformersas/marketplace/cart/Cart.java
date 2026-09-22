@@ -15,4 +15,8 @@ public class Cart {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    // NULL only for legacy data whose owner cannot be established safely.
+    @Column(name = "account_id")
+    private Long accountId;
 }

@@ -7,8 +7,7 @@ import com.transformersas.marketplace.payments.infrastructure.web.response.Payme
 
 import com.transformersas.marketplace.auth.infrastructure.security.AccountPrincipal;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.http.HttpStatus;
-import org.springframework.web.server.ResponseStatusException;
+import com.transformersas.marketplace.auth.infrastructure.security.BuyerAccess;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -35,13 +34,9 @@ public class PaymentController {
             @AuthenticationPrincipal AccountPrincipal principal
     ) {
 
-        if (principal == null || principal.accountId() == null) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Se requiere un comprador autenticado");
-        }
-
         PaymentProcessResult result =
                 processPaymentUseCase.execute(
-                        principal.accountId(),
+                        BuyerAccess.accountId(principal),
                         request.paymentMethod(),
                         request.reservationIds(),
                         request.addressId(),

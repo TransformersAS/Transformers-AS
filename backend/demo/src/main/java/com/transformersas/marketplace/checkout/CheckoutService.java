@@ -1,5 +1,6 @@
 package com.transformersas.marketplace.checkout;
 
+import com.transformersas.marketplace.auth.infrastructure.security.BuyerAccess;
 import com.transformersas.marketplace.address.AddressRepository;
 import com.transformersas.marketplace.cart.Cart;
 import com.transformersas.marketplace.cart.CartItem;
@@ -50,8 +51,9 @@ public class CheckoutService {
 
 
     public CheckoutPreviewResponse preview(
-            CheckoutPreviewRequest request
+            Long accountId, CheckoutPreviewRequest request
     ) {
+        BuyerAccess.requireAccountId(accountId);
 
         // ===============================
         // 1. VALIDAR REQUEST
@@ -80,8 +82,8 @@ public class CheckoutService {
 
 
         boolean addressExists =
-                addressRepository.existsById(
-                        request.addressId()
+                addressRepository.existsByIdAndAccountId(
+                        request.addressId(), accountId
                 );
 
 
@@ -99,9 +101,7 @@ public class CheckoutService {
         // ===============================
 
         Cart cart = cartRepository
-                .findAll()
-                .stream()
-                .findFirst()
+                .findByAccountId(accountId)
                 .orElseThrow(
                         () -> new ResponseStatusException(
                                 HttpStatus.BAD_REQUEST,

@@ -1,5 +1,6 @@
 package com.transformersas.marketplace.cart;
 
+import com.transformersas.marketplace.auth.infrastructure.security.BuyerAccess;
 import com.transformersas.marketplace.product.Product;
 import com.transformersas.marketplace.product.ProductRepository;
 import com.transformersas.marketplace.cart.dto.AddCartItemRequest;
@@ -33,18 +34,19 @@ public class CartService {
         this.productRepository = productRepository;
     }
 
-    private Cart getOrCreateCart() {
-
-        return cartRepository.findAll()
-                .stream()
-                .findFirst()
-                .orElseGet(() -> cartRepository.save(new Cart()));
+    private Cart getOrCreateCart(Long accountId) {
+        return cartRepository.findByAccountId(BuyerAccess.requireAccountId(accountId))
+                .orElseGet(() -> {
+                    Cart cart = new Cart();
+                    cart.setAccountId(accountId);
+                    return cartRepository.save(cart);
+                });
     }
 
-    // This read also creates the global cart when absent, so it needs a write transaction.
-    public CartResponse getCart() {
+    // This read also creates the account cart when absent, so it needs a write transaction.
+    public CartResponse getCart(Long accountId) {
 
-        Cart cart = getOrCreateCart();
+        Cart cart = getOrCreateCart(accountId);
 
         List<CartItemResponse> items =
                 cartItemRepository.findByCartId(cart.getId())
@@ -63,7 +65,7 @@ public class CartService {
         );
     }
 
-    public CartItemResponse addItem(AddCartItemRequest request) {
+    public CartItemResponse addItem(Long accountId, AddCartItemRequest request) {
 
         if (request.quantity() == null || request.quantity() <= 0) {
             throw new ResponseStatusException(
@@ -88,7 +90,7 @@ public class CartService {
             );
         }
 
-        Cart cart = getOrCreateCart();
+        Cart cart = getOrCreateCart(accountId);
 
         CartItem item = cartItemRepository
                 .findByCartIdAndProductId(
@@ -122,12 +124,13 @@ public class CartService {
     }
 
     public CartItemResponse updateQuantity(
+            Long accountId,
             Long itemId,
             UpdateCartItemRequest request
     ) {
 
         CartItem item = cartItemRepository
-                .findById(itemId)
+                .findByIdAndCart_AccountId(itemId, BuyerAccess.requireAccountId(accountId))
                 .orElseThrow(() ->
                         new ResponseStatusException(
                                 HttpStatus.NOT_FOUND,
@@ -160,16 +163,10 @@ public class CartService {
         );
     }
 
-    public void deleteItem(Long itemId) {
-
-        if (!cartItemRepository.existsById(itemId)) {
-            throw new ResponseStatusException(
-                    HttpStatus.NOT_FOUND,
-                    "Elemento del carrito no encontrado"
-            );
-        }
-
-        cartItemRepository.deleteById(itemId);
+    public void deleteItem(Long accountId, Long itemId) {
+        CartItem item = cartItemRepository.findByIdAndCart_AccountId(itemId, BuyerAccess.requireAccountId(accountId))
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Elemento del carrito no encontrado"));
+        cartItemRepository.delete(item);
     }
 
     private CartItemResponse toResponse(CartItem item) {

@@ -1,5 +1,8 @@
 package com.transformersas.marketplace.address;
 
+import com.transformersas.marketplace.auth.infrastructure.security.AccountPrincipal;
+import com.transformersas.marketplace.auth.infrastructure.security.BuyerAccess;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import jakarta.validation.Valid;
 import com.transformersas.marketplace.address.dto.AddressRequest;
 import com.transformersas.marketplace.address.dto.AddressResponse;
@@ -22,15 +25,16 @@ public class AddressController {
     }
 
     @GetMapping
-    public List<AddressResponse> getAll() {
-        return addressService.getAll();
+    public List<AddressResponse> getAll(@AuthenticationPrincipal AccountPrincipal principal) {
+        return addressService.getAll(BuyerAccess.accountId(principal));
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public AddressResponse create(
+            @AuthenticationPrincipal AccountPrincipal principal,
             @Valid @RequestBody AddressRequest address
     ) {
-        return addressService.create(address);
+        return addressService.create(BuyerAccess.accountId(principal), address);
     }
 }
