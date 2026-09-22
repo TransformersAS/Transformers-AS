@@ -5,7 +5,6 @@ export type InteractionType =
   | 'SEARCH';
 
 export interface InteractionRequest {
-  userId: number;
   productId: number | null;
   interactionType: InteractionType;
   searchTerm: string | null;

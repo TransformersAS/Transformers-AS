@@ -18,11 +18,10 @@ export class RecommendationService {
     '/api/recommendations';
 
   getRecommendations(
-    userId: number
   ): Observable<RecommendationResponse> {
 
     return this.http.get<RecommendationResponse>(
-      `${this.apiUrl}?userId=${userId}`
+      this.apiUrl
     );
   }
 }

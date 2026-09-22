@@ -124,6 +124,7 @@ public class SecurityConfiguration {
                         .requestMatchers("/api/cart", "/api/cart/**", "/api/addresses", "/api/addresses/**",
                                 "/api/checkout/preview", "/api/reservations/cart", "/api/payments/process")
                                 .hasRole("COMPRADOR")
+                        .requestMatchers(HttpMethod.POST, "/api/products").hasRole("VENDEDOR")
                         .requestMatchers("/api/**").authenticated()
                         .anyRequest().denyAll())
                 // Sin sesión no hay token CSRF que enviar: el webhook se protege con la firma del cuerpo.

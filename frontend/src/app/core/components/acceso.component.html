@@ -6,7 +6,7 @@
     <app-perfil-resumen [usuario]="cuenta"></app-perfil-resumen>
     <p class="ayuda">Roles disponibles: {{ cuenta.roles.join(', ') || 'Sin roles asignados' }}</p>
     <p>Rol activo: <strong>{{ cuenta.activeRole || 'Sin seleccionar' }}</strong></p>
-    @if (cuenta.roles.length > 1) {
+    @if (cuenta.roles.length > 1 || (!cuenta.activeRole && cuenta.roles.length > 0)) {
       <ion-item><ion-select label="Cambiar rol activo" placeholder="Selecciona un rol" [ngModel]="cuenta.activeRole" (ionChange)="cambiarRol($event.detail.value)" [disabled]="enviando">
         @for (rol of cuenta.roles; track rol) { <ion-select-option [value]="rol">{{ rol }}</ion-select-option> }
       </ion-select></ion-item>

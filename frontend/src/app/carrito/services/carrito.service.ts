@@ -1,7 +1,8 @@
 import { API_BASE } from '../../core/config/api.config';
 import { HttpClient } from '@angular/common/http';
-import { Injectable, inject } from '@angular/core';
-import { BehaviorSubject } from 'rxjs';
+import { Injectable, inject, effect, untracked } from '@angular/core';
+import { BehaviorSubject, Subscription } from 'rxjs';
+import { AuthService } from '../../core/services/auth.service';
 
 import {
   ItemCarrito
@@ -26,6 +27,9 @@ interface CartApi {
 export class CarritoService {
 
   private readonly http = inject(HttpClient);
+  private readonly auth = inject(AuthService);
+  private carga?: Subscription;
+  private propietario: number | null = null;
 
   private readonly apiUrl =
     `${API_BASE}/cart`;
@@ -40,7 +44,20 @@ export class CarritoService {
   readonly total$ = this.totalSubject.asObservable();
 
   constructor() {
-    this.refrescar();
+    effect(() => {
+      const cuenta = this.auth.cuenta();
+      const propietario = cuenta?.activeRole === 'COMPRADOR' ? cuenta.accountId : null;
+      if (propietario === this.propietario) return;
+      this.propietario = propietario;
+      this.carga?.unsubscribe();
+      this.limpiar();
+      if (propietario !== null) untracked(() => this.refrescar());
+    });
+  }
+
+  private limpiar(): void {
+    this.itemsSubject.next([]);
+    this.totalSubject.next(0);
   }
 
   agregar(productoId: number): void {
@@ -123,10 +140,17 @@ export class CarritoService {
   }
 
   refrescar(): void {
-
-    this.http.get<CartApi>(this.apiUrl)
+    this.carga?.unsubscribe();
+    const cuenta = this.auth.cuenta();
+    if (!cuenta || cuenta.activeRole !== 'COMPRADOR') {
+      this.limpiar();
+      return;
+    }
+    const accountId = cuenta.accountId;
+    this.carga = this.http.get<CartApi>(this.apiUrl)
       .subscribe({
         next: (carrito) => {
+          if (this.auth.cuenta()?.accountId !== accountId || this.auth.cuenta()?.activeRole !== 'COMPRADOR') return;
 
           const items: ItemCarrito[] =
             carrito.items.map((item) => ({
@@ -143,6 +167,7 @@ export class CarritoService {
         },
 
         error: (error) => {
+          this.limpiar();
           console.error(
             'Error consultando carrito',
             error
