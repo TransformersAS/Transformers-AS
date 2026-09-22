@@ -46,7 +46,7 @@ jobs:
 
   build:
     name: Build image without publishing
-    needs: validate
+    needs: [validate, frontend-e2e, quality-checks]
     if: ${{ github.ref != 'refs/heads/main' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -74,7 +74,7 @@ jobs:
 
   publish:
     name: Build and publish to GHCR
-    needs: validate
+    needs: [validate, frontend-e2e, quality-checks]
     if: ${{ github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -173,6 +173,26 @@ jobs:
             frontend/test-results-real/
           if-no-files-found: warn
           retention-days: 14
+
+  quality-checks:
+    name: Quality attribute tooling checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Validate deployment script syntax
+        run: bash -n deploy.sh
+      - name: Test quality evidence tooling (not live attribute certification)
+        run: python3 -m unittest discover -s scripts/quality/tests -v
+      - name: Validate Swarm configuration without deploying
+        env:
+          MYSQL_NODE_ID: validation-node
+          DB_PASSWORD_SECRET: validation-db
+          MYSQL_ROOT_PASSWORD_SECRET: validation-root
+          LOGISTICS_WEBHOOK_SECRET: validation-logistics
+        run: docker stack config -c stack.yml > /dev/null
 
   deploy:
     name: Deploy to Swarm (self-hosted)

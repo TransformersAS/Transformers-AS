@@ -1,7 +1,11 @@
 # Baseline Docker Swarm
 
-Esta configuración es independiente de `compose.yaml`. No incluye CD remoto ni
-runner self-hosted. Ejecutar `deploy.sh` desde un manager con Docker y curl. Un
+Para las mediciones cuantitativas actuales y credenciales k6 obligatorias, usar
+[Pruebas de atributos de calidad](../sustentacion/PRUEBAS-ATRIBUTOS-CALIDAD.md).
+El despliegue real exige dos nodos Linux Ready/Active; la asociación con dos PCs físicos se verifica manualmente.
+
+Esta configuración es independiente de `compose.yaml`. El workflow declara CD sobre un
+runner self-hosted que debe existir y estar operativo. Ejecutar `deploy.sh` desde un manager con Docker y curl. Un
 solo comando despliega frontend, backend y MySQL; espera sus probes antes de
 terminar.
 
@@ -30,7 +34,8 @@ réplicas backend. Las pruebas k6 se dirigen normalmente al frontend, por ejempl
   y proxy de `/api` al backend.
 - `backend`: imagen privada de GHCR, dos réplicas, healthcheck **liveness** heredado
   de la imagen, restart con 10 s de espera y actualización de una réplica a la vez.
-  `start-first` requiere capacidad temporal para una tercera réplica. Un fallo
+  Se limita a una réplica por nodo (dos en ensayo `--local`); `stop-first` evita
+  necesitar un tercer slot durante actualización en un cluster de dos nodos. Un fallo
   detectado durante la actualización solicita rollback de la aplicación.
 - `mysql`: MySQL 8.4.11 LTS, una réplica, volumen local `<stack>_mysql_data`, fijado al ID
   de un manager concreto. Las actualizaciones usan `stop-first` para evitar dos
@@ -279,7 +284,7 @@ el plazo, **no borra nada**: deja el stack en pie para que se pueda diagnosticar
 docker stack services transformers-local
 curl --fail http://localhost:18000/healthz
 curl --fail http://localhost:18000/api/actuator/health/readiness
-curl --fail http://localhost:18090/actuator/health/readiness
+curl --fail http://localhost:18080/actuator/health/readiness
 ```
 
 Esperado: `mysql 1/1`, `frontend 2/2`, `backend 2/2` y `{"status":"UP"}` en las tres URL. El frontend
@@ -509,8 +514,8 @@ conectado**, así que con 100 usuarios en paralelo la máquina se satura y el P9
 plataforma. Además nadie se registra cien veces por minuto. Sirve para comparar corridas entre sí y
 para ver cómo se comporta una escritura bajo carga, no para acreditar el tiempo de respuesta general.
 
-Ninguno de los dos define un mínimo de throughput, porque el ASR no lo fija: se informa
-(`catalog_throughput`, `seller_register_throughput`) para comparar corridas.
+No se fija una tasa mínima de throughput del ASR: se informa para comparar corridas.
+El catálogo sí exige `catalog_throughput count>0` para rechazar una prueba sin recorridos exitosos.
 
 ### Ejecutar
 
@@ -534,9 +539,9 @@ instalado en la máquina se usa `localhost`. Apuntar al **frontend** (4300 en Co
 réplicas; apuntar directamente al backend solo si se quiere aislar la API.
 
 Variables de los dos guiones: `BASE_URL`, `VUS`, `DURATION`, `P95_LIMIT_MS` y `ERROR_RATE_LIMIT`. No
-relajar los dos últimos cuando se esté acreditando el ASR. El de catálogo acepta además
-`CATALOG_EMAIL` y `CATALOG_PASSWORD`; si esa cuenta no existe, la crea al empezar, porque el registro
-es público.
+relajar los dos últimos cuando se esté acreditando el ASR. El de catálogo exige además
+`CATALOG_EMAIL` y `CATALOG_PASSWORD` de una cuenta ya verificada. No registra cuentas:
+valida login, listado no vacío y detalle antes de iniciar carga.
 
 k6 termina con código 0 si se cumplen los umbrales y distinto de 0 si alguno se cruza, así que sirve
 tal cual en un pipeline.

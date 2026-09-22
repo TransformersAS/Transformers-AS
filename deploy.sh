@@ -22,9 +22,11 @@ export DB_PASSWORD_SECRET="${DB_PASSWORD_SECRET:-${STACK_NAME}_db_password_v1}"
 export MYSQL_ROOT_PASSWORD_SECRET="${MYSQL_ROOT_PASSWORD_SECRET:-${STACK_NAME}_mysql_root_password_v1}"
 export LOGISTICS_WEBHOOK_SECRET="${LOGISTICS_WEBHOOK_SECRET:-${STACK_NAME}_logistics_webhook_secret_v1}"
 if "$local_mode"; then
+  export APP_MAX_REPLICAS_PER_NODE=2
   export BACKEND_HOST_PORT="${BACKEND_HOST_PORT:-18080}"
   export FRONTEND_HOST_PORT="${FRONTEND_HOST_PORT:-18000}"
 else
+  export APP_MAX_REPLICAS_PER_NODE=1
   export BACKEND_HOST_PORT="${BACKEND_HOST_PORT:-8080}"
   export FRONTEND_HOST_PORT="${FRONTEND_HOST_PORT:-80}"
 fi
@@ -54,6 +56,17 @@ case "$swarm_state" in
   active) [[ "$(docker info --format '{{.Swarm.ControlAvailable}}')" == true ]] || fail 'Ejecuta este script en un manager.' ;;
   *) fail "Estado Swarm no apto: $swarm_state" ;;
 esac
+
+# Fallar antes de pulls/secrets/deploy si el modo real solo tiene un motor disponible.
+if ! "$local_mode"; then
+  eligible_nodes=0
+  for node_id in $(docker node ls -q); do
+    state="$(docker node inspect --format '{{.Status.State}} {{.Spec.Availability}} {{.Description.Platform.OS}}' "$node_id")"
+    [[ "$state" != 'ready active linux' ]] || eligible_nodes=$((eligible_nodes + 1))
+  done
+  (( eligible_nodes >= 2 )) || fail 'El despliegue real exige al menos dos nodos Linux Ready/Active. --local solo acredita ensayo local.'
+  printf 'Nodos disponibles: %s. Verifica que pertenecen a dos computadores físicos distintos.\n' "$eligible_nodes"
+fi
 
 # En modo local se construyen ambas imágenes desde este repositorio. Un cluster
 # real siempre descarga imágenes inmutables desde GHCR para que todos los nodos
@@ -167,6 +180,15 @@ while (( SECONDS < deadline )); do
     count="$(docker service ps --filter desired-state=running --format '{{.CurrentState}}' "${STACK_NAME}_${service}" |
       awk '/^Running / {n++} END {print n+0}')"
     [[ "$count" == "$expected" ]] || ready=false
+    if ! "$local_mode" && [[ "$service" != mysql ]]; then
+      # NodeID, no hostname: dos motores Desktop pueden tener el mismo nombre.
+      distinct_nodes="$(
+        for task_id in $(docker service ps --filter desired-state=running -q "${STACK_NAME}_${service}"); do
+          docker inspect --type task --format '{{if eq .Status.State "running"}}{{.NodeID}}{{end}}' "$task_id"
+        done | awk 'NF {seen[$0]=1} END {for (id in seen) n++; print n+0}'
+      )"
+      [[ "$distinct_nodes" -ge 2 ]] || ready=false
+    fi
   done
   if "$ready" \
     && curl --fail --silent --max-time 5 "$health_url" | grep -Eq '"status"[[:space:]]*:[[:space:]]*"UP"' \

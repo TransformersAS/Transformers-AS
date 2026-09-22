@@ -1,1354 +1,848 @@
 # Guía 101 — Sustentación técnica en vivo Transformers
 
-**Rama auditada:** `main`. **SHA:** `770f3c6da98a1885b69bf43c606a60986b2468e6`.
-**Fecha de inspección:** 22 de septiembre de 2026, 05:44–05:59, America/Bogota. Es una fotografía del estado, no una certificación permanente.
-**Repositorio:** [TransformersAS/Transformers-AS](https://github.com/TransformersAS/Transformers-AS).
-**Destino solicitado:** `docs/sustentacion/GUIA-SUSTENTACION-EN-VIVO.md`.
+**Este es el guion para tener abierto durante la demostración.** Primero preparar las ventanas de las secciones 1–3. Cuando terminen las diapositivas, seguir las secciones 4–11 en orden. Los problemas y la preparación del cluster están al final: no leerlos mientras todo funciona.
 
-Esta auditoría solo leyó archivos, Git, GitHub, estado Docker y endpoints health; creó este documento. **No arrancó ni detuvo servicios, no mató réplicas, no cambió configuración, no cargó datos, no ejecutó suites, no hizo commit ni push.** Los comandos operativos siguientes son instrucciones para las expositoras: no son acciones realizadas durante la auditoría.
+**Actualizada para los cambios locales de pruebas de calidad:** ejecutor `scripts/quality/run.py`, prevalidación de catálogo/cuenta, medición automática de recuperación, una réplica por nodo y publicación CI condicionada a las pruebas. Estos cambios **no se han desplegado ni probado como sistema distribuido durante esta tarea**. No se modifican los guiones de CUs.
 
-Convenciones: **OBSERVADO** = leído o consultado en esta auditoría; **HISTÓRICO** = afirmación de un documento o ejecución anterior identificada; 🟢 **ESPERADO** = lo que deberá verificarse al ejecutar; ⚠️ **NO VERIFICADO** = falta evidencia. Nunca convertir un resultado esperado en “ya probado”.
+🟢 **Esperado** indica lo que debe aparecer al ejecutar. 📌 **Observado/histórico** identifica evidencia existente. 🔴 **Si falla** indica una salida breve, sin detener toda la exposición. 📸 indica captura y ⏱ indica tiempo.
 
-# 0. Resumen de emergencia
+# 0. La ruta que vamos a seguir
 
-| Orden | Demo/prueba | Quién | Duración estimada | Resultado que debemos mostrar |
-|---|---|---|---|---|
-| 1 | Sistema ya preparado / launcher | Vanessa si tiene Windows | 1 min | Frontend abierto y health UP |
-| 2 | Funcional general | Expositora de flujos | 4 min | GUI → backend → persistencia |
-| 3 | Integración / cobertura | Sofía | 2 min | Alcance del reporte, porcentaje y gate honestos |
-| 4 | Performance | Sofía, cliente de carga | 4 min | 50 y 100 VUs, ambos P95, errores, throughput |
-| 5 | Availability | Sofía manager + Vanessa worker | 4 min | Una task detenida, tráfico, reemplazo y tiempo |
-| 6 | Deployability | Sofía | 3 min | Dos nodos físicos, placement y script único |
-| 7 | CI/CD / GHCR | Sofía, navegador | 2 min | Run del SHA, jobs reales, publicación y estado CD |
-
-**No cabe construir todo ni formar el cluster desde cero dentro de esos 20 minutos.** Los pasos 2–8 son preparación previa. Si falla la preparación, elegir el plan B antes del cronómetro y declarar qué requisito queda pendiente.
-
-## Fotografía que sí se observó
-
-| Elemento | OBSERVADO en el Mac local |
-|---|---|
-| Git | `main`, árbol limpio al iniciar; `git ls-remote origin refs/heads/main` coincide con el SHA auditado |
-| IP del Mac | `en0 = 192.168.40.13`; debe verificarse otra vez en el salón |
-| Docker | Contexto `desktop-linux`, motor Linux ARM64, Swarm activo |
-| Nodo | Solo `docker-desktop`, ID `v44u2a7k2ad8owj1ecij7b459`, Ready / Active / Leader |
-| Dirección anunciada por Swarm | `192.168.65.3`, interna de Docker Desktop; no es la IP LAN del Mac |
-| Stack activo REAL | `marketplace`, **2 servicios**, no `transformers` |
-| Servicios activos | `marketplace_backend` 2/2; `marketplace_mysql` 1/1; ambos backends en el mismo nodo |
-| Imagen backend activa | `ghcr.io/transformersas/transformers-as-backend:sha-7a3c93d93f72c5f44d2838bbe2918b871770c019`, anterior a main |
-| Frontend Swarm activo | **No existe como servicio del stack observado** |
-| Frontend separado | Contenedor `marketplace-frontend-evidence`, puerto host 8082; no cuenta como réplica Swarm |
-| Compose activo | Proyecto `transformers-as`: frontend 4300, backend **18080**, MySQL 3307, todos healthy |
-| Compose del launcher | Proyecto distinto: `marketplace-demo`; no observado activo |
-| Health consultado | UP en 4300 `/healthz`, 4300 `/api/actuator/health/readiness`, 8080 y 18080 `/actuator/health/readiness` |
-| Coverage actual | No existe `backend/demo/target/site/jacoco/jacoco.xml`; cero reportes locales `surefire-integration-reports/TEST-*.xml` |
-| Suite actual | Auditor de manifiesto: **81 clases concretas de integración** |
-| Launcher | `Marketplace.exe` versionado en raíz: **67.506.529 bytes**, ≈64,38 MiB, PE32+ Windows x86-64 |
-
-**Conclusión operativa:** lo que responde hoy en el Mac mezcla Compose y un Swarm anterior. **No acredita main desplegada ni dos computadores.** No tocar ese stack para “hacerlo coincidir” durante esta auditoría.
-
-## Puertos: tres cosas diferentes
-
-| Entorno | Frontend host → contenedor | Backend host → contenedor | MySQL host → contenedor |
+| Tiempo desde fin de diapositivas | Pantalla | Persona | Acción |
 |---|---|---|---|
-| `compose.yaml`, defaults | 127.0.0.1:4300 → 80 | 127.0.0.1:8080 → 8080 | 127.0.0.1:3307 → 3306 |
-| Launcher, valores forzados | 127.0.0.1:4300 → 80 | 127.0.0.1:8080 → 8080 | 127.0.0.1:3307 → 3306 |
-| Compose OBSERVADO en Mac | 127.0.0.1:4300 → 80 | 127.0.0.1:**18080** → 8080 | 127.0.0.1:3307 → 3306 |
-| Swarm `deploy.sh`, defaults | ingress 80 → 80 | ingress 8080 → 8080 | Sin publicación; interno 3306 |
-| Swarm `deploy.sh --local`, defaults | ingress 18000 → 80 | ingress **18080** → 8080 | Sin publicación |
-| Swarm OBSERVADO `marketplace` | Ninguno | ingress 8080 → 8080 | Sin publicación |
-| Receta propuesta de esta guía, aún NO ejecutada | ingress **18000** → 80 | ingress **18090** → 8080 | Sin publicación |
+| 00:00–01:00 | Sistema ya abierto | Vanessa / responsable funcional | Mostrar launcher listo, GUI y health |
+| 01:00–05:00 | Navegador funcional | Responsable de cada flujo | Ejecutar los flujos asignados; no tocar Docker |
+| 05:00–07:00 | Reporte de integración | Sofía | Mostrar alcance, porcentaje y gate reales |
+| 07:00–11:00 | M2 — PRUEBAS | Sofía | Un comando ejecuta performance 50 y 100 VUs |
+| 11:00–15:00 | M2 + W1 + M1 | Sofía y Vanessa | Tráfico 3 min, kill de UNA réplica en worker, recuperación |
+| 15:00–18:00 | M1 — CONTROL | Sofía | Dos nodos, distribución y script único de despliegue |
+| 18:00–20:00 | GitHub en navegador | Sofía | CI, GHCR, estado CD y artifact launcher |
 
-La receta usa variables soportadas para no colisionar con 8080 y 18080 ya ocupados. **18090 es una elección explícita de esta guía, no el default de `--local`.** Antes de adoptarla, comprobar ambos puertos. Lanzar el exe en el Mac no es posible y lanzarlo sobre el mismo motor que Compose activo chocaría en 4300/3307 y posiblemente 8080.
+**Regla de tiempo:** si un problema toma más de 60–90 segundos, guardar el fallo, decir qué no se pudo demostrar y seguir. No cambiar thresholds, datos ni infraestructura para improvisar un PASS.
 
-# 1. Roles físicos durante la sustentación
+**No intentar construir imágenes, crear el cluster ni instalar herramientas durante estos 20 minutos.** Esos preparativos pueden tardar mucho más. Para mostrar el arranque por script en vivo, se repite sobre el entorno previamente preparado con las mismas imágenes/configuración.
 
-**PC 1 — Sofía / manager candidate: `192.168.40.13`**, confirmada solo en la inspección del Mac. **PC 2 — Vanessa / worker candidate:** sistema operativo e IP no verificados. Si Vanessa usa macOS/Linux, no intentar ejecutar el `.exe`; usar el entorno Docker preparado y demostrar el artifact Windows como evidencia de construcción.
+# 1. Reparto fijo: cada persona sabe su pantalla
 
-| Acción | PC Manager | PC Worker |
-|---|---|---|
-| Verificar IP, Docker, arquitectura | Sí, localmente | Sí, localmente |
-| Inicializar cluster nuevo | Solo manager y solo inactive | No |
-| Unirse al cluster | Obtiene comando privado | Ejecuta join |
-| Labels / node ls / stack / deploy.sh | Sí | No |
-| Descargar imágenes | Sí | Sí, para comprobar arquitectura/acceso |
-| Secrets | Los crea/reutiliza deploy.sh | Los recibe en tasks autorizadas |
-| Identificar task que se matará | Localiza nodo / task ID | Confirma contenedor local |
-| Matar UNA réplica | Solo si está en este nodo | Preferido si allí está la réplica elegida |
-| k6 | Una terminal separada; mantenerla libre | Alternativa como cliente si se acordó |
-| Navegador | Swarm y GitHub | Demo funcional / launcher Windows |
+Esta guía usa **Sofía en su Mac como manager y cliente de carga**. Vanessa opera el **worker**. Para que el recorrido no esté lleno de alternativas, los comandos principales de Vanessa están escritos para **PowerShell de Windows**; si su computador usa macOS/Linux, dejar preparada de antemano la variante de §13.7. Eso se resuelve **antes**, no frente al profesor. El sistema operativo de Vanessa no quedó confirmado en la auditoría.
 
-**Contextos de terminal:** los bloques Bash se ejecutan en Terminal de macOS, Bash de Linux o **Git Bash en Windows**. PowerShell se identifica por separado. No pegar `export`, `read -s` ni sustituciones Bash en PowerShell. En Windows, Git Bash debe hablar con el mismo Docker Engine que se comprobó; no mezclar por accidente Docker Desktop y un daemon independiente de WSL.
+| Nombre que usaremos | Computador | Qué contiene | Cuándo se usa |
+|---|---|---|---|
+| **M1 — CONTROL** | Mac Sofía, manager | Bash, raíz del repo, variables de deploy | Nodos, tasks, health y deploy |
+| **M2 — PRUEBAS** | Mac Sofía, mismo manager | Bash, raíz, cuenta de carga exportada | Performance y availability; no cerrar |
+| **M3 — EVIDENCIAS** | Mac Sofía | Finder + editor + navegador | Abrir JSON, capturas, coverage y GitHub |
+| **W1 — RÉPLICA** | PC Vanessa, worker | PowerShell; container ID preparado | Matar únicamente el backend elegido |
+| **GUI FUNCIONAL** | PC de la demo funcional | Navegador con sistema ya iniciado | Flujos asignados; independiente de la terminal k6 |
 
-**DÓNDE EJECUTAR ESTO — 💻 PC MANAGER, Mac de Sofía, Terminal; entrar a raíz del repositorio.**
+**Entorno de calidad elegido para el recorrido:** stack `transformers`; frontend Swarm **18000**, backend directo **18090**, MySQL interno **3306 sin publicar**. Son overrides soportados por el script, no defaults. La IP `192.168.40.13` es la candidata de Sofía: verificarla una vez en preparación y guardarla en las variables siguientes. No volver a decidir puertos en cada bloque.
+
+La GUI del launcher Windows es **http://localhost:4300**, con backend 8080 y MySQL host 3307 en ese Windows. **No medir esa GUI y decir que se midió Swarm.** Las pruebas de calidad de este recorrido apuntan al frontend 18000 del manager.
+
+# 2. Qué debe quedar abierto ANTES de empezar
+
+## 2.1 En el Mac de Sofía
+
+1. Conectar cargador. Evitar suspensión durante la presentación desde ajustes del sistema.
+2. Abrir **Docker Desktop** y dejarlo ejecutándose. No cerrarlo al cambiar de pantalla.
+3. Abrir el repositorio en el editor. Dejar abiertos:
+   - Este documento, situado en §4 cuando termine la preparación.
+   - `deploy.sh`.
+   - `stack.yml`.
+   - `.github/workflows/backend-ci.yml`.
+4. Abrir **dos ventanas de Terminal** separadas. Identificarlas como M1 — CONTROL y M2 — PRUEBAS, por título o por su posición: M1 izquierda, M2 derecha. No usar una terminal para ambas tareas.
+5. Abrir Finder en `artifacts/quality/` si ya existe; el ejecutor la crea al correr por primera vez. No necesita existir en un clon nuevo.
+6. Crear/abrir carpeta de capturas `evidencias-sustentacion/` en la raíz.
+7. Dejar el navegador con estas pestañas, en este orden:
+   - Frontend Swarm: `http://192.168.40.13:18000` **con la IP ya confirmada**.
+   - Health frontend: misma dirección con `/healthz`.
+   - Readiness proxy: misma dirección con `/api/actuator/health/readiness`.
+   - Reporte HTML de cobertura válido, o documento histórico si no existe reporte actual.
+   - [Actions del repositorio](https://github.com/TransformersAS/Transformers-AS/actions).
+   - Ejecución de **Backend CI and GHCR** que se vaya a mostrar, con SHA visible.
+   - Packages de la organización/repositorio: backend y frontend, con tag SHA.
+   - Ejecución de **Build Marketplace launcher**, con artifact visible.
+8. Si hay Internet ahora, cargar todas las páginas y guardar las capturas identificadas antes de la clase.
+
+## 2.2 En el PC de Vanessa
+
+1. Cargador conectado, Docker Desktop abierto si usa Desktop, motor **Linux** listo.
+2. Ventana **W1 — RÉPLICA** abierta y asociada al motor del worker.
+3. Si Windows y el launcher es parte de la demo: entrega completa descomprimida, exe arrancado **antes** del cronómetro, navegador abierto en `http://localhost:4300` y ventana “Marketplace está listo” disponible.
+4. Si no se usa launcher Windows: dejar abierta la GUI funcional acordada. Mostrar el artifact del exe acredita construcción, no un doble clic que no se hizo.
+5. Abrir un cronómetro, sin iniciarlo todavía. Se usará como referencia del instante del kill.
+6. Mantener W1 fuera de la proyección mientras se copian tokens o se introducen contraseñas. Ningún secret debe quedar en capturas.
+
+## 2.3 Lo que ya debe estar preparado
+
+- Dos motores en **dos computadores físicos**, cluster formado y comunicación entre nodos funcional.
+- Stack `transformers` desplegado, frontend 2/2, backend 2/2, MySQL 1/1; una réplica de cada servicio de aplicación por nodo.
+- Imágenes disponibles para ambos motores y GHCR accesible. El runner CI/CD, si se va a afirmar CD operativo, ya debe existir y estar conectado.
+- Cuenta **ya verificada**, contraseña conocida y catálogo no vacío en **el entorno Swarm de carga**. El script k6 ya no crea cuentas.
+- Python 3 y k6 nativo en el Mac de Sofía. No instalarlos frente al profesor.
+- Reporte de integración previamente generado y guardado, si se pretende mostrar porcentaje actual. Correr la suite al mismo tiempo que k6 distorsiona las mediciones.
+
+**Si esto no está preparado, usar §14 antes de iniciar la demo.** La auditoría encontró un solo nodo y un stack antiguo llamado `marketplace`; no asumir que ese estado ya equivale a esta lista.
+
+# 3. Preparación de terminales — hacer una sola vez
+
+## 3.1 M1 — CONTROL: carpeta, entorno y pantallas de prueba
+
+**DÓNDE EJECUTAR ESTO — 💻 SOFÍA, Mac manager, ventana M1 — CONTROL, Terminal. Este bloque entra a la raíz del repositorio y abre Bash.**
 ```bash
 cd /Users/sofiamantilla/Documents/GitHub/Transformers-AS
-pwd
-git rev-parse HEAD
+bash
 ```
 
-**DÓNDE EJECUTAR ESTO — 💻 PC WORKER Windows, PowerShell; sustituir la ruta marcada por la carpeta REAL descomprimida/clonada.**
-```powershell
-Set-Location 'C:\REEMPLAZAR_RUTA_REAL\Transformers-AS'
-Get-Location
-git rev-parse HEAD
-```
-
-**DÓNDE EJECUTAR ESTO — 💻 PC WORKER macOS/Linux, Terminal; sustituir ruta por la real.**
-```bash
-cd '/REEMPLAZAR_RUTA_REAL/Transformers-AS'
-pwd
-git rev-parse HEAD
-```
-
-No continuar con placeholders sin reemplazar. 🟢 Esperado: SHA de entrega. 🔴 Si difiere, registrar la diferencia; no actualizar a ciegas ni hacer pull durante la exposición.
-
-# 2. Checklist PRE-SUSTENTACIÓN — 5 minutos antes
-
-Estas son comprobaciones finales de cinco minutos **si las descargas, builds, suite y red ya se prepararon antes**; no una promesa de preparar todo en cinco minutos.
-
-- [ ] Ambos PCs encendidos, cargadores, suspensión desactivada desde ajustes durante la demo.
-- [ ] Sistema de Vanessa identificado; si no es Windows, elegir alternativa al exe.
-- [ ] Misma red alcanzable; IP y ruta comprobadas en ambos sentidos.
-- [ ] Docker Desktop abierto cuando corresponda, motor listo y Linux containers.
-- [ ] Terminal manager, terminal worker y terminal k6 abiertas en sus carpetas.
-- [ ] SHA local y remoto contrastados; no se modifica la rama durante la demo.
-- [ ] Dos nodos Ready/Active y una task backend en cada uno **si se afirma distribución física**.
-- [ ] Puertos libres para la receta elegida; identificar qué proceso atiende cada URL.
-- [ ] Imágenes del SHA disponibles y compatibles en ambos PCs; login GHCR previo si se necesita.
-- [ ] Datos, cuenta verificada y catálogo no vacío en **la base del entorno que medirá k6**.
-- [ ] Launcher preparado en Windows y `.env.demo` conservado junto a su volumen.
-- [ ] Health, frontend y flujos asignados abiertos.
-- [ ] GitHub Actions, job de publicación y Packages abiertos en pestañas.
-- [ ] Reporte coverage y capturas descargados antes de perder Internet; identificar su SHA.
-- [ ] Carpeta de evidencias creada; no grabar tokens, secrets ni `.env`.
-- [ ] No ejecutar limpiezas, reseteos ni migraciones improvisadas.
-
-**DÓNDE EJECUTAR ESTO — 💻 AMBOS PCs, su terminal local, raíz del repo; comandos comunes Bash/PowerShell.**
-```text
-git status --short
-git branch --show-current
-git rev-parse HEAD
-git ls-remote origin refs/heads/main
-docker context show
-docker version
-docker info --format '{{.OSType}} {{.Architecture}} {{.Swarm.LocalNodeState}}'
-docker compose version
-docker ps --format '{{.Names}}\t{{.Status}}\t{{.Ports}}'
-```
-
-🟢 Esperado: Linux, server accesible, Compose v2. `git status` puede mostrar esta guía nueva; eso no cambia el SHA auditado. 🔴 Sin server no seguir al deploy. Sin Internet, la consulta remota puede fallar: usar SHA local identificado y declarar la limitación.
-
-**DÓNDE EJECUTAR ESTO — 💻 PC MANAGER, Bash en raíz del repo; preparación de evidencia y lectura GitHub.**
-```bash
-mkdir -p evidencias-sustentacion
-gh run list --repo TransformersAS/Transformers-AS --branch main --limit 8
-gh run view 35717326168 --repo TransformersAS/Transformers-AS
-docker stack ls
-docker service ls
-```
-
-Si `gh` no está instalado o autenticado, usar las páginas enlazadas en §13. No instalar herramientas mientras corre el reloj técnico.
-
-**Los cinco pasos obligatorios antes del minuto 00:** (1) resolver red/motores y comprobar dos nodos reales o declarar fallback; (2) fijar SHA, comprobar imágenes y evitar puertos ocupados; (3) tener sistema y datos listos con health y login; (4) comprobar carga corta, suite/reporte y acceso CI sin confundir versiones; (5) asignar terminales, réplica objetivo y evidencias, con plan B acordado.
-
-# 3. Cómo verificar la red entre los dos computadores
-
-## 3.1 macOS: no adivinar la interfaz
-
-**DÓNDE EJECUTAR ESTO — 💻 CADA PC que use macOS, Terminal local, cualquier carpeta.**
-```bash
-networksetup -listallhardwareports
-route -n get default
-ifconfig
-```
-
-1. Buscar el puerto Wi-Fi/Ethernet y su `Device` real. No asumir que siempre sea `en0`.
-2. Confirmar que la interfaz tiene `status: active` y dirección `inet` de la red del salón.
-3. En este Mac se observó `en0` con `192.168.40.13`; repetir al cambiar de Wi-Fi.
-4. Descartar `127.0.0.1`, `lo0`, `utun*` (VPN), bridges y direcciones internas de VM como dirección física elegida.
-5. Una VPN puede cambiar la ruta aunque Wi-Fi conserve su IP. Confirmar ruta hacia el otro PC.
-
-**DÓNDE EJECUTAR ESTO — 💻 PC MANAGER Mac, Terminal, cualquier carpeta; solo si en0 fue la interfaz comprobada.**
-```bash
-ipconfig getifaddr en0
-route -n get 192.168.40.13
-```
-
-El segundo comando hacia la IP propia no demuestra alcance desde Vanessa. Si la IP cambia, escribir la nueva en la hoja §26 y reemplazar `192.168.40.13` en **todos** los comandos y URLs de esta guía.
-
-## 3.2 Windows
-
-**DÓNDE EJECUTAR ESTO — 💻 PC Windows, PowerShell local, cualquier carpeta.**
-```powershell
-ipconfig
-Get-NetIPConfiguration
-Get-NetConnectionProfile
-Get-NetFirewallProfile | Select-Object Name,Enabled
-```
-
-Elegir el adaptador Wi-Fi/Ethernet conectado, su IPv4 y gateway. No elegir `vEthernet`, WSL, VPN ni loopback. Una red marcada Pública puede tener reglas más restrictivas; revisar la política con quien administra la red, sin desactivar todo el firewall ni cambiar el perfil de una red no confiable.
-
-## 3.3 Linux
-
-**DÓNDE EJECUTAR ESTO — 💻 PC Linux, Bash local, cualquier carpeta.**
-```bash
-ip -br address
-ip route
-```
-
-Elegir interfaz LAN activa y ruta al otro PC. Si el motor está en VM, la IP de esa VM debe ser alcanzable desde el otro motor: la IP del computador anfitrión no basta.
-
-## 3.4 Probar desde PC 2, y luego repetir al revés
-
-**DÓNDE EJECUTAR ESTO — 💻 PC WORKER macOS/Linux, terminal local, cualquier carpeta; candidato manager todavía 192.168.40.13.**
-```bash
-ping -c 3 192.168.40.13
-nc -vz -w 3 192.168.40.13 2377
-nc -vz -w 3 192.168.40.13 7946
-```
-
-**DÓNDE EJECUTAR ESTO — 💻 PC WORKER Windows, PowerShell local, cualquier carpeta.**
-```powershell
-ping -n 3 192.168.40.13
-Test-NetConnection 192.168.40.13 -Port 2377
-Test-NetConnection 192.168.40.13 -Port 7946
-```
-
-🟢 Esperado: alcance IP y, **después de tener manager activo**, TCP 2377 alcanzable. Antes de init puede no haber listener y eso por sí solo no prueba firewall. Ping bloqueado no significa servicio bloqueado: contrastar TCP y navegador. TCP abierto **no demuestra UDP ni overlay**.
-
-| Síntoma | Interpretación / siguiente paso |
-|---|---|
-| Ningún PC alcanza al otro, ambos navegan Internet | Posible aislamiento de clientes del Wi-Fi; misma SSID no garantiza LAN entre equipos |
-| IP encontrada difiere | Usar la IP nueva, no insistir con la candidata |
-| Ping funciona, 2377 falla tras init | Revisar listener del motor, firewall y NAT de VM |
-| Join funciona, tasks no se comunican | Revisar 7946 TCP/UDP y 4789 UDP, overlay, NAT |
-| Solo funciona dentro de WSL/VM | Se está midiendo otra red/contexto; no equivale a acceso LAN |
-| Route apunta VPN | Resolver ruta con administrador antes de desplegar |
-
-Puertos entre motores: **2377/TCP** control del manager; **7946/TCP y UDP** descubrimiento; **4789/UDP** datos overlay. Permitir además los puertos publicados de la receta (18000/18090) hacia clientes. No abrir estos puertos de control a Internet. La receta requiere alcance bidireccional; un reenvío TCP aislado no resuelve VXLAN UDP. Referencia primaria: [red Swarm de Docker](https://docs.docker.com/engine/swarm/networking/).
-
-**Docker Desktop es el mayor bloqueo probable:** el daemon Linux está en una VM. Que el Mac tenga 192.168.40.13 no significa que esa IP sea enrutable hacia todos los puertos del daemon. El estado observado anuncia 192.168.65.3. **NO VERIFICADO: cluster físico de dos PCs.** Si no hay red de motores alcanzable, usar motores Linux/VMs con red apropiada previamente preparados por el equipo; no improvisar la reconstrucción del cluster ni dejar el actual durante la demo.
-
-📸 Capturar IP y prueba de conexión sin datos privados. Pasar a §8 solo cuando ambas personas sepan qué IP pertenece a cada motor y cada computador.
-
-# 4. Arranque del Marketplace con Marketplace.exe
-
-**DÓNDE HACER ESTO — 💻 PC Windows de Vanessa, Explorador de archivos; carpeta raíz de la entrega. No ejecutar el exe en macOS/Linux.**
-
-1. Descomprimir la entrega completa en carpeta con permisos de escritura, fuera del ZIP.
-2. Verificar `Marketplace.exe`, `Cerrar Marketplace.cmd`, `compose.yaml`, `compose.demo.yaml`, `frontend/` y `backend/demo/`, con Dockerfiles, `.dockerignore`, wrapper y `.mvn/` incluidos. El artifact del workflow contiene **solo el exe**, no toda la entrega.
-3. Abrir Docker Desktop, esperar Engine listo, usar Linux containers.
-4. Comprobar que 4300, 8080 y 3307 no estén ocupados por otra instalación.
-5. Hacer doble clic una sola vez. Mantener visible la ventana.
-6. Debe mostrar “Comprobando Docker...”, “Preparando entorno de demostración...”, “Iniciando base de datos...”, backend y frontend.
-7. Esperar. La primera build requiere Internet y puede tardar varios minutos; no hay medición actual de duración. Cada llamada Docker tiene límite de 45 minutos; esperas Compose: MySQL 300 s, backend 300 s, frontend 180 s; comprobación HTTP final hasta 3 min. Esos límites **no son un tiempo garantizado de arranque**.
-8. Debe aparecer “Marketplace está listo.” y abrir `http://localhost:4300`.
-9. Si el navegador no abre automáticamente, abrir esa URL a mano en **ese Windows**.
-10. 📸 Capturar launcher listo y GUI, sin contraseñas. Continuar al flujo solo con readiness UP.
-
-**Secuencia comprobada por lectura de `Program.cs`:** verifica Docker CLI, motor Linux y Compose; busca la raíz desde la ubicación del exe y sus ancestros; genera `.env.demo` si falta; usa proyecto fijo `marketplace-demo`; inicia MySQL; reconstruye/recrea backend y frontend; verifica `/healthz` y `/api/actuator/health/readiness` vía 4300; abre navegador. El perfil demo se activa en `compose.demo.yaml`, usa fixture Flyway y `DemoProvisioning`. No llama `deploy.sh` ni forma Swarm.
-
-Genera dos contraseñas aleatorias de 256 bits. Fuerza base/usuario `marketplace_demo` y puertos 4300/8080/3307 aunque `.env.demo` tenga otros valores; conserva claves existentes. Si no existe `.env`, lo copia desde `.env.demo`. El volumen es `marketplace-demo_mysql_data`. **Conservar `.env.demo` junto a ese volumen.**
-
-El backend demo prepara datos reales y restaura el fixture en cada nuevo inicio; pagos/reembolsos y proveedores indicados por el perfil son simulados. No aplicar ese perfil a producción. No volver a abrir el launcher durante una demostración funcional.
-
-Cerrar la ventana **no detiene** contenedores. `Cerrar Marketplace.cmd` invoca el exe con `--stop`, que usa Compose stop y conserva datos. Cerrar primero la ventana previa: el bloqueo del launcher se mantiene mientras la ventana Windows sigue abierta y puede impedir la segunda instancia.
-
-⚠️ HISTÓRICO: documentación reporta validaciones en macOS y E2E, pero deja pendiente doble clic nativo Windows. OBSERVADO: workflow de construcción Windows exitoso (§15). **Eso no acredita doble clic, SmartScreen ni navegador en el PC de Vanessa.**
-
-# 5. Si Marketplace.exe no abre
-
-**Árbol rápido:** ¿Windows bloquea antes de abrir? A. ¿No hay ventana? B/I. ¿Ventana con error Docker? C/D. ¿Falla al levantar? E/F/G. ¿Dice listo pero no se ve? H. ¿Credenciales/entorno? J. ¿Descargas? K.
-
-| Caso | Receta y criterio para continuar |
-|---|---|
-| A — SmartScreen | Verificar que es la entrega del equipo y su procedencia. En Windows, si la política permite: Más información → Ejecutar de todas formas. Si la institución lo bloquea, no desactivar protección: usar el entorno ya preparado y mostrar artifact. No afirmar ejecutable firmado. |
-| B — Doble clic sin efecto | Confirmar extracción del ZIP, Windows x64 compatible y que no haya otra ventana preparando el sistema. Abrir PowerShell en la carpeta y ejecutar el exe como abajo. El programa mantiene abierta la ventana incluso después de éxito/error: no es por sí solo un cuelgue. |
-| C — Docker apagado | Abrir Docker Desktop, esperar Engine listo, comprobar docker info, cerrar ventana anterior y reintentar. |
-| D — Windows containers | Cambiar a Linux containers en Docker Desktop, esperar motor y comprobar OSType=linux. No seguir si el motor es Windows. |
-| E — Puerto ocupado | §22. Identificar servicio propietario. No matar procesos al azar. Los puertos del launcher están forzados por código: editar .env.demo no los cambia. |
-| F — Compose falla | Leer log y ps/logs con ambos YAML y proyecto correcto. Si falta Compose v2, preparar herramienta antes; no sustituir por otro proyecto accidentalmente. |
-| G — Backend unhealthy | §20: MySQL, secretos consistentes, migraciones, fixture, recursos. Wait-timeout no implica que deba borrarse el volumen. |
-| H — Frontend no abre | §19: abrir localhost:4300 en el mismo Windows; revisar frontend health y readiness proxy por separado. |
-| I — Archivos faltantes | Restaurar entrega completa. FindRoot exige ambos YAML, frontend/ y backend/demo/. Artifact exe aislado no basta. Si falla antes de abrir log, no habrá marketplace.log nuevo. |
-| J — .env.demo inconsistente | No borrarlo. Restaurar copia original que corresponde al volumen. Cambiar contraseña del archivo no cambia usuarios de MySQL ya inicializado. Revisar sin proyectar secretos. |
-| K — Primera build sin Internet | No hay solución garantizada: launcher siempre pide build. Usar sistema previamente construido/arrancado y declarar que no se está probando primer arranque offline. |
-
-**DÓNDE EJECUTAR ESTO — 💻 PC Windows del launcher, PowerShell abierto desde su carpeta: Explorador → barra de dirección → escribir powershell → Enter.**
-```powershell
-Get-Location
-Test-Path .\Marketplace.exe
-Test-Path .\compose.yaml
-Test-Path .\compose.demo.yaml
-Test-Path .\frontend
-Test-Path .\backend\demo
-docker info --format '{{.OSType}}'
-.\Marketplace.exe
-```
-
-**DÓNDE EJECUTAR ESTO — 💻 MISMO Windows, SEGUNDA ventana PowerShell, raíz de la entrega; diagnóstico del launcher.**
-```powershell
-Get-Content .\launcher-logs\marketplace.log -Tail 100
-docker compose --env-file .env.demo -p marketplace-demo -f compose.yaml -f compose.demo.yaml ps
-docker compose --env-file .env.demo -p marketplace-demo -f compose.yaml -f compose.demo.yaml logs --tail 100 backend frontend mysql
-curl.exe --fail --max-time 5 http://localhost:4300/healthz
-curl.exe --fail --max-time 5 http://localhost:4300/api/actuator/health/readiness
-```
-
-El log real es **`launcher-logs/marketplace.log` relativo a la raíz encontrada**, se sobrescribe al iniciar una nueva ejecución. Guardarlo antes de reintentar. El código oculta las dos contraseñas conocidas; revisar otros datos antes de proyectarlo. Comandos Compose manuales pueden heredar variables de la terminal distintas a las forzadas por el exe: usar una terminal limpia y la configuración original, no mostrar `compose config` con secretos.
-
-# 6. Demo funcional general
-
-**DÓNDE HACER ESTO — 💻 PC con navegador que accede al entorno funcional preparado; no terminal Docker.**
-
-1. Confirmar la URL elegida: Windows launcher `http://localhost:4300`; Swarm preparado en esta guía `http://192.168.40.13:18000` si esa sigue siendo la IP verificada.
-2. Mostrar frontend, entrar con la cuenta prevista y ejecutar los flujos asignados.
-3. Comprobar refresco/persistencia cuando corresponda; distinguir el proveedor simulado de la BD real.
-4. No tocar Docker ni relanzar el exe mientras se opera la GUI.
-5. 📸 Capturar resultado y refresco; pasar a cobertura al minuto 05.
-
-**Para el paso exacto de cada CU, utilizar las guías individuales.** La ruta antigua `docs/sustentacion-cu08-11.md` no está versionada en main; usar [cu-08-autenticacion-cu-11-cancelacion.md](cu-08-autenticacion-cu-11-cancelacion.md). No se reproducen aquí instrucciones de CUs particulares.
-
-# 7. Pruebas de integración y coverage
-
-## Lo que se puede decir con rigor
-
-| Tema | Estado |
-|---|---|
-| Requisito oficial | 100 % cobertura de integración |
-| Gate normal CI | `LINE / COVEREDRATIO >= 0.95`, suite normal, mezcla tipos de tests |
-| Gate perfil `integration-coverage` | `LINE / MISSEDCOUNT maximum=0`, integración exclusiva |
-| Selección actual | 81 clases auditadas por `integration-suite.py`, allowlist `src/test/integration-tests.includes` |
-| Reporte histórico en docs | 80 clases, 864 tests, 0 fallos/errores/omitidos; 6811 líneas cubiertas, 195 sin cubrir, total 7006: **97,216671 %** |
-| Resultado histórico del gate | Falló verify por 195 líneas missed; no 100 % |
-| Porcentaje del SHA actual | **NO VERIFICADO**: no suite nueva ni XML local en esta auditoría |
-
-La documentación histórica no incluye todavía la clase adicional del manifiesto actual. No presentar 97,216671 % como una medición recién hecha de este SHA. Tampoco presentar un CI verde de 95 % como prueba del requisito del 100 %.
-
-Las pruebas usan Spring, Testcontainers/MySQL; algunas integraciones de proveedores usan WireMock o mecanismos de fallos controlados. Eso no equivale a hablar con proveedores externos reales. La cobertura mide líneas ejecutadas, no “porcentaje de requisitos cumplidos”.
-
-## Reproducir ANTES, no competir con k6
-
-**DÓNDE EJECUTAR ESTO — 💻 PC MANAGER Mac, Terminal/Bash, raíz del repositorio; requiere JDK 21, Python 3 y Docker listo.**
-```bash
-export JAVA_HOME=$(/usr/libexec/java_home -v 21)
-export PATH="$JAVA_HOME/bin:$PATH"
-java -version
-docker info --format '{{.OSType}}'
-python3 backend/demo/scripts/integration-suite.py
-bash backend/demo/scripts/run-integration-coverage.sh
-```
-
-**DÓNDE EJECUTAR ESTO — 💻 PC Windows de pruebas, PowerShell, raíz; JDK 21 en PATH y Python instalado como py.**
-```powershell
-java -version
-docker info --format '{{.OSType}}'
-py backend/demo/scripts/integration-suite.py
-Set-Location backend/demo
-.\mvnw.cmd -Pintegration-coverage clean verify
-```
-
-🟢 Esperado: ejecución de integración, MySQL Testcontainers, XML/HTML y gate evaluado. **No prometer BUILD SUCCESS**: cualquier línea missed debe fallar. Duración actual no medida; CI validate admite hasta 20 min, pero ese timeout tampoco estima la suite exclusiva. No correr clean sobre reportes que no se hayan guardado.
-
-**DÓNDE EJECUTAR ESTO — 💻 PC MANAGER Mac, Terminal, raíz; después de terminar la suite, aunque verify falle por gate.**
-```bash
-python3 backend/demo/scripts/integration-coverage-report.py
-open backend/demo/target/site/jacoco/index.html
-```
-
-**DÓNDE EJECUTAR ESTO — 💻 PC Windows de pruebas, PowerShell, carpeta backend/demo después del bloque anterior.**
-```powershell
-py scripts/integration-coverage-report.py
-Start-Process target/site/jacoco/index.html
-```
-
-Revisar **LINE**, covered/missed/total, 0 fallos/errores/omitidos y `Complete allowlisted suite: True`. El reporte HTML se reutiliza también por la suite normal: confirmar que fue producido con el perfil, `target/jacoco-integration.exec` y `target/surefire-integration-reports/`, no solo por la existencia del HTML. Guardar consola y SHA juntos.
-
-🔴 Si no hay reporte fresco: mostrar [documentación histórica](../pruebas/cobertura-integracion-backend.md) y decir: “El requisito es 100 %. El último resultado documentado es 97,216671 %; el perfil conserva gate de cero líneas pendientes. El SHA actual tiene una clase adicional y no estamos atribuyéndole ese porcentaje sin nueva corrida”. No inventar un HTML ausente.
-
-📸 Capturar resumen, contador LINE y estado gate, no solo una clase al 100 %. Pasar a performance al terminar los dos minutos reservados.
-
-# 8. Docker Swarm en dos computadores — desde cero
-
-**Esta receta NO fue ejecutada por la auditoría.** Tiene una barrera inicial: el Mac ya es manager de un cluster con datos. No inicializar otro ni abandonar el actual para seguir literalmente “desde cero”. Usar el cluster existente solo si su red permite incorporar el segundo motor; de lo contrario preparar otro entorno de forma planificada fuera de la exposición. **No hay una corrección automática de NAT/VM en este repositorio.**
-
-## 8.1 Elegir manager
-
-PC 1 Sofía es candidata, IP LAN `192.168.40.13`. Ejecutar §3 y comprobar que la IP del **motor** anunciada al worker es alcanzable. No usar dirección de VPN, loopback ni la VM privada inaccesible desde PC 2. Mantener una hoja con IP manager, IP worker, hostname e ID Docker.
-
-## 8.2 Revisar estado actual en AMBOS computadores
-
-**DÓNDE EJECUTAR ESTO — 💻 AMBOS PCs, terminal local, cualquier carpeta.**
-```text
-docker context show
-docker info --format '{{.Swarm.LocalNodeState}} {{.Swarm.ControlAvailable}} {{.Swarm.NodeID}} {{.Swarm.NodeAddr}}'
-```
-
-- `inactive`: todavía no pertenece a cluster; apto para init/join tras red verificada.
-- `active true`: manager. Solo él puede listar nodos y desplegar stack.
-- `active false`: worker. No ejecutar deploy aquí.
-- Estado error/pending/locked: detener receta, diagnosticar; no forzar limpieza.
-- Worker ya unido al cluster correcto: no repetir join. En otro cluster: resolver preservación de cargas fuera de la demo.
-
-⚠️ `docker swarm leave --force` en un manager puede destruir el control de ese cluster y dejar cargas/datos sin administración. **No se incluye como paso de esta receta.** En el Mac auditado, conservar `marketplace` y su volumen mientras se decide el entorno.
-
-## 8.3 Inicializar manager, SOLO si está inactive y la red está validada
-
-**DÓNDE EJECUTAR ESTO — 💻 PC MANAGER, terminal del motor Linux elegido, cualquier carpeta; únicamente cluster nuevo y candidato confirmado.**
-```bash
-docker swarm init --advertise-addr 192.168.40.13
-```
-
-🟢 Esperado: “Swarm initialized” y comando para agregar worker. Si Docker dice dirección no disponible o los puertos no llegan desde PC 2, **no repetir con IPs al azar**: §18. No ejecutar en el manager ya activo auditado. Referencia de sintaxis: [docker swarm init](https://docs.docker.com/reference/cli/docker/swarm/init/).
-
-## 8.4 Unir PC 2
-
-**DÓNDE EJECUTAR ESTO — 💻 PC MANAGER activo y alcanzable, terminal local, cualquier carpeta; no compartir pantalla del token.**
-```bash
-docker swarm join-token worker
-```
-
-Copiar el comando completo por canal privado a Vanessa. Si muestra 192.168.65.3, comprobar alcance real; sustituir solo el texto del comando no arregla la red interna del cluster.
-
-**DÓNDE EJECUTAR ESTO — 💻 PC WORKER, terminal del motor elegido, cualquier carpeta; plantilla que se reemplaza por el comando REAL emitido por el manager.**
-```text
-docker swarm join --token REEMPLAZAR_TOKEN_REAL 192.168.40.13:2377
-```
-
-🟢 Esperado: “This node joined a swarm as a worker”. No fotografiar token ni guardarlo en Git. Mantener ambas terminales abiertas; pasar a PC 1.
-
-## 8.5 Verificar cluster
-
-**DÓNDE EJECUTAR ESTO — 💻 PC MANAGER, terminal local, cualquier carpeta.**
-```bash
-docker node ls
-docker node inspect --format '{{.ID}} {{.Description.Hostname}} {{.Status.Addr}} {{.Spec.Role}}' self
-```
-
-`Ready` = daemon reporta disponible; `Active` = permite scheduling; `Leader` = manager líder; columna manager vacía suele corresponder a worker, confirmar Role si hace falta. Deben aparecer **dos IDs de motores diferentes**. Ambos Docker Desktop pueden llamarse `docker-desktop`: no usar solo hostname para demostrar PCs; comparar el NodeID de cada terminal física.
-
-📸 Capturar tabla y las dos pantallas con sus IDs. Si aparece un solo nodo, no continuar con la afirmación “dos computadores”.
-
-## 8.6 Labels y placement
-
-**DÓNDE EJECUTAR ESTO — 💻 PC MANAGER, Bash, raíz; copiar ID del WORKER real de node ls en el prompt.**
-```bash
-MANAGER_NODE_ID=$(docker info --format '{{.Swarm.NodeID}}')
-read -r -p 'ID real del WORKER: ' WORKER_NODE_ID
-docker node inspect --format '{{.ID}} {{.Spec.Role}} {{.Status.State}}' "$WORKER_NODE_ID"
-docker node update --label-add backend_zone=pc1 "$MANAGER_NODE_ID"
-docker node update --label-add backend_zone=pc2 "$WORKER_NODE_ID"
-docker node inspect --format '{{.ID}} {{json .Spec.Labels}}' "$MANAGER_NODE_ID" "$WORKER_NODE_ID"
-```
-
-🟢 Esperado: etiquetas distintas. `stack.yml` tiene `spread: node.labels.backend_zone` para backend y frontend; **es preferencia, no constraint ni max_replicas_per_node**. Revisar después task por task: no basta ver 2/2. MySQL exige manager y `node.id == MYSQL_NODE_ID`; volumen local, una sola réplica.
-
-## 8.7 GHCR y versión
-
-En cluster real, `deploy.sh` **hace pull de ambas imágenes**; usa `--with-registry-auth --resolve-image always`. No construye localmente. Los tags por defecto son latest; fijar `sha-<SHA completo>` de una publicación existente. En las consultas realizadas, los manifiestos backend (consulta inicial) y frontend (consulta al cierre) del SHA auditado respondieron **manifest unknown**, coherente con publicación aún en curso; no desplegar ese tag hasta comprobar publicación.
-
-**DÓNDE EJECUTAR ESTO — 💻 AMBOS PCs, terminal local, cualquier carpeta; comprobación sin descargar imágenes.**
-```text
-docker version --format '{{.Server.Os}}/{{.Server.Arch}}'
-docker manifest inspect ghcr.io/transformersas/transformers-as-backend:sha-770f3c6da98a1885b69bf43c606a60986b2468e6
-docker manifest inspect ghcr.io/transformersas/transformers-as-frontend:sha-770f3c6da98a1885b69bf43c606a60986b2468e6
-```
-
-🟢 Esperado: manifiestos con linux/amd64 y linux/arm64 para los PCs que los necesiten. No confundir manifests de attestations `unknown/unknown` con plataforma ejecutable. `denied` pide revisar acceso; `manifest unknown` pide revisar tag/publicación. No sustituir silenciosamente por latest.
-
-**DÓNDE EJECUTAR ESTO — 💻 PC MANAGER y, para predescarga manual, PC WORKER; terminal local privada, cualquier carpeta.**
-```text
-docker login ghcr.io
-```
-
-Introducir usuario y credencial de lectura del paquete en el prompt, no en pantalla compartida ni línea de comandos. Permisos dependen del paquete/organización; no se verificó si son públicos. El manager transmite credenciales de registro a los agentes mediante deploy; el worker no necesita login interactivo adicional para ese mecanismo, pero sí para sus pulls manuales si son privados.
-
-**DÓNDE EJECUTAR ESTO — 💻 AMBOS PCs, terminal local, cualquier carpeta; solo tras confirmar manifiestos del SHA.**
-```text
-docker pull ghcr.io/transformersas/transformers-as-backend:sha-770f3c6da98a1885b69bf43c606a60986b2468e6
-docker pull ghcr.io/transformersas/transformers-as-frontend:sha-770f3c6da98a1885b69bf43c606a60986b2468e6
-docker pull mysql:8.4.11
-```
-
-Estas descargas son **preparación sugerida, no realizada**. No correrlas en plena prueba de performance. Si la publicación de main no termina, usar una versión anterior solo con su SHA visible y reconocer que no acredita el SHA actual.
-
-## 8.8 Secrets
-
-Para `STACK_NAME=transformers`, defaults reales:
-
-| Secret externo | Entrada / generación |
-|---|---|
-| `transformers_db_password_v1` | Prompt oculto o `DB_PASSWORD_SECRET_FILE` |
-| `transformers_mysql_root_password_v1` | Prompt oculto o `MYSQL_ROOT_PASSWORD_SECRET_FILE` |
-| `transformers_logistics_webhook_secret_v1` | `LOGISTICS_WEBHOOK_SECRET_FILE` o valor aleatorio de 48 hex generado por script |
-
-Se crean en manager y se montan según stack. Si existen se **reutilizan**, no se rota contenido. `.env` no se carga por `deploy.sh`. Las contraseñas DB deben corresponder al volumen si ya está inicializado.
-
-**Preparación más rápida para un entorno nuevo:** ejecutar deploy interactivamente y proporcionar las dos claves en prompts ocultos fuera de pantalla compartida; el webhook se genera automáticamente. Guardar las claves en gestor seguro. Después, la repetición en vivo reutiliza los secrets sin preguntar. No borrar secrets para volver a ver prompts.
-
-Para CD no interactivo: preparar archivos fuera del repo, de una sola línea **sin salto final**, no vacíos, permisos 0600 cuando aplique; exportar las tres variables `*_SECRET_FILE` con rutas reales. El YAML CD lee esas rutas de variables GitHub, **no transporta archivos desde GitHub**: deben existir en el runner. No proyectar valores.
-
-**DÓNDE EJECUTAR ESTO — 💻 PC MANAGER, terminal local, cualquier carpeta; solo metadatos.**
-```bash
-docker secret ls
-```
-
-No hay necesidad de imprimir secretos para probar que existen. Si el servicio usa otros nombres, inspeccionar referencias del servicio sin mostrar contenido.
-
-## 8.9 Un solo script
-
-Antes: red apta, manager correcto, dos nodos, tags existentes, puertos 18000 y 18090 libres, recursos suficientes y secrets/credenciales preparados. El stack nuevo `transformers` coexistiría con `marketplace`; no desplegar ambos si no hay memoria suficiente. Si esos prerrequisitos no se cumplen, **parar y usar §18**, sin cambiar infraestructura a ciegas.
-
-**DÓNDE EJECUTAR ESTO — 💻 PC MANAGER, Bash (Terminal Mac/Linux o Git Bash Windows), raíz del repo; configuración previa explícita.**
+**DÓNDE EJECUTAR ESTO — 💻 SOFÍA, M1 — CONTROL, Bash, raíz del repo; antes de los 20 minutos.**
 ```bash
 export STACK_NAME=transformers
-export BACKEND_IMAGE_TAG=sha-770f3c6da98a1885b69bf43c606a60986b2468e6
-export FRONTEND_IMAGE_TAG="$BACKEND_IMAGE_TAG"
 export FRONTEND_HOST_PORT=18000
 export BACKEND_HOST_PORT=18090
-```
-
-No reutilizar inadvertidamente `MYSQL_NODE_ID`, `DB_NAME`, `DB_USER`, `*_SECRET` o `SWARM_*_URL` de otro entorno. Revisar sus nombres/valores no secretos en privado. Si no están definidos, deploy usa defaults documentados y conserva el nodo MySQL de un servicio existente del mismo stack.
-
-**DÓNDE EJECUTAR ESTO — 💻 PC MANAGER, MISMA terminal Bash y raíz, después de aprobar todos los prerrequisitos. Este es EL script de despliegue.**
-```bash
-bash deploy.sh
-```
-
-🟢 Esperado: descarga/verifica imágenes, valida healthchecks, elige manager MySQL, crea/reutiliza secrets, despliega frontend/backend/mysql, espera réplicas 2/2, 2/2, 1/1 y tres ciclos consecutivos de health UP separados por 5 s. Timeout de convergencia default 600 s, **después** de pulls/preparación. No prometer que tarda tres minutos en frío.
-
-El mensaje final es “Frontend y API disponibles; réplicas convergidas y readiness accesible...”. Si termina con código distinto de cero, conservar salida; deja stack para diagnóstico. No afirmar éxito solo porque `docker stack deploy` aceptó YAML.
-
-**En vivo:** mostrar una repetición del mismo script sobre el entorno preparado, sin cambiar tags, secretos ni puertos; explicar que la creación del cluster y configuración se hicieron antes. Si tarda más del bloque, mostrar estado y declarar operación en curso, no esperar consumiendo todos los 20 minutos.
-
-## 8.10 Verificar distribución física
-
-**DÓNDE EJECUTAR ESTO — 💻 PC MANAGER, terminal local, raíz, después del despliegue propuesto.**
-```bash
-docker node ls
-docker service ls
-docker stack services transformers
-docker service ps --no-trunc transformers_backend
-docker service ps --no-trunc transformers_frontend
-docker service ps --no-trunc transformers_mysql
-docker stack ps --no-trunc transformers
-```
-
-Interpretación: NAME indica servicio y slot; NODE indica motor que ejecuta; DESIRED STATE es lo solicitado; CURRENT STATE dice si la task está Running/Failed/Pending; ERROR explica rechazo. Filas con `\_` son historial, no más réplicas actuales. `2/2` significa cantidad convergida, **no dos computadores**.
-
-**DÓNDE EJECUTAR ESTO — 💻 PC MANAGER, Bash, raíz; vincular tareas activas con NodeID aunque los hostnames sean iguales.**
-```bash
-docker service ps --filter desired-state=running -q transformers_backend | while read -r task; do
-  docker inspect --type task --format '{{.ID}} node={{.NodeID}} state={{.Status.State}}' "$task"
-done
-```
-
-En las terminales de ambos PCs comparar con su `.Swarm.NodeID` de §8.2. 🟢 Esperado: un backend en PC 1 y otro en PC 2. Si no, preferencia spread no logró separación; **no certificar distribución**. No hacer un force update improvisado durante functional/performance.
-
-# 9. Prueba de deployability
-
-💻 Sofía comparte terminal manager, Vanessa deja visible su NodeID en la otra pantalla.
-
-1. Mostrar dos PCs y §8.5: dos motores Ready/Active.
-2. Mostrar §8.10: backend y frontend, placement real, MySQL manager.
-3. Mostrar el comando único de §8.9 y la salida convergida; los preparativos son configuración previa.
-4. Abrir frontend del Swarm (18000) y readiness proxy. Un UP de 4300 no demuestra ese stack.
-5. Mostrar persistencia con el flujo ya asignado, sin inventar otra prueba funcional.
-6. 📸 Guardar script/salida, nodos, tasks, health y GUI con SHA visible.
-
-Guion ≤20 s **solo si se observó todo**: “Este manager administra dos motores en dos computadores. Hay dos réplicas backend y dos frontend; aquí se ve dónde están. El mismo deploy.sh despliega los tres servicios y verifica convergencia y readiness. MySQL tiene una réplica y no ofrece alta disponibilidad”.
-
-Si hay un nodo: “Este ensayo acredita despliegue por script y réplicas locales; **no cumple la distribución física en dos computadores**”.
-
-# 10. Performance
-
-## Qué scripts existen realmente
-
-| Script versionado | Carga y endpoints | Thresholds por defecto |
-|---|---|---|
-| `scripts/k6/catalog-browse.js` | Setup registro vendedor, CSRF y login; bucle GET `/api/products` y `/api/products/{id}` | `catalog_list_duration` p95 ≤3000 ms; `catalog_detail_duration` p95 ≤3000 ms; `catalog_error_rate` <0,02 |
-| `scripts/k6/seller-register.js` | CSRF + POST `/api/sellers/register`, cuentas únicas | `seller_register_duration` p95 ≤4000 ms; `seller_register_error_rate` <0,02 |
-
-Ambos: `constant-vus`, VUS=50 y DURATION=1m por defecto, gracefulStop=10s. La corrida catálogo con **100 VUs** es la que la documentación asocia al ASR catálogo. El documento original `Decisiones_Arquitectonicas_Marketplace.md` citado por el script **no está en main**: no certificar todos sus requisitos a partir de una cita indirecta.
-
-No hay script de availability dedicado: §11 reutiliza catálogo con duración 3m. El registro mide BCrypt/escritura y crea cuentas; no sustituye la prueba de catálogo.
-
-**Prerrequisito crítico:** catálogo no vacío y credenciales válidas en el entorno objetivo. `setup()` intenta registrar cuenta, pero no confirma correo; el registro actual envía verificación y el script no la completa. Evitar depender de esa cuenta nueva: usar una cuenta de prueba **ya verificada** mediante `CATALOG_EMAIL`/`CATALOG_PASSWORD`. Su setup puede devolver conflicto por cuenta existente y continuar; no confundir ese HTTP de preparación con el error rate del catálogo. Todas las VUs usan esa misma identidad con cookie jars separados: 100 VUs no significa 100 compradores diferentes.
-
-## Preparación de datos: fuera de los 20 minutos
-
-Swarm no activa perfil demo; exportar `SPRING_PROFILES_ACTIVE=demo` en la terminal no lo añade al stack actual. No esperar allí las cuentas del exe. Se encontraron seeds `cu19-demo-seed.sh`, `cu20-demo-seed.sh`, `cu23-demo-seed.sh`, `cu24-25-demo-seed.sh`, `cu24-25-demo-events.sh`, `cu08-real-seed.sql` y el generador performance `.sh`/`.py` bajo `scripts/`. No correrlos indiscriminadamente sobre el MySQL observado.
-
-El generador performance tiene defaults 100 usuarios del pool, 1.000 productos y 10.000 pedidos sintéticos, **107 cuentas totales** contando auxiliares. Requiere Docker, Python 3 y htpasswd o imagen httpd:2.4; DB ya creada/migrada, sin tráfico y desechable. No acredita pagos reales. Ver [datos y rendimiento](../pruebas/datos-demostracion-y-rendimiento.md).
-
-**DÓNDE EJECUTAR ESTO — 💻 PC que aloja el MySQL DE PRUEBAS DESECHABLE, Bash, raíz; solo preparación previa, con base aislada y backend sin tráfico. NO ejecutar sobre el stack auditado por conveniencia.**
-```bash
-read -r -p 'Nombre/ID real del contenedor MySQL desechable: ' MYSQL_CONTAINER
-read -r -p 'Base desechable ya migrada: ' DB_NAME
-read -r -p 'Usuario MySQL de esa base: ' DB_USER
-read -r -s -p 'Contraseña MySQL de esa base: ' DB_PASSWORD
-printf '\n'
-read -r -s -p 'Contraseña para cuentas sintéticas: ' DEMO_PASSWORD
-printf '\n'
-export MYSQL_CONTAINER DB_NAME DB_USER DB_PASSWORD DEMO_PASSWORD
-bash scripts/performance-demo-seed.sh
-unset DB_PASSWORD DEMO_PASSWORD
-```
-
-🟢 Esperado: resumen de inserción/reutilización de datos. 🔴 Si aborta, no desactivar constraints ni activar reset. Este paso no configura por sí solo el backend para esa base: **debe ser ya la base del entorno de performance acordado**. Si no existe un entorno seguro preparado, usar catálogo/cuenta ya preparados en el entorno disponible y declarar su tamaño real; no afirmar escala 1.000/10.000 sin contarla. No se ejecutó este seed en la auditoría.
-
-## 10.1 Preparar cliente y prueba 50 usuarios
-
-Ruta de carga principal: **frontend del Swarm propuesto** `http://192.168.40.13:18000`, sin agregar `/api` a BASE_URL porque el script ya lo añade. Si se usa Compose, BASE_URL es `http://127.0.0.1:4300` desde ese host y el resultado se etiqueta Compose. No mezclar resultados.
-
-**DÓNDE EJECUTAR ESTO — 💻 PC MANAGER/cliente de carga, terminal Bash dedicada, raíz; introducción privada de cuenta y configuración de prueba.**
-```bash
+read -r -p 'IP LAN confirmada del manager: ' MANAGER_IP
+export MANAGER_IP
+export QUALITY_URL="http://${MANAGER_IP}:${FRONTEND_HOST_PORT}"
+read -r -p 'Tag publicado de backend Y frontend (sha-SHA_COMPLETO): ' BACKEND_IMAGE_TAG
+export BACKEND_IMAGE_TAG
+export FRONTEND_IMAGE_TAG="$BACKEND_IMAGE_TAG"
 mkdir -p evidencias-sustentacion
-export BASE_URL=http://192.168.40.13:18000
+git rev-parse HEAD
+git status --short
+docker node ls
+docker stack services "$STACK_NAME"
+curl --fail --max-time 5 "$QUALITY_URL/healthz"
+curl --fail --max-time 5 "$QUALITY_URL/api/actuator/health/readiness"
+```
+
+Introducir la IP que se verificó en preparación, por ejemplo `192.168.40.13` si sigue asignada. Introducir **un tag que exista en GHCR para ambas imágenes**; no escribir literalmente `sha-SHA_COMPLETO`. No es una contraseña.
+
+🟢 Esperado: dos nodos Ready/Active; frontend 2/2, backend 2/2, MySQL 1/1; dos JSON con `status: UP`. Si el stack no existe o da error, no está preparado: §14. No empezar el bloque de pruebas esperando que se arregle solo.
+
+**Dejar M1 abierta.** Las variables pertenecen a esta ventana. Cerrar M1 o abrir otra no conserva automáticamente la configuración.
+
+## 3.2 M2 — PRUEBAS: dejar credenciales listas, sin proyectarlas
+
+**DÓNDE EJECUTAR ESTO — 💻 SOFÍA, Mac manager, ventana M2 — PRUEBAS, Terminal nueva.**
+```bash
+cd /Users/sofiamantilla/Documents/GitHub/Transformers-AS
+bash
+```
+
+**DÓNDE EJECUTAR ESTO — 💻 SOFÍA, M2 — PRUEBAS, Bash, raíz; introducir la MISMA IP que en M1 y la cuenta de carga del Swarm.**
+```bash
+read -r -p 'IP LAN confirmada del manager: ' MANAGER_IP
+export QUALITY_URL="http://${MANAGER_IP}:18000"
 read -r -p 'Correo de cuenta de prueba ya verificada: ' CATALOG_EMAIL
 read -r -s -p 'Contraseña de esa cuenta: ' CATALOG_PASSWORD
 printf '\n'
 export CATALOG_EMAIL CATALOG_PASSWORD
+python3 --version
 k6 version
-k6 run -e VUS=1 -e DURATION=10s scripts/k6/catalog-browse.js
 ```
 
-Esta corrida corta es preparación, no acredita ASR. Confirmar que hay muestras **tanto de listado como de detalle** y no aparecen errores de catálogo vacío/login. No ejecutar la prueba en una pantalla que muestre contraseñas.
+La contraseña no aparece mientras se escribe: es normal. Pulsar Enter una vez. No pegarla dentro de un comando. No cerrar M2 durante la demostración.
 
-**DÓNDE EJECUTAR ESTO — 💻 MISMO PC y MISMA terminal Bash de k6, raíz, con BASE_URL y cuenta ya exportadas.**
+**DÓNDE EJECUTAR ESTO — 💻 SOFÍA, M2 — PRUEBAS, Bash, raíz; preprueba corta ANTES del cronómetro.**
 ```bash
-k6 run -e VUS=50 -e DURATION=1m --summary-export evidencias-sustentacion/catalogo-50.json scripts/k6/catalog-browse.js
-printf 'Exit code k6: %s\n' "$?"
+k6 run -e BASE_URL="$QUALITY_URL" -e VUS=1 -e DURATION=10s scripts/k6/catalog-browse.js
 ```
 
-🟢 Esperado: duración nominal 60 s más setup/login/graceful stop, no tiempo fijo exacto. Capturar salida completa antes de limpiar consola. Ver métricas §10.3, escribirlas en §26; luego 100 VUs.
+🟢 Esperado: login válido, listado/detalle con muestras y al menos un recorrido exitoso. Esta corrida **no acredita 50 ni 100 VUs**, solo evita descubrir credenciales/catálogo incorrectos en plena demo. Si falla, resolver cuenta/URL/datos antes. No cambiar el CU de autenticación ni desactivar verificación.
 
-## 10.2 Prueba 100 usuarios
+## 3.3 W1 — RÉPLICA: preparar exactamente qué contenedor se detendrá
 
-**DÓNDE EJECUTAR ESTO — 💻 MISMO PC/terminal Bash de carga, raíz, mismas URL/cuenta/dataset para comparación.**
-```bash
-k6 run -e VUS=100 -e DURATION=1m --summary-export evidencias-sustentacion/catalogo-100.json scripts/k6/catalog-browse.js
-printf 'Exit code k6: %s\n' "$?"
-```
-
-No cambiar `P95_LIMIT_MS` ni `ERROR_RATE_LIMIT`. Guardar k6 version, SHA, entorno, PCs, tamaños de datos y carga concurrente adicional. El ASR se evalúa con salida real, no con una estimación.
-
-## Alternativa Docker si k6 no está instalado
-
-Predescargar la imagen k6 antes. Estos bloques son alternativas a los anteriores, **no una tercera prueba simultánea**. El tag no fijado de `grafana/k6` requiere registrar la versión/digest que se utilice; no se inventó una versión del repo.
-
-**DÓNDE EJECUTAR ESTO — 💻 PC MANAGER macOS/Linux, Bash, raíz; variables de cuenta del bloque anterior exportadas y LAN manager verificada.**
-```bash
-docker run --rm -v "$PWD/scripts/k6:/scripts:ro" -v "$PWD/evidencias-sustentacion:/results" -e BASE_URL -e CATALOG_EMAIL -e CATALOG_PASSWORD -e VUS=50 -e DURATION=1m grafana/k6 run --summary-export /results/catalogo-50.json /scripts/catalog-browse.js
-docker run --rm -v "$PWD/scripts/k6:/scripts:ro" -v "$PWD/evidencias-sustentacion:/results" -e BASE_URL -e CATALOG_EMAIL -e CATALOG_PASSWORD -e VUS=100 -e DURATION=1m grafana/k6 run --summary-export /results/catalogo-100.json /scripts/catalog-browse.js
-```
-
-**DÓNDE EJECUTAR ESTO — 💻 PC Windows cliente, PowerShell, raíz; alternativa Docker completa.**
+**DÓNDE EJECUTAR ESTO — 💻 VANESSA, PC worker Windows, W1 — RÉPLICA, PowerShell, cualquier carpeta. Solo lectura/preparación.**
 ```powershell
-New-Item -ItemType Directory -Force evidencias-sustentacion | Out-Null
-$env:BASE_URL = 'http://192.168.40.13:18000'
-$env:CATALOG_EMAIL = Read-Host 'Correo de prueba ya verificado'
-$claveCarga = Read-Host 'Contraseña de prueba' -AsSecureString
-$env:CATALOG_PASSWORD = [System.Net.NetworkCredential]::new('', $claveCarga).Password
-docker run --rm -v "${PWD}/scripts/k6:/scripts:ro" -v "${PWD}/evidencias-sustentacion:/results" -e BASE_URL -e CATALOG_EMAIL -e CATALOG_PASSWORD -e VUS=50 -e DURATION=1m grafana/k6 run --summary-export /results/catalogo-50.json /scripts/catalog-browse.js
-$LASTEXITCODE
-docker run --rm -v "${PWD}/scripts/k6:/scripts:ro" -v "${PWD}/evidencias-sustentacion:/results" -e BASE_URL -e CATALOG_EMAIL -e CATALOG_PASSWORD -e VUS=100 -e DURATION=1m grafana/k6 run --summary-export /results/catalogo-100.json /scripts/catalog-browse.js
-$LASTEXITCODE
-```
-
-Desde Docker, `127.0.0.1` es **el contenedor k6**, no el host. En Docker Desktop, para un servicio publicado en el mismo host se puede usar `http://host.docker.internal:18000` (o 4300 para Compose) después de comprobar alcance. Para un manager remoto usar su IP LAN. En Linux no asumir que `host.docker.internal` está definido; usar IP alcanzable del motor/host. Si el servicio Compose solo escucha loopback, no pretender acceder desde otro PC por su IP LAN.
-
-## 10.3 Qué mirar
-
-- `catalog_list_duration` y `catalog_detail_duration`: columna `p(95)`, cada una ≤3 s. Mirar ambas.
-- `catalog_error_rate`: proporción de muestras marcadas error, <2 %. Incluye fallos login y catálogo vacío; no equivale exactamente a fallos de transporte HTTP.
-- `catalog_throughput`: contador de detalles exitosos y su tasa por segundo; no contar esto como todos los requests HTTP.
-- `http_reqs`: total HTTP y tasa req/s, incluye preparación/autenticación.
-- `http_req_failed`: tasa de requests que k6 considera fallidos, distinta del rate de negocio.
-- `checks`: verificaciones 200 de listado/detalle, distintas de cantidad de operaciones de usuario.
-
-🟢 PASS solo con thresholds satisfechos y datos suficientes; 🔴 FAIL si se cruza un threshold o hay error de ejecución. Exit distinto de cero también puede ser un fallo de setup, no necesariamente rendimiento malo. Un 0 con detalle sin muestras exige investigar antes de acreditar catálogo completo.
-
-`--summary-export` guarda JSON; abrirlo en editor si varía el esquema entre versiones. El resumen terminal mantiene nombres reales de métricas. Referencias: [salida de k6](https://grafana.com/docs/k6/latest/get-started/results-output/) y [opciones de exportación](https://grafana.com/docs/k6/latest/using-k6/k6-options/reference/).
-
-## 10.4 Si performance falla
-
-1. Guardar consola, JSON y exit code. No repetir diez veces hasta elegir la única verde.
-2. Verificar BASE_URL/puerto/stack/SHA; no estar midiendo Compose antiguo por error.
-3. Confirmar cuenta verificada, sesiones y catálogo no vacío. En este código, login no está en las Trends personalizadas, aunque sí afecta recursos y métricas HTTP globales.
-4. Revisar CPU/memoria, builds/pruebas paralelas, MySQL, red y warmup.
-5. Si existe evidencia previa cuantitativa, mostrarla **con su versión y entorno**. No se encontraron JSON k6 versionados; la documentación solo menciona un ensayo pequeño de 46 ms y ~60 ops/s que no acredita 50/100 VUs.
-6. Decir “esta corrida incumplió [métrica], registramos [valor]”; pasar al siguiente bloque sin modificar thresholds.
-
-# 11. Availability — receta literal
-
-**Prerrequisitos:** dos backends Running/healthy en **dos nodos físicos**, frontend del Swarm accesible, datos/cuenta válidos, sin otras pruebas concurrentes. Esta prueba mata un proceso backend, **no el computador ni MySQL**. No prueba una SLA mensual ni alta disponibilidad total.
-
-## 11.1 Verificar 2/2
-
-**DÓNDE EJECUTAR ESTO — 💻 PC MANAGER, terminal de control, raíz.**
-```bash
-docker stack services transformers
-docker service ps --filter desired-state=running --no-trunc transformers_backend
-docker node ls
-```
-
-🟢 Esperado 2/2 y distribución §8.10. 🔴 Si hay solo un nodo, se puede demostrar reemplazo local etiquetado como parcial, no el requisito distribuido.
-
-## 11.2 Identificar réplica del worker
-
-**DÓNDE EJECUTAR ESTO — 💻 PC MANAGER, Bash, terminal de control, raíz; seleccionar task activa del worker, NO del mysql.**
-```bash
-docker service ps --filter desired-state=running --no-trunc transformers_backend
-read -r -p 'Task ID del backend situado en WORKER: ' TARGET_TASK_ID
-docker inspect --type task --format 'Task={{.ID}} Node={{.NodeID}} Container={{.Status.ContainerStatus.ContainerID}} State={{.Status.State}}' "$TARGET_TASK_ID"
-```
-
-Copiar TaskID/ContainerID y verificar NodeID con Vanessa. Una task ID **no es** un container ID. Asegurar que se mata solo una y que queda otra operando.
-
-## 11.3 Iniciar tráfico continuo
-
-**DÓNDE EJECUTAR ESTO — 💻 PC MANAGER/cliente, terminal Bash de k6, raíz, cuenta y BASE_URL exportadas como §10; NO cerrar esta terminal.**
-```bash
-k6 run -e VUS=50 -e DURATION=3m --summary-export evidencias-sustentacion/availability-k6.json scripts/k6/catalog-browse.js
-```
-
-**DÓNDE EJECUTAR ESTO — 💻 PC cliente Windows, PowerShell de §10, raíz; alternativa si se usa Docker k6.**
-```powershell
-docker run --rm -v "${PWD}/scripts/k6:/scripts:ro" -v "${PWD}/evidencias-sustentacion:/results" -e BASE_URL -e CATALOG_EMAIL -e CATALOG_PASSWORD -e VUS=50 -e DURATION=3m grafana/k6 run --summary-export /results/availability-k6.json /scripts/catalog-browse.js
-```
-
-Esperar unos 30 s de tráfico estable tras autenticación. Sofía anuncia “tráfico iniciado”; Vanessa no mata nada antes. Esta corrida conserva los thresholds de catálogo, no inventa thresholds de recovery.
-
-## 11.4 Matar UNA réplica, EN EL NODO DONDE ESTÁ
-
-⚠️ Este comando interrumpe intencionalmente un contenedor backend de la demo. Solo ejecutarlo cuando el tráfico está activo y la otra réplica se confirmó. Nunca hacerlo sobre MySQL ni sobre un container seleccionado solo por posición de lista.
-
-**DÓNDE EJECUTAR ESTO — 💻 PC WORKER, Bash, cualquier carpeta; task y contenedor deben pertenecer a ESTE motor.**
-```bash
+docker info --format '{{.Swarm.NodeID}}'
 docker ps --filter label=com.docker.swarm.service.name=transformers_backend --format '{{.ID}} {{.Names}} {{.Status}}'
-read -r -p 'Container ID de ESA task backend, confirmado con manager: ' TARGET_CONTAINER_ID
-docker inspect --format 'Service={{index .Config.Labels "com.docker.swarm.service.name"}} Task={{index .Config.Labels "com.docker.swarm.task.id"}} Health={{.State.Health.Status}}' "$TARGET_CONTAINER_ID"
-```
-
-Comparar Service=transformers_backend y TaskID del §11.2; **si difiere, detenerse**. Sofía prepara cronómetro común en pantalla para evitar comparar relojes de PCs no sincronizados.
-
-**DÓNDE EJECUTAR ESTO — 💻 PC WORKER, MISMA terminal Bash, solo después de la verificación y anuncio del manager.**
-```bash
-date -u '+T0 kill %Y-%m-%dT%H:%M:%SZ'
-docker kill "$TARGET_CONTAINER_ID"
-```
-
-**DÓNDE EJECUTAR ESTO — 💻 PC WORKER Windows, PowerShell, cualquier carpeta; alternativa completa a los dos bloques Bash.**
-```powershell
-docker ps --filter label=com.docker.swarm.service.name=transformers_backend --format '{{.ID}} {{.Names}} {{.Status}}'
-$targetContainer = Read-Host 'Container ID del backend confirmado con manager'
+$targetContainer = Read-Host 'Container ID del backend transformers en ESTE worker'
 docker inspect --format 'Service={{index .Config.Labels "com.docker.swarm.service.name"}} Task={{index .Config.Labels "com.docker.swarm.task.id"}} Health={{.State.Health.Status}}' $targetContainer
 ```
 
-Revisar visualmente servicio/task antes del siguiente bloque.
+Copiar el ID del contenedor mostrado en **ese PC**. Debe decir `Service=transformers_backend`, una TaskID y `Health=healthy`. Enviar a Sofía **NodeID y TaskID**, sin secretos. No escribir `docker kill` todavía.
 
-**DÓNDE EJECUTAR ESTO — 💻 PC WORKER Windows, MISMA PowerShell; solo tras verificación.**
+Si no aparece ningún contenedor, el backend no está en ese worker: resolver placement antes; no elegir otro contenedor. Si hubo despliegue/reinicio desde esta preparación, volver a obtener el ID antes del kill. El recorrido coloca la repetición de deploy **después** de availability para no invalidar esta selección.
+
+## 3.4 M1 — CONTROL: guardar la correspondencia física
+
+**DÓNDE EJECUTAR ESTO — 💻 SOFÍA, M1 — CONTROL, Bash, raíz; Vanessa ya tiene su NodeID visible en W1.**
+```bash
+docker info --format '{{.Swarm.NodeID}}'
+docker node ls
+docker service ps --filter desired-state=running --no-trunc transformers_backend
+for task in $(docker service ps --filter desired-state=running -q transformers_backend); do
+  docker inspect --type task --format 'Task={{.ID}} Node={{.NodeID}} Container={{.Status.ContainerStatus.ContainerID}}' "$task"
+done
+```
+
+Anotar en la hoja de §12: “NodeID de Sofía → Mac físico” y “NodeID de Vanessa → PC físico”. Los dos hostnames pueden llamarse `docker-desktop`; por eso se usan IDs. Tomar captura **antes** de empezar. Con esto ya no se investiga “qué PC es cuál” durante la exposición.
+
+## 3.5 Archivos/pestañas de resultados listos
+
+En M3 dejar Finder abierto a la raíz del repo y editor visible. Cuando el ejecutor imprima `Evidencia: ...`, copiar esa ruta o abrir desde Finder `artifacts → quality → carpeta con fecha/PID`. Cada ejecución genera una carpeta nueva; no mezclar la de ensayo con la de exposición.
+
+Para ver la carpeta en Finder sin navegar a mano:
+
+**DÓNDE EJECUTAR ESTO — 💻 SOFÍA, M1 — CONTROL, Bash, raíz; cuando artifacts/quality ya exista por una corrida del ejecutor.**
+```bash
+open artifacts/quality
+```
+
+El ejecutor guarda el log de k6 mientras corre y lo imprime al terminar cada corrida. **Una terminal sin el resumen inmediato no significa que esté congelada.** El avance se puede leer abriendo el `.log` de la carpeta anunciada.
+
+# 4. Minuto 00–01 — mostrar que el sistema está abierto
+
+**Pantalla:** GUI FUNCIONAL. **Persona:** Vanessa o responsable funcional. **Lo que ya está listo:** sistema arrancado, navegador y health abiertos.
+
+1. Mostrar la ventana del launcher con “Marketplace está listo” **si se ejecutó realmente en Windows**. No hacer doble clic otra vez: recrea backend/frontend y prepara datos demo.
+2. Mostrar navegador en `http://localhost:4300` de ese Windows. Si la demo funcional usa otro entorno preparado, mostrar su URL real y nombrarlo.
+3. Mostrar pestaña de `/healthz` y `/api/actuator/health/readiness` de ese mismo frontend.
+4. Volver a GUI funcional. Tomar captura `01-sistema-listo.png`.
+
+**Decir:** “El frontend se comunica con el backend y la base de datos. Este entorno funcional ya está iniciado; las pruebas distribuidas las mostraremos en el stack Swarm identificado”.
+
+**Pasar al siguiente paso:** al verse GUI y health UP. No gastar este minuto explicando instalaciones ni la arquitectura entera.
+
+🔴 **Si el launcher no abre:** usar el frontend ya preparado que sí responde, identificarlo y seguir. El diagnóstico de launcher está en §13.1. No presentar un artifact construido como doble clic exitoso.
+
+# 5. Minuto 01–05 — demostración funcional asignada
+
+**Pantalla:** GUI FUNCIONAL. **Persona:** responsable de cada flujo.
+
+1. Entrar con la cuenta preparada para el flujo.
+2. Ejecutar los flujos asignados según sus guías individuales.
+3. Mostrar resultado, refrescar y comprobar persistencia cuando corresponda.
+4. Tomar captura del resultado antes de cambiar a Sofía.
+5. No tocar Docker, no relanzar el exe y no ejecutar seeds.
+
+**Para el paso exacto de cada CU, utilizar las guías individuales:** [CU-08 y CU-11](cu-08-autenticacion-cu-11-cancelacion.md). Este documento no cambia ni sustituye esas instrucciones.
+
+**Decir al cerrar:** “Este resultado se conserva al consultar nuevamente. Pasamos a las pruebas y a las mediciones de atributos de calidad”.
+
+# 6. Minuto 05–07 — integración y coverage
+
+**Pantalla:** reporte ya abierto en M3. **Persona:** Sofía. **No ejecutar una suite limpia en este bloque.**
+
+1. Mostrar qué suite produjo el reporte y a qué versión corresponde.
+2. Mostrar resumen de tests: ejecutados, fallos, errores y omitidos.
+3. Mostrar contador **LINE**: covered, missed, total y porcentaje.
+4. Mostrar el gate. El perfil `integration-coverage` exige **cero líneas missed**; el gate normal de CI es **95 %** y no es la misma prueba.
+5. Guardar `02-coverage.png`. Continuar a performance.
+
+**Lo que sabemos y no se debe exagerar:**
+
+| Elemento | Evidencia disponible |
+|---|---|
+| Requisito del profesor | 100 % integración backend |
+| Histórico documentado | 80 clases, 864 tests, 6811 líneas cubiertas/7006, 195 missed: **97,216671 %**; gate fallido |
+| Manifiesto auditado | 81 clases concretas de integración |
+| Porcentaje de la versión actual | No medido nuevamente en esta tarea; no atribuirle el histórico |
+| Cambios de atributos de calidad | No alteraron CUs, pruebas funcionales ni coverage |
+
+**Si solo está disponible el histórico, decir literalmente:** “El requisito es 100 %. El último resultado documentado fue 97,216671 % y no pasó el gate estricto. La suite actual tiene 81 clases; no estamos presentando ese porcentaje histórico como una medición nueva”.
+
+Si el HTML no existe, mostrar [documentación histórica de integración](../pruebas/cobertura-integracion-backend.md). **No abrir una clase al 100 % y presentarla como el backend completo.** La receta para generar el reporte antes está en §14.6.
+
+# 7. Minuto 07–11 — performance: un comando para ambas cargas
+
+**Pantalla:** M2 — PRUEBAS. **Persona:** Sofía. La cuenta y `QUALITY_URL` ya están cargadas desde §3.2.
+
+## 7.1 Ejecutar una sola vez
+
+**DÓNDE EJECUTAR ESTO — 💻 SOFÍA, Mac manager/cliente de carga, M2 — PRUEBAS, Bash, raíz del repositorio.**
+```bash
+python3 scripts/quality/run.py performance --base-url "$QUALITY_URL"
+```
+
+**No ejecutar otro comando en M2 hasta que termine.** No abrir otra prueba k6 al mismo tiempo.
+
+El script hace esto, en orden:
+
+1. Crea `artifacts/quality/<fechaUTC>-<PID>/` y muestra su ruta.
+2. Guarda `context.json`: SHA local, estado del árbol de trabajo, versión de k6, URL y umbrales.
+3. Valida cuenta/login/catálogo/detalle desde k6. **No registra cuentas ni crea productos.**
+4. Ejecuta **50 VUs durante 1 min**; al finalizar imprime su salida.
+5. Ejecuta **100 VUs durante 1 min**; al finalizar imprime su salida.
+6. Conserva logs, resumen JSON y resultado de cada una; imprime `Medición PASS` o `Medición FAIL`.
+
+⏱ Son dos minutos nominales de carga más preparación/login/cierre. Por eso reservamos cuatro minutos. El `gracefulStop` del escenario es de 10 s; no prometer finalización al segundo exacto.
+
+**Mientras corre la primera, decir:** “Medimos navegación de catálogo por el frontend, pasando por backend y MySQL. Primero 50 usuarios virtuales y luego 100, con el mismo entorno”.
+
+## 7.2 Leer estos números, en este orden
+
+| Nombre visible | Qué anotar | Criterio |
+|---|---|---|
+| `catalog_list_duration` | `p(95)` del listado | ≤3000 ms |
+| `catalog_detail_duration` | `p(95)` del detalle | ≤3000 ms |
+| `catalog_error_rate` | Rate de error de la prueba | <0,02, es decir <2 % |
+| `catalog_throughput` | Count y rate por segundo | Al menos un recorrido exitoso; no se inventó tasa mínima ASR |
+| `catalog_requests` | Total HTTP listado/detalle durante carga | Dato cuantitativo |
+| `catalog_successes` / `catalog_failures` | Respuestas 200 / no 200 de esos requests | Suman catalog_requests |
+| `http_reqs` | Total HTTP y req/s, incluyendo preparación | Tiene denominador distinto al de catálogo |
+
+El rate de negocio también detecta fallos de login/catálogo vacío; no es idéntico a contar respuestas HTTP fallidas. Las VUs usan cookie jars separados, pero la misma cuenta configurada: **100 VUs no significa 100 cuentas distintas**.
+
+🟢 **PASS:** se completó cada corrida, existen muestras de listado/detalle y se cumplen thresholds. 🔴 **FAIL:** guardar resultado y decir el valor incumplido; no cambiar `P95_LIMIT_MS` ni `ERROR_RATE_LIMIT`. El ejecutor elimina overrides heredados de esos dos umbrales.
+
+## 7.3 Mostrar los archivos sin buscarlos por todo el repo
+
+1. En M3 abrir la carpeta que imprimió `Evidencia:`.
+2. Abrir `catalogo-50-result.json` y después `catalogo-100-result.json` en el editor.
+3. Mostrar `vus`, `k6_exit_code`, `metrics` y `measurement_passed`.
+4. Para el resumen completo, abrir `catalogo-50.json` / `catalogo-100.json` o leer la consola.
+5. Capturar `03-performance-50.png` y `04-performance-100.png`; anotar resultados en §12.
+
+**Decir al terminar:** “Con 50 VUs obtuvimos [valores] y con 100 [valores]. El resultado de los umbrales fue [PASS/FAIL]. Conservamos las dos corridas, no solo una captura”.
+
+**Transición:** “Ahora mantenemos tráfico mientras detenemos una réplica del backend”. Dejar M2 abierta con las credenciales; el siguiente comando usa la misma ventana.
+
+🔴 Si falla inmediatamente: cuenta/URL/catálogo no preparados, no prueba de rendimiento válida. Guardar log, declarar prueba no completada y pasar. Diagnóstico en §13.2.
+
+# 8. Minuto 11–15 — availability: tráfico, una caída y recuperación
+
+**Pantallas:** M2 medición, W1 réplica, M1 control. **Personas:** Sofía dirige; Vanessa ejecuta **un solo kill cuando Sofía lo indique**.
+
+## 8.1 Iniciar tráfico y observación
+
+**DÓNDE EJECUTAR ESTO — 💻 SOFÍA, M2 — PRUEBAS, Bash, raíz; después de que performance haya terminado.**
+```bash
+python3 scripts/quality/run.py availability --base-url "$QUALITY_URL" --stack transformers
+```
+
+🟢 El ejecutor exige dos backend Running en nodos distintos y readiness UP antes de lanzar k6. Abre otra carpeta de evidencia, inicia **50 VUs durante 3 min** y muestra muestras con tiempos, tasks y readiness.
+
+**IMPORTANTE:** ver muestras del observador no basta para saber que el login k6 ya pasó. En M3 abrir `availability.log` en la carpeta anunciada; confirmar que no hay error de setup y que empezó el escenario de carga. Esperar aproximadamente 30 s de tráfico estable antes de ordenar kill.
+
+**Sofía dice:** “La prueba de tráfico está en ejecución. Vamos a detener únicamente la réplica que está en el computador de Vanessa”.
+
+## 8.2 Mostrar las dos réplicas antes de la caída
+
+**DÓNDE EJECUTAR ESTO — 💻 SOFÍA, M1 — CONTROL, Bash, raíz; M2 continúa ejecutándose.**
+```bash
+docker stack services transformers
+docker service ps --filter desired-state=running --no-trunc transformers_backend
+```
+
+Mostrar 2/2 y los nodos ya asociados a ambos PCs. 📸 `05-replicas-antes.png`. No ejecutar deploy ahora.
+
+## 8.3 Vanessa detiene UNA réplica en W1
+
+Antes del kill, el container preparado debe seguir siendo el mismo backend del worker. Esta comprobación es de seguridad de la acción, no una investigación del computador.
+
+**DÓNDE EJECUTAR ESTO — 💻 VANESSA, PC worker Windows, W1 — RÉPLICA, PowerShell, cualquier carpeta; variable $targetContainer preparada en §3.3.**
+```powershell
+docker inspect --format 'Service={{index .Config.Labels "com.docker.swarm.service.name"}} Task={{index .Config.Labels "com.docker.swarm.task.id"}} Running={{.State.Running}}' $targetContainer
+```
+
+🟢 Debe indicar `transformers_backend` y `Running=true`. Si el ID ya no existe, no matar otro a ciegas: obtener el ID actual mediante §3.3. Si no se puede identificar con seguridad, dejar la prueba sin caída y explicar que no acredita recuperación.
+
+**Sofía anuncia “ahora” y activa cronómetro. Vanessa ejecuta el bloque siguiente una sola vez.**
+
+**DÓNDE EJECUTAR ESTO — 💻 VANESSA, MISMO worker, W1 — RÉPLICA, PowerShell; solo tras la orden de Sofía y la comprobación anterior. INTERRUMPE ESA réplica backend.**
 ```powershell
 (Get-Date).ToUniversalTime().ToString('o')
 docker kill $targetContainer
 ```
 
-## 11.5 Observar reemplazo y medir recuperación
+🟢 Docker devuelve el ID detenido. **No volver a ejecutar, no matar MySQL y no cerrar Docker Desktop.** El contenedor de otro PC no se mata desde este worker por copiar su ID.
 
-**DÓNDE EJECUTAR ESTO — 💻 PC MANAGER, terminal Bash de control, raíz; iniciar antes de kill y terminar con Ctrl+C después de estabilizar.**
+## 8.4 Sofía muestra el reemplazo
+
+**DÓNDE EJECUTAR ESTO — 💻 SOFÍA, M1 — CONTROL, Bash, raíz; repetir este bloque mientras M2 mantiene carga.**
 ```bash
-while true; do
-  date -u '+%Y-%m-%dT%H:%M:%SZ'
-  docker service ls --filter name=transformers_backend
-  docker service ps --no-trunc transformers_backend
-  curl --fail --silent --show-error --max-time 3 http://192.168.40.13:18000/api/actuator/health/readiness
-  sleep 2
-done
+docker service ps --no-trunc transformers_backend
+docker stack services transformers
+curl --fail --max-time 5 "$QUALITY_URL/api/actuator/health/readiness"
 ```
 
-🟢 Esperado: task antigua Failed/Shutdown, tal vez 1/2 visible, **task ID nuevo**, vuelve a 2/2. Puede no capturarse el 1/2 por la frecuencia de muestreo; no inventar captura intermedia. Restart policy tiene delay=10s más tiempo de arranque; no hay recovery garantizado de 10 s.
+🟢 Esperado: task anterior Failed/Shutdown, task nueva y retorno a 2/2. Puede no alcanzarse a capturar 1/2 por la frecuencia de consulta; no inventar esa captura. Guardar `06-task-caida.png` y `07-task-nueva.png`.
 
-En el worker repetir listado e inspect health del contenedor nuevo. `Running` y `2/2` no bastan para afirmar healthy. Definir **T1** cuando hay task nueva, dos contenedores healthy (cada uno visto en su nodo) y readiness proxy vuelve a UP de forma estable. Anotar recovery=T1−T0 con cronómetro de Sofía; resolución del sondeo ≈2 s más tiempo de comandos. Separar **tiempo hasta reemplazo** de **interrupción de peticiones**: pueden no ser iguales.
+**DÓNDE EJECUTAR ESTO — 💻 VANESSA, worker Windows, W1 — RÉPLICA, PowerShell; lectura de la task NUEVA, sin volver a matar.**
+```powershell
+docker ps --filter label=com.docker.swarm.service.name=transformers_backend --format '{{.ID}} {{.Names}} {{.Status}}'
+```
 
-📸 Capturar antes, task fallida, task nueva, 2/2 y resumen k6. Dejar terminar k6; no usar Ctrl+C en esa terminal salvo emergencia porque sería una corrida parcial.
+Debe aparecer nuevo contenedor y posteriormente healthy. Sofía comprueba también la réplica local:
 
-## 11.6 Resultados cuantitativos
+**DÓNDE EJECUTAR ESTO — 💻 SOFÍA, Mac manager, M1 — CONTROL, Bash, raíz.**
+```bash
+docker ps --filter label=com.docker.swarm.service.name=transformers_backend --format '{{.ID}} {{.Names}} {{.Status}}'
+```
 
-Copiar del resumen/JSON: `http_reqs` total y req/s; `http_req_failed` y su conteo/tasa; `checks` pasados/fallidos; ambas Trends de catálogo p95; `catalog_error_rate`; `catalog_throughput` count/rate; recovery manual.
+No confundir `Running` con `healthy`. Anotar en cronómetro cuándo se observan dos contenedores healthy y readiness UP. No se promete recuperación en diez segundos: la política espera 10 s y luego está el arranque.
 
-Requests HTTP exitosos = total HTTP menos fallidos **según la clasificación de k6**. Si el JSON tiene contadores `passes`/`fails` de una Rate, comprobar su semántica: para `http_req_failed`, las muestras true representan fallo, no éxito de negocio. No deducir cantidad de fallos multiplicando una tasa redondeada de consola. Abrir JSON para conteos exactos y documentar denominador. El setup puede incluir 409 de cuenta ya existente: anotarlo aparte de la caída. `catalog_error_rate` mezcla muestras de login y catálogo; no usar su denominador como total HTTP.
+## 8.5 Dejar terminar M2 y abrir UN resultado
 
-P95 HTTP global (`http_req_duration`) y P95 listado/detalle no son lo mismo. Ninguna métrica existente calcula recovery automáticamente; **NO IMPLEMENTADO: medidor automático de recuperación**. El cronómetro y timestamps son evidencia manual.
+1. **No interrumpir k6 con Ctrl+C.** Dejar terminar sus 3 minutos nominales.
+2. En M3 abrir `availability-result.json` dentro de la carpeta que imprimió M2.
+3. Mostrar `k6_exit_code`, métricas y `recovery`.
+4. Anotar `observed_recovery_seconds`, `failure_observed`, `replacement_observed`, `invalid_reason` y `measurement_passed`.
+5. Guardar `08-availability.png` junto a `availability-samples.jsonl`, `availability.json`, `.log` y `-result.json`.
 
-## 11.7 Qué decir
+**Qué significa el tiempo automático:** primera muestra que detecta ausencia de una task original → tercera muestra consecutiva con dos tasks Running en nodos distintos, una task nueva y readiness proxy UP. Sondeos cada ~2 s más latencia. **No es el instante exacto del kill ni la salud individual de ambos contenedores.** El cronómetro/capturas complementan esa medida.
 
-“Durante tres minutos enviamos tráfico por el frontend. Detuvimos esta réplica en el worker y Swarm creó una nueva. Medimos [requests], [errores], [P95] y [segundos de recuperación]. La otra réplica [mantuvo/no mantuvo] servicio según la salida. Esto prueba respuesta a caída de un backend, no alta disponibilidad de MySQL”. No decir “cero errores” si no lo demuestra la corrida.
+El script da FAIL si no observa pérdida/reemplazo, si desaparece también la otra task original o si falla k6. El JSON conserva `physical_computers_verified: false`: relacionar NodeIDs con fotos/terminales físicas sigue siendo evidencia humana, no inferida por el programa.
 
-## 11.8 Si matar una réplica tumba todo
+**Frase de cierre:** “En esta corrida hubo [requests], [fallos], P95 [valores] y recuperación observada de [segundos]. Swarm reemplazó esta task después de detenerla en el worker. Probamos caída de un backend; MySQL continúa siendo una sola réplica”.
 
-1. ¿Eran dos tasks actuales en dos nodos? Revisar §8.10.
-2. ¿BASE_URL es frontend Swarm o un contenedor Compose independiente? Revisar puertos y servicio.
-3. ¿Worker sigue Ready? Revisar node ls; caída de PC es escenario diferente al kill.
-4. ¿Frontend healthy pero readiness falla? Revisar DNS/proxy/backend y MySQL.
-5. ¿MySQL cayó? No seguir matando contenedores: es dependencia única.
-6. ¿Nodo remoto no puede usar overlay? §18, puertos UDP/NAT; TCP 2377 no basta.
-7. Conservar JSON con fallos y pasar al siguiente bloque. No prometer recuperación que no ocurrió.
+🔴 Si no recupera: guardar FAIL, no matar más contenedores y pasar a explicar el estado con §13.3. **No decir cero errores si la salida no lo dice.**
 
-**DÓNDE EJECUTAR ESTO — 💻 PC MANAGER, terminal de control, raíz; diagnóstico de solo lectura.**
+# 9. Minuto 15–18 — desplegabilidad y un único script
+
+**Pantalla:** M1 — CONTROL. **Persona:** Sofía. Performance y availability ya terminaron.
+
+## 9.1 Mostrar dos computadores y servicios
+
+**DÓNDE EJECUTAR ESTO — 💻 SOFÍA, Mac manager, M1 — CONTROL, Bash, raíz.**
+```bash
+docker node ls
+docker stack services transformers
+docker service ps --filter desired-state=running --no-trunc transformers_frontend
+docker service ps --filter desired-state=running --no-trunc transformers_backend
+docker service ps --filter desired-state=running --no-trunc transformers_mysql
+```
+
+Señalar los IDs físicos preparados en §3.4. 🟢 Frontend 2/2, backend 2/2, mysql 1/1. Una réplica frontend/backend por nodo; MySQL fijada a manager y volumen local.
+
+**Código actual:** máximo una réplica por nodo en despliegue real. `deploy.sh` exige al menos dos nodos Linux Ready/Active antes de desplegar y verifica distribución al converger. `--local` permite dos en el mismo nodo, **solo para ensayo**. Las actualizaciones son una por vez con `stop-first` para no necesitar un tercer slot en dos nodos.
+
+## 9.2 Mostrar el script y repetir el arranque preparado
+
+En el editor, mostrar `deploy.sh` y `stack.yml`. Explicar que cluster, credenciales, imágenes y puertos son preparación previa. El script inicia los tres servicios y comprueba convergencia/readiness.
+
+**DÓNDE EJECUTAR ESTO — 💻 SOFÍA, M1 — CONTROL, Bash, raíz, MISMAS variables y tags preparados en §3.1; solo después de terminar ambas pruebas de carga.**
+```bash
+bash deploy.sh
+```
+
+No usar `--local` para la prueba de dos computadores. No cambiar tag, claves ni nodo de MySQL durante esta repetición.
+
+🟢 Esperado: reutiliza secrets, despliega frontend/backend/mysql y termina con “Frontend y API disponibles; réplicas convergidas y readiness accesible...”. Exige tres ciclos UP. 📸 `09-deploy-script.png`.
+
+No prometer terminar en tres minutos si el registry/red está lento: deploy siempre hace pull en modo real y la convergencia tiene timeout de 600 s después de preparación. Si sigue en curso al minuto 18, dejarlo en M1, explicar estado actual y pasar al navegador. No llamar “éxito” a una operación no terminada.
+
+**Decir:** “Desde este manager ejecutamos un único script para desplegar los tres servicios. Aquí está la distribución entre dos computadores. MySQL mantiene una sola réplica; no estamos afirmando alta disponibilidad de base de datos”.
+
+🔴 Si solo hay un nodo: el script ahora rechaza el despliegue real. Mostrar ensayo parcial y decir claramente que **no cumple dos computadores**. No retirar el cluster para intentar recrearlo durante la exposición.
+
+# 10. Minuto 18–20 — CI/CD, GHCR y launcher
+
+**Pantalla:** pestañas GitHub ya abiertas en M3. **Persona:** Sofía. No hacer push ni disparar una ejecución nueva para esta explicación.
+
+## 10.1 Actions: leer el estado que aparece
+
+1. Abrir **Backend CI and GHCR** y la ejecución del commit elegido.
+2. Señalar **SHA**; no mostrar un verde de otro commit como resultado de los cambios locales.
+3. Mostrar `Maven verification`: Java 21, Docker/Testcontainers, Maven y artifacts de coverage/tests.
+4. Mostrar `Frontend E2E with Playwright`: Node 22, npm, build, Chrome y E2E real existente.
+5. En una ejecución que **ya contenga estos cambios**, mostrar `Quality attribute tooling checks`: sintaxis deploy, tests del medidor y render stack. Son tests de herramientas, no ASR del sistema real.
+6. Mostrar publicación backend/frontend a GHCR: tags `latest` y `sha-<SHA completo>`, plataformas amd64/arm64.
+7. Mostrar `Deploy to Swarm (self-hosted)` con su estado real. Si está queued o ausente, decirlo.
+
+**Dependencias del workflow local actualizado:** validate + frontend-e2e + quality-checks → publish → deploy. Antes publish solo esperaba validate; no describir una ejecución antigua con el comportamiento nuevo.
+
+**CD necesita:** runner con labels `self-hosted, swarm-manager`, environment `production`, Docker/Bash/curl y GHCR login preconfigurado; secrets existentes o archivos de claves disponibles en el runner. Un YAML no crea ese computador ni conecta su runner.
+
+## 10.2 GHCR: dos imágenes y su versión
+
+Abrir Packages backend y frontend. Mostrar el tag SHA de cada uno y su digest/plataforma. No asumir que latest es el mismo commit. Si el tag no existe, no afirmar que ese commit fue desplegado.
+
+**DÓNDE EJECUTAR ESTO — 💻 SOFÍA, M1 — CONTROL, Bash, raíz; SOLO si el deploy anterior terminó y la terminal ya está libre.**
+```bash
+docker service inspect --format '{{.Spec.TaskTemplate.ContainerSpec.Image}}' transformers_backend
+docker service inspect --format '{{.Spec.TaskTemplate.ContainerSpec.Image}}' transformers_frontend
+```
+
+Si M1 sigue ocupada, mostrar la captura de estas referencias tomada en preparación; no interrumpir deploy para pegar otro comando.
+
+## 10.3 Launcher: qué sí acredita
+
+Abrir **Build Marketplace launcher** → job `launcher` → artifact **Marketplace-win-x64**. Mostrar Windows runner, .NET 8, self-contained, win-x64, single file.
+
+**Decir:** “Este workflow construye el ejecutable Windows y entrega el artifact. La ejecución por doble clic se acredita en el computador donde lo abrimos; no por el build solamente”.
+
+📸 `10-ci-cd.png`, `11-ghcr.png`, `12-launcher-build.png`. Finalizar guardando §12, sin prometer un pipeline verde si hay jobs pendientes.
+
+# 11. Lo que NO se debe decir por accidente
+
+| Evitar | Decir lo que realmente se observa |
+|---|---|
+| “Dos réplicas significa dos PCs” | “Estas tasks tienen NodeIDs distintos, asociados a estos computadores” |
+| “Ya está todo al 100 %” | Mostrar porcentaje de integración y alcance de su reporte |
+| “El exe despliega Swarm” | “El exe usa Compose local; deploy.sh despliega Swarm” |
+| “No hubo errores” | Leer el contador/rate real y su denominador |
+| “Recovery es exactamente este tiempo desde kill” | Distinguir sondeo automático y cronómetro desde kill |
+| “La DB es altamente disponible” | MySQL tiene una réplica y volumen local |
+| “Esta ejecución antigua prueba el CI nuevo” | Identificar SHA y jobs presentes en esa ejecución |
+| “Health UP significa que todos los CUs funcionan” | Health no reemplaza pruebas funcionales |
+| “Los 11 tests prueban performance real” | Validan el medidor con escenarios simulados, no el ASR |
+
+# 12. Hoja para llenar y capturas — mantener a mano
+
+| Dato | Resultado de ESTA demostración |
+|---|---|
+| Fecha/hora | |
+| SHA local y cambios sin commit | |
+| Tag/digest backend y frontend desplegados | |
+| Stack y URL de carga | |
+| Sofía → NodeID / IP | |
+| Vanessa → NodeID / IP | |
+| Frontend/backend/MySQL réplicas | |
+| Dataset medido: productos/cuentas/pedidos conocidos | |
+| 50 VUs: P95 listado / detalle | |
+| 50 VUs: error rate / throughput | |
+| 50 VUs: requests / successes / failures / PASS-FAIL | |
+| 100 VUs: P95 listado / detalle | |
+| 100 VUs: error rate / throughput | |
+| 100 VUs: requests / successes / failures / PASS-FAIL | |
+| Availability: total HTTP / catálogo y fallos | |
+| Availability: P95 / throughput | |
+| Task anterior / nueva / nodo | |
+| Recovery automático por sondeo | |
+| Tiempo manual desde kill / observación healthy | |
+| Coverage: versión, porcentaje, tests y gate | |
+| CI run y estado / CD estado | |
+| Carpeta de evidencia performance | |
+| Carpeta de evidencia availability | |
+| Fallo o limitación declarada | |
+
+**Capturas en orden:** 01 sistema, 02 coverage, 03 carga 50, 04 carga 100, 05 replicas antes, 06 caída, 07 nueva task, 08 availability, 09 script, 10 CI/CD, 11 GHCR, 12 launcher build. Añadir captura previa de NodeIDs en los dos PCs. Guardarlas en `evidencias-sustentacion/`; los JSON/logs automáticos quedan en `artifacts/quality/`.
+
+En Mac, usar captura de área/ventana del sistema; en Windows, Recortes. Evitar incluir otras pestañas privadas, tokens, `.env` o contraseñas. **Los nombres son archivos por generar, no evidencia ya existente.**
+
+# 13. Emergencias — leer SOLO el caso que esté fallando
+
+## 13.1 Launcher Windows
+
+| Síntoma | Acción breve |
+|---|---|
+| SmartScreen | Verificar procedencia del exe. Si política permite, Más información → Ejecutar de todas formas. No desactivar protección global |
+| No ocurre nada | Abrir desde PowerShell en carpeta de entrega; verificar que no siga abierta otra instancia |
+| Docker apagado | Abrir Desktop, esperar motor, cerrar ventana anterior y reintentar fuera del flujo |
+| Windows containers | Cambiar a Linux containers antes de intentar demo |
+| Faltan archivos | Restaurar entrega completa, no solo artifact exe |
+| Error de contraseña MySQL | Conservar .env.demo y volumen; no regenerar claves a ciegas |
+| Primera build sin Internet | Usar sistema previamente construido; no garantizar build offline |
+| Dice listo pero no abre browser | Abrir http://localhost:4300 en ESE Windows |
+
+Para abrir PowerShell en la carpeta: Explorador → carpeta donde está Marketplace.exe → barra de dirección → escribir `powershell` → Enter.
+
+**DÓNDE EJECUTAR ESTO — 💻 PC WINDOWS del launcher, PowerShell, raíz de la entrega; solo para ARRANCAR si aún no se está demostrando un flujo.**
+```powershell
+.\Marketplace.exe
+```
+
+**DÓNDE EJECUTAR ESTO — 💻 MISMO Windows, otra PowerShell, raíz de la entrega; diagnóstico.**
+```powershell
+Get-Content .\launcher-logs\marketplace.log -Tail 80
+docker compose --env-file .env.demo -p marketplace-demo -f compose.yaml -f compose.demo.yaml ps
+docker compose --env-file .env.demo -p marketplace-demo -f compose.yaml -f compose.demo.yaml logs --tail 80 backend frontend mysql
+curl.exe --fail --max-time 5 http://localhost:4300/healthz
+curl.exe --fail --max-time 5 http://localhost:4300/api/actuator/health/readiness
+```
+
+El log se sobrescribe al abrir otra ejecución; guardar antes de reintentar. Si falla FindRoot antes de abrir log, puede no haber log nuevo. El launcher fija puertos 4300/8080/3307 y proyecto `marketplace-demo`; cambiar puertos en `.env.demo` no vence los valores forzados por el exe.
+
+Cerrar ventana no detiene contenedores. Para cerrar el sistema al terminar todo, cerrar primero la ventana previa del launcher y abrir **Cerrar Marketplace.cmd**; usa stop y conserva datos. No hacerlo durante carga/flujos.
+
+## 13.2 k6 no empieza o falla
+
+1. Abrir `.log` en la carpeta anunciada por el ejecutor.
+2. Login fallido: cuenta equivocada, no verificada o contraseña/entorno distintos. No modificar autenticación.
+3. Catálogo vacío: no hay datos para detalle; no es performance válida. No seedear sobre datos importantes.
+4. Conexión rechazada: revisar `QUALITY_URL` y health desde M1.
+5. Error de thresholds: conservar valor real; no relajar umbral ni repetir hasta ocultar el FAIL.
+6. Si CPU está saturada, detener solo pruebas/builds que el equipo haya iniciado para preparación y ya no necesite; no matar procesos desconocidos. Registrar condiciones de la corrida.
+
+**DÓNDE EJECUTAR ESTO — 💻 SOFÍA, M1 — CONTROL, Bash, raíz; diagnóstico sin tocar servicios.**
+```bash
+curl --fail --max-time 5 "$QUALITY_URL/healthz"
+curl --fail --max-time 5 "$QUALITY_URL/api/actuator/health/readiness"
+docker stats --no-stream
+```
+
+## 13.3 Se cae el servicio tras matar una réplica
+
+**DÓNDE EJECUTAR ESTO — 💻 SOFÍA, M1 — CONTROL, Bash, raíz.**
 ```bash
 docker node ls
 docker stack ps --no-trunc transformers
 docker service logs --tail 80 transformers_frontend
 docker service logs --tail 80 transformers_backend
 docker service logs --tail 80 transformers_mysql
-docker network inspect transformers_internal
 ```
 
-# 12. Limitación de MySQL / disponibilidad
+Revisar: worker desconectado, frontend apuntando a otro entorno, red overlay, dependencia MySQL o backend reiniciando. No matar una segunda réplica ni reiniciar Desktop. Si no vuelve, conservar FAIL y explicar la limitación; un solo fallo de backend no debería usarse para afirmar HA de DB.
 
-**MySQL: una réplica, volumen local y fijada a un manager por ID. NO HAY HA NI REPLICACIÓN DE BASE DE DATOS.** Si cae ese computador, los backends pueden seguir vivos pero perder readiness y operaciones. El volumen no migra al worker; cambiar MYSQL_NODE_ID puede crear otro volumen vacío en otro nodo.
+## 13.4 Frontend/backend/MySQL no arrancan
 
-Un solo manager es además un punto de fallo del control; que alguna task existente siga ejecutándose no garantiza nuevas decisiones de scheduling. `start-first` en frontend/backend ayuda durante actualización, requiere recursos temporales para otra réplica; MySQL usa `stop-first` para no tener dos escritores y `failure_action: pause`.
-
-Liveness backend comprueba el proceso; readiness agrega DB. Routing mesh no consulta el endpoint readiness para cada petición. Sesiones JDBC están compartidas por MySQL, que sigue siendo dependencia única.
-
-No se encontró SAD/documento de decisiones original en los archivos versionados para cotejar una promesa mayor. Si las diapositivas prometen HA completa de BD, esa afirmación **no está implementada por stack.yml**. Un rollback de imagen no revierte migraciones Flyway.
-
-# 13. CI/CD — demostración en vivo
-
-Hay **dos archivos workflow**, no un tercero separado para CD:
-
-- `.github/workflows/backend-ci.yml`: **Backend CI and GHCR**, trigger push a todas las ramas. Jobs `validate`, `build`, `publish`, `frontend-e2e`, `deploy`.
-- `.github/workflows/build-marketplace-launcher.yml`: **Build Marketplace launcher**, trigger manual `workflow_dispatch`, job `launcher`.
-
-**OBSERVADO durante la auditoría:** [run del SHA actual 35717326168](https://github.com/TransformersAS/Transformers-AS/actions/runs/35717326168) seguía `in_progress` al cierre (05:59 Colombia): **Maven verification success**, **Frontend E2E with Playwright success**, **Build and publish to GHCR in_progress**, build no-main skipped; deploy todavía no aparecía en el listado de jobs. No se afirma pipeline completo verde de main. [Run histórico 35711629946](https://github.com/TransformersAS/Transformers-AS/actions/runs/35711629946), SHA `e259729e9d57cf87a533128d777f1530b0da910c`, fue success con validate, frontend-e2e y publish; su listado de jobs **no contiene deploy**. No usar ese verde como prueba de CD actual.
-
-La API de runners del repositorio devolvió **total_count=0**. No se verificó un runner de organización ni su asignación/disponibilidad; la ausencia de runners de repo y de ejecución deploy exitosa impide afirmar CD operativo. El código sí lo declara: `runs-on: [self-hosted, swarm-manager]`, environment `production`, `needs: publish`, llama `bash deploy.sh`. No hay login GHCR en ese job: depende de credenciales preconfiguradas en el runner.
-
-| Etapa requerida | Implementada | Job/step real | Qué mostrar |
-|---|---|---|---|
-| Java 21 | SÍ | validate / Set up Java 21 | Versión del log |
-| Backend compile/tests | SÍ | validate / Verify backend, clean verify | Resultado Maven |
-| Testcontainers/MySQL | SÍ | Check Docker for Testcontainers + suite backend | Docker y tests concretos |
-| JaCoCo normal 95 % | SÍ | POM + Preserve coverage and test reports | Artifact backend-reports-SHA |
-| Integración exclusiva 100 % en CI | NO | CI no activa integration-coverage | Mostrar diferencia con perfil local |
-| Node 22 / npm | SÍ | frontend-e2e / npm ci | Instalación real |
-| Frontend build | SÍ | frontend-e2e y Dockerfile | npm run build |
-| Playwright | SÍ | Run Playwright E2E | Chrome y reporte |
-| E2E real browser/backend/MySQL | SÍ | Run real CU-08 browser/backend/MySQL E2E | scripts/cu08-real-e2e.sh y resultado |
-| Build Docker no-main | SÍ | build | Ambas imágenes sin publicar |
-| GHCR en main | SÍ | publish | Backend y frontend multiarch |
-| Tags | SÍ | publish | latest y sha-SHA completo; label OCI revision |
-| CD | PARCIAL | deploy / Run deploy.sh against the real Swarm cluster | Declarado; operación actual no acreditada |
-| Self-hosted | PARCIAL | labels self-hosted, swarm-manager | API repo sin runners; revisar Settings |
-| Health/convergencia | SÍ, en script | deploy.sh | Si CD corre, ver resultado del script |
-| Smoke del stack desplegado | PARCIAL | probes HTTP en deploy.sh | No suite funcional completa post-deploy |
-| Rollback | PARCIAL | update_config de frontend/backend | Política declarada; no ensayo actual; no rollback DB |
-| Launcher smoke en Actions | NO | launcher job solo publish .NET | smoke.py existe, no se invoca allí |
-
-**Dependencias importantes:** publish depende solo de validate; frontend-e2e corre en paralelo. deploy depende solo de publish. **Un fallo Playwright no bloquea por dependencia la publicación/despliegue** si validate/publish pasan. No se encontró trigger pull_request en el YAML actual, aunque documentación o nombres de ramas antiguos lo sugieran.
-
-**DÓNDE HACER ESTO — 💻 PC MANAGER, navegador GitHub.** Abrir Repo → Actions → Backend CI and GHCR → ejecución del SHA → expandir jobs. Mostrar validate, artifacts, frontend-e2e, publish y deploy con su estado real. Si deploy está queued, explicar el runner pendiente, no llamarlo deploy exitoso. Settings → Actions → Runners y Settings → Environments → production solo si se tiene permiso, evitando mostrar secretos.
-
-**DÓNDE EJECUTAR ESTO — 💻 PC MANAGER, terminal local, raíz, consultas read-only para actualizar la foto.**
-```bash
-gh run list --repo TransformersAS/Transformers-AS --branch main --limit 8
-gh run view 35717326168 --repo TransformersAS/Transformers-AS --json headSha,status,conclusion,jobs,url
-gh api repos/TransformersAS/Transformers-AS/actions/runners --jq '{total_count,runners:[.runners[]|{name,status,busy}]}'
-```
-
-📸 Guardar SHA, run y jobs. Si la API devuelve 403/404, no inferir estado: indicar falta de acceso. No disparar workflows ni pushes solo para fabricar evidencia en el minuto final.
-
-# 14. Cómo mostrar GHCR
-
-💻 PC MANAGER, navegador: repositorio → Packages, o perfil de organización → Packages. Buscar `transformers-as-backend` y `transformers-as-frontend`; abrir versión `sha-770f3c6da98a1885b69bf43c606a60986b2468e6` **solo cuando esté publicada**. Mostrar tag, plataformas y digest. La label `org.opencontainers.image.revision` se configura con github.sha.
-
-El tag SHA identifica intención de versión, pero una etiqueta puede moverse; registrar el digest resuelto del servicio. Las dos imágenes tienen digests diferentes. La observación inicial de `manifest unknown` no demuestra acceso/publicación futura.
-
-**DÓNDE EJECUTAR ESTO — 💻 PC MANAGER, terminal local, raíz; después de un despliegue real de transformers.**
-```bash
-docker service inspect --format '{{.Spec.TaskTemplate.ContainerSpec.Image}}' transformers_backend
-docker service inspect --format '{{.Spec.TaskTemplate.ContainerSpec.Image}}' transformers_frontend
-```
-
-🟢 Esperado: repositorio GHCR correcto, tag fijado y digest cuando se resolvió. 📸 Capturar Packages y referencias de servicio. Si solo existe la imagen antigua, nombrar ese SHA y no atribuirlo a main.
-
-# 15. Workflow del launcher
-
-💻 PC MANAGER, navegador → Actions → **Build Marketplace launcher** → [ejecución 35715767674](https://github.com/TransformersAS/Transformers-AS/actions/runs/35715767674).
-
-**OBSERVADO:** success, SHA `856a52b312cef9d16fab8b83bf86f3b46725c13c` (anterior a main auditada). Job `launcher`: `windows-latest`, setup .NET 8, `dotnet publish`, Release, `win-x64`, self-contained, single file, bibliotecas nativas extraíbles; artifact **Marketplace-win-x64**, ruta generada `artifacts/launcher/Marketplace.exe`.
-
-El exe versionado en raíz fue inspeccionado como PE32+ x86-64. No se comparó su hash con el artifact descargado: no certificar que son binariamente idénticos. No se requiere SDK .NET para ejecutar el self-contained, pero sí Docker Desktop y entrega completa.
-
-Esto demuestra **construcción en Windows y artifact**, no doble clic, extracción del runtime, firewall, arranque Docker ni apertura de navegador en Windows. `launcher/tests/smoke.py` existe y prueba manejo de infraestructura con Docker falso; no es prueba del sistema end-to-end y el workflow no lo llama. 📸 Capturar job y artifact con SHA.
-
-# 16. Smoke / health por ambiente
-
-| Probe | Qué comprueba | No demuestra por sí solo |
+| Componente | Orden de lectura | Evitar |
 |---|---|---|
-| Frontend `/healthz` | Nginx responde JSON UP | Que API/DB funcionen |
-| Backend `/actuator/health/liveness` | Proceso vivo | DB disponible |
-| Backend `/actuator/health/readiness` | readinessState + DB | Todos los flujos funcionales |
-| Frontend `/api/actuator/health/readiness` | Proxy Nginx → backend → readiness | Correctitud de todos los CUs |
-| MySQL healthcheck | SELECT 1 con usuario/base de aplicación | HA de datos |
+| Frontend | healthz → readiness proxy → service ps/logs frontend | Cambiar proxy durante prueba; confundir caché browser con imagen nueva |
+| Backend | service ps → logs backend → salud MySQL/credenciales/Flyway → recursos | Reparar migraciones o fixtures a mano |
+| MySQL | placement en manager → logs → estado volumen/espacio → credenciales originales | Cambiar MYSQL_NODE_ID o borrar volumen |
 
-Backend Dockerfile: curl liveness cada 10 s, timeout 5 s, start_period 60 s, retries 5. Demo lo sobrescribe por readiness cada 5 s, timeout 5 s, start_period 60 s, retries 60. Frontend: wget healthz cada 10 s, timeout 5 s, start_period 10 s, retries 3. MySQL: cada 10 s, timeout 5 s, start_period 60 s, retries 10.
-
-**DÓNDE EJECUTAR ESTO — 💻 PC Windows launcher, PowerShell, cualquier carpeta; puertos del exe, NO del Compose observado en Mac.**
-```powershell
-curl.exe --fail --max-time 5 http://127.0.0.1:4300/healthz
-curl.exe --fail --max-time 5 http://127.0.0.1:4300/api/actuator/health/readiness
-curl.exe --fail --max-time 5 http://127.0.0.1:8080/actuator/health/liveness
-curl.exe --fail --max-time 5 http://127.0.0.1:8080/actuator/health/readiness
-```
-
-**DÓNDE EJECUTAR ESTO — 💻 PC MANAGER Mac, Terminal, cualquier carpeta; Compose realmente observado.**
-```bash
-curl --fail --max-time 5 http://127.0.0.1:4300/healthz
-curl --fail --max-time 5 http://127.0.0.1:4300/api/actuator/health/readiness
-curl --fail --max-time 5 http://127.0.0.1:18080/actuator/health/liveness
-curl --fail --max-time 5 http://127.0.0.1:18080/actuator/health/readiness
-```
-
-**DÓNDE EJECUTAR ESTO — 💻 PC MANAGER o WORKER como cliente, Bash, cualquier carpeta; únicamente Swarm preparado con puertos 18000/18090 y candidata reconfirmada.**
-```bash
-curl --fail --max-time 5 http://192.168.40.13:18000/healthz
-curl --fail --max-time 5 http://192.168.40.13:18000/api/actuator/health/readiness
-curl --fail --max-time 5 http://192.168.40.13:18090/actuator/health/liveness
-curl --fail --max-time 5 http://192.168.40.13:18090/actuator/health/readiness
-```
-
-En PowerShell usar `curl.exe` con esas mismas URLs. 🟢 Esperado HTTP 200 y UP. Solo las consultas de la tabla §0 están observadas en auditoría; las del futuro stack 18000/18090 no se ejecutaron. No hay endpoint `/api/actuator/health/liveness` especial en nginx equivalente al proxy readiness: usar liveness directo del backend.
-
-# 17. Plan B si Internet muere
-
-| Parte | Si Internet cae pero LAN y motores siguen | Qué evidencia/acción honesta usar |
-|---|---|---|
-| Marketplace | Contenedores ya arrancados pueden seguir; servicios externos pueden fallar | GUI local y health. No relanzar build si no hace falta |
-| Launcher frío | Puede necesitar bases, apt, Maven, npm y Docker registry | No garantizar arranque offline; usar sistema preparado |
-| Performance | k6 local/imagen ya presente y dataset local pueden funcionar | JSON nuevos con URL/entorno; no se necesita GHCR durante carga |
-| Availability | Reemplazo puede funcionar con imagen local en nodo elegible | Verificar de verdad; no asumir que una task sin imagen puede descargarla |
-| Swarm deploy | deploy.sh real siempre hace pulls y resolve-image always | Puede fallar aunque otras tasks sigan; mostrar script + evidencia previa identificada |
-| CI/CD / GHCR | No se puede consultar ni publicar remoto | Capturas/reportes descargados con SHA, fecha y run; no llamarlos ejecución en vivo |
-
-Si **Wi-Fi/LAN cae**, los nodos pueden perder overlay/DB: es más grave que perder Internet. Mantener demo Compose local si ya está preparada; decir que distribución física no está disponible. No usar red móvil nueva sin verificar alcance entre motores. No inventar capturas previas: en esta auditoría solo se consultaron estados y documentos, no se generaron reportes de carga ni suite nueva.
-
-# 18. Plan B si Swarm entre dos PCs no funciona
-
-**Tiempo máximo de diagnóstico durante los 20 minutos: 60–90 s.** Si no se resuelve con una comprobación, mostrar evidencia parcial y continuar. Preparar topología alternativa requiere trabajo previo; no es tarea de esta guía de auditoría.
-
-| Orden | Dónde / comando o pantalla | Esperado | Si falla |
-|---|---|---|---|
-| 1 IP | Ambos PCs, terminal, cualquier carpeta: comandos §3 | IP LAN actual y motor alcanzable | Sustituir candidata; no usar IP VM aislada |
-| 2 Conectividad | Worker, terminal: ping/TCP §3.4 | Alcance tras init | Revisar aislamiento Wi-Fi/ruta antes de Docker |
-| 3 Swarm state | Ambos, terminal: §8.2 | Manager true, worker false, active | No ejecutar leave/reset; identificar cluster correcto |
-| 4 node ls | Manager, terminal: bloque abajo | Dos Ready/Active | Join no completado o nodo inaccesible |
-| 5 Firewall | Windows: Get-NetFirewallProfile en §3; Mac ajustes Red/Firewall; Linux política administrada | Reglas entre nodos de confianza | Solicitar revisión acotada; no apagar seguridad completa |
-| 6 Desktop | Ambos, docker context show / info §2 | CLI apunta al motor acordado | NAT/VM puede impedir cluster físico; plan B |
-| 7 Puertos | Worker y manager, pruebas §3.4 | 2377 y 7946 TCP, además UDP operativo | TCP exitoso no valida 4789 UDP; revisar políticas/red |
-| 8 Arquitectura | Ambos, manifests y version §8.7 | Imagen para cada arquitectura | No asumir emulación; usar SHA compatible declarando cambio |
-| 9 GHCR | Ambos, manifest/login §8.7 | Tag existe y permiso | No confundir denied con manifest unknown |
-| 10 Secrets | Manager, secret ls §8.8 | Tres nombres correctos | Archivo requerido debe existir en manager/runner; no exponerlo |
-| 11 Overlay | Manager, network inspect abajo | Red transformers_internal | Red presente no prueba tráfico; readiness desde ambos PCs |
-| 12 service ps | Manager, abajo | Running; errores ausentes | Pending: placement/recursos; Rejected: imagen/mount; Failed: logs |
-| 13 Logs | Manager, abajo | Arranque estable | DB/migración/credenciales/proxy; conservar antes de actuar |
-
-**DÓNDE EJECUTAR ESTO — 💻 PC MANAGER, terminal local, raíz; stack PROPUESTO transformers, solo si existe.**
-```bash
-docker node ls
-docker stack ls
-docker stack services transformers
-docker network inspect transformers_internal
-docker stack ps --no-trunc transformers
-docker service logs --tail 100 transformers_backend
-docker service logs --tail 100 transformers_mysql
-docker service logs --tail 100 transformers_frontend
-```
-
-**DÓNDE EJECUTAR ESTO — 💻 PC MANAGER Mac auditado, terminal local, raíz; inspección del stack ACTUAL marketplace.**
-```bash
-docker stack services marketplace
-docker service ps --no-trunc marketplace_backend
-docker service logs --tail 100 marketplace_backend
-docker service logs --tail 100 marketplace_mysql
-```
-
-No ejecutar comandos transformers sobre marketplace cambiando nombres al azar: primero decidir qué entorno se demuestra. El stack actual carece de frontend Swarm y corre SHA anterior. No se incluye comando de mutación para “repararlo”.
-
-**Fallback local opcional, solo preparado con anticipación en motor apto:** `deploy.sh --local` existe y construye ambas imágenes; inicializa loopback únicamente si inactive, usa defaults 18000/18080. **No ejecutarlo en el Mac auditado como receta rápida:** 18080 ya está ocupado y el motor tiene stack existente. No equivale a dos PCs ni garantiza terminar dentro del tiempo. Mostrar configuración/script y el entorno ya sano es más honesto que fingir un cluster físico.
-
-Discrepancias documentales verificadas: `docs/swarm.md` solo redirige a guía actual; `docs/despliegue/docker-swarm.md` abre diciendo que no hay CD remoto, pero luego describe CD y el YAML lo declara. También contiene un curl a 18090 en un ejemplo `--local` cuyo default real es 18080. Aquí 18090 se utiliza **solo como override explícito**. Los nombres transformers-local de ejemplos no son el stack observado marketplace ni el default transformers.
-
-# 19. Plan B si el frontend no abre
-
-1. 💻 PC navegador: confirmar URL/entorno de §0 y §16. localhost es ese PC, no el de Sofía.
-2. 💻 PC que aloja Compose: ps frontend, luego healthz. 💻 Manager Swarm: service ps frontend.
-3. Si healthz UP pero GUI antigua: recarga completa o ventana privada; frontend tiene configuración de service worker, evitar confundir caché con imagen recién desplegada.
-4. Si readiness proxy falla y backend directo funciona: leer logs Nginx/DNS hacia backend; no reconfigurar proxy durante demo.
-5. Si 4300 funciona solo local: es bind loopback declarado; no decir que debería abrir desde worker.
-6. Capturar fallo; usar el entorno ya preparado alternativo identificando URL/SHA.
-
-**DÓNDE EJECUTAR ESTO — 💻 PC Windows launcher, PowerShell, raíz.**
-```powershell
-docker compose --env-file .env.demo -p marketplace-demo -f compose.yaml -f compose.demo.yaml ps frontend
-docker compose --env-file .env.demo -p marketplace-demo -f compose.yaml -f compose.demo.yaml logs --tail 80 frontend
-curl.exe --fail --max-time 5 http://127.0.0.1:4300/healthz
-curl.exe --fail --max-time 5 http://127.0.0.1:4300/api/actuator/health/readiness
-```
-
-Para Swarm usar §18 y §16 en manager. No reiniciar Nginx a ciegas durante k6; invalidaría la comparación.
-
-# 20. Plan B si el backend no arranca
-
-1. Identificar qué backend falla (launcher, Compose Mac, transformers o marketplace).
-2. Revisar task error/health y logs. Un fallo inicial Swarm mientras MySQL inicia puede reintentarse; reinicios repetidos después no son “normal”.
-3. Confirmar MySQL healthy, DB_NAME/DB_USER correctos y secretos consistentes con volumen. No imprimir contraseñas.
-4. Revisar logs de Flyway y causa raíz; no reparar checksum ni migraciones manualmente durante demo.
-5. Revisar memoria/CPU, imagen compatible y main/tag. El demo runner puede abortar por fixture incompatible; no eliminar datos para forzarlo.
-6. Si liveness UP y readiness DOWN, no afirmar “está bien”: DB/readiness sigue fallando.
-
-**DÓNDE EJECUTAR ESTO — 💻 PC Windows launcher, PowerShell, raíz.**
-```powershell
-docker compose --env-file .env.demo -p marketplace-demo -f compose.yaml -f compose.demo.yaml ps
-docker compose --env-file .env.demo -p marketplace-demo -f compose.yaml -f compose.demo.yaml logs --tail 150 backend
-```
-
-**DÓNDE EJECUTAR ESTO — 💻 PC MANAGER Mac, Terminal, raíz; Compose que estaba activo al auditar.**
-```bash
-docker logs --tail 150 transformers-as-backend-1
-docker stats --no-stream
-```
-
-**DÓNDE EJECUTAR ESTO — 💻 PC MANAGER del nuevo stack, Terminal, raíz; solo si transformers fue desplegado.**
-```bash
-docker service ps --no-trunc transformers_backend
-docker service logs --tail 150 transformers_backend
-```
-
-📸 Guardar error sin datos personales; si sigue rojo, mostrar cobertura/CI y declarar indisponibilidad actual.
-
-# 21. Plan B si MySQL no arranca
-
-1. Revisar estado/logs y tiempo inicial de arranque. MySQL health hace SELECT 1 con usuario real, no solo ping al proceso.
-2. Compose: comprobar 3307 libre. Swarm: MySQL no publica puerto, así que no buscar su salud con localhost:3307.
-3. Swarm: comprobar manager fijado Ready/Active y placement por ID; no cambiar ID para “sacarlo del pending”.
-4. Confirmar que archivo/secret coincide con contraseña inicial del volumen. Cambiar env no reinicializa MySQL existente.
-5. Revisar espacio y memoria. Preservar datos; escalar diagnóstico fuera del bloque si hay corrupción o errores de permisos.
-
-**DÓNDE EJECUTAR ESTO — 💻 PC Windows launcher, PowerShell, raíz.**
-```powershell
-docker compose --env-file .env.demo -p marketplace-demo -f compose.yaml -f compose.demo.yaml logs --tail 100 mysql
-docker volume inspect marketplace-demo_mysql_data
-docker system df
-```
-
-**DÓNDE EJECUTAR ESTO — 💻 PC MANAGER del stack transformers, terminal, raíz.**
+**DÓNDE EJECUTAR ESTO — 💻 SOFÍA, M1 — CONTROL, Bash, raíz; stack transformers preparado.**
 ```bash
 docker service ps --no-trunc transformers_mysql
 docker service inspect --format '{{json .Spec.TaskTemplate.Placement.Constraints}}' transformers_mysql
-docker service logs --tail 100 transformers_mysql
 docker volume ls
 docker system df
 ```
 
-**No borrar volumen, no down -v, no recrear secrets con claves distintas, no editar tablas/migraciones a mano como primera solución.** La base es dependencia única: si falla, declarar que el backend no puede sostener operaciones.
+Healthchecks reales: frontend `/healthz`; backend imagen `/actuator/health/liveness`; readiness backend `/actuator/health/readiness` incluye DB; proxy frontend `/api/actuator/health/readiness`. MySQL hace SELECT 1 con usuario/base de aplicación. MySQL Swarm no responde por 3307 porque no publica puerto.
 
-# 22. Plan B si un puerto está ocupado
+## 13.5 Puerto ocupado
 
-**DÓNDE EJECUTAR ESTO — 💻 PC Mac que alojará el servicio, Terminal local, cualquier carpeta.**
+**DÓNDE EJECUTAR ESTO — 💻 SOFÍA, Mac, M1 — CONTROL, Bash, raíz; diagnóstico previo o emergencia.**
 ```bash
-lsof -nP -iTCP:4300 -sTCP:LISTEN
-lsof -nP -iTCP:8080 -sTCP:LISTEN
-lsof -nP -iTCP:3307 -sTCP:LISTEN
 lsof -nP -iTCP:18000 -sTCP:LISTEN
-lsof -nP -iTCP:18080 -sTCP:LISTEN
 lsof -nP -iTCP:18090 -sTCP:LISTEN
 docker ps --format '{{.Names}}\t{{.Ports}}'
 docker service ls
 ```
 
-**DÓNDE EJECUTAR ESTO — 💻 PC Windows que alojará el servicio, PowerShell local, cualquier carpeta.**
+**DÓNDE EJECUTAR ESTO — 💻 PC Windows del launcher, PowerShell, cualquier carpeta.**
 ```powershell
-Get-NetTCPConnection -State Listen | Where-Object { $_.LocalPort -in 4300,8080,3307,18000,18080,18090 } | Select-Object LocalAddress,LocalPort,OwningProcess
-Get-NetTCPConnection -State Listen | Where-Object { $_.LocalPort -in 4300,8080,3307,18000,18080,18090 } | ForEach-Object { Get-Process -Id $_.OwningProcess }
+Get-NetTCPConnection -State Listen | Where-Object { $_.LocalPort -in 4300,8080,3307,18000,18090 } | Select-Object LocalAddress,LocalPort,OwningProcess
 docker ps --format '{{.Names}}\t{{.Ports}}'
-docker service ls
 ```
 
-**DÓNDE EJECUTAR ESTO — 💻 PC Linux que alojará el servicio, Bash local, cualquier carpeta.**
+No terminar PID de Docker Desktop para liberar un puerto. Identificar instalación propietaria y acordar otro entorno/puerto **antes**; todas las URLs deben coincidir con esa configuración.
+
+## 13.6 Internet o Swarm fallan
+
+- **Internet cae, LAN sigue:** contenedores locales y k6 ya instalados pueden continuar. CD/GHCR no se pueden demostrar en línea; usar capturas identificadas. Deploy real vuelve a hacer pulls y puede fallar.
+- **LAN cae:** overlay y DB remota pueden quedar inaccesibles. Mostrar demo Compose local preparada; declarar que no se está acreditando distribución física.
+- **GitHub no carga:** mostrar capturas con SHA/fecha/run, no llamarlas corrida en vivo.
+- **Solo hay un nodo:** no forzar `--local` como si cumpliera. Mostrar reconciliación local, si ya está preparada, como evidencia parcial.
+- **Sin evidencia previa:** decir “no ejecutado/no disponible”; no inventar JSON, porcentajes ni capturas.
+
+**Lista roja:** nada de prune, down -v, borrar `.env.demo`, borrar volumen, leave --force, quitar secrets, cambiar thresholds, matar MySQL, migraciones manuales, hacer push ni editar CUs para salvar la presentación.
+
+## 13.7 Variante del worker si Vanessa usa macOS/Linux
+
+Preparar esta terminal una vez, antes del reloj; durante availability usarla en lugar de los bloques PowerShell, sin cambiar el recorrido de Sofía.
+
+**DÓNDE EJECUTAR ESTO — 💻 VANESSA, worker macOS/Linux, W1 — RÉPLICA, Bash, cualquier carpeta; PREPARACIÓN.**
 ```bash
-ss -lntp
-docker ps --format '{{.Names}}\t{{.Ports}}'
-docker service ls
+docker info --format '{{.Swarm.NodeID}}'
+docker ps --filter label=com.docker.swarm.service.name=transformers_backend --format '{{.ID}} {{.Names}} {{.Status}}'
+read -r -p 'Container ID backend de ESTE worker: ' TARGET_CONTAINER_ID
+docker inspect --format 'Service={{index .Config.Labels "com.docker.swarm.service.name"}} Task={{index .Config.Labels "com.docker.swarm.task.id"}} Health={{.State.Health.Status}}' "$TARGET_CONTAINER_ID"
 ```
 
-Una salida vacía de lsof no basta para probar puerto disponible en routing mesh/Desktop: contrastar Docker services y acceso real. Compose aparece con binding en docker ps; Swarm con publicación en service ls; el launcher administra Compose, no un listener propio de frontend.
+**DÓNDE EJECUTAR ESTO — 💻 VANESSA, MISMA W1 Bash del worker, cualquier carpeta; durante §8.3, SOLO cuando Sofía indique kill y el ID siga siendo la réplica elegida.**
+```bash
+date -u '+T0 kill %Y-%m-%dT%H:%M:%SZ'
+docker kill "$TARGET_CONTAINER_ID"
+```
 
-Si el dueño es una demo necesaria, conservarla y elegir otros puertos **mediante variables soportadas en deploy.sh antes del despliegue**, como 18000/18090 en esta guía. El exe fuerza los suyos: usar el Windows preparado o acordar detener la aplicación propietaria fuera de pruebas, no matar PID de Docker Desktop. Si ambos puertos propuestos están ocupados, no copiar la receta sin revisar todas las URLs.
+**DÓNDE EJECUTAR ESTO — 💻 VANESSA, MISMA W1 Bash del worker, después; lectura de la nueva réplica.**
+```bash
+docker ps --filter label=com.docker.swarm.service.name=transformers_backend --format '{{.ID}} {{.Names}} {{.Status}}'
+```
 
-# 23. Qué NO hacer en sustentación
+El `.exe` Windows no se ejecuta nativamente en este worker; usar GUI preparada y artifact build como tales.
 
-- No ejecutar `docker system prune`, `docker compose down -v`, borrar volumen MySQL ni reseteos del dataset por impulso.
-- No ejecutar `docker swarm leave --force`, retirar el stack existente ni cambiar MYSQL_NODE_ID para hacer desaparecer un error.
-- No hacer commits, push, cambios de código/tests/workflows/infraestructura durante esta auditoría o para maquillar el resultado.
-- No cambiar thresholds k6 ni saltar tests/gates para obtener verde.
-- No afirmar main desplegada si la imagen usa otro SHA; no usar latest como prueba del commit.
-- No presentar 2/2 en un nodo como dos computadores; no presentar frontend independiente como servicio Swarm.
-- No matar MySQL, las dos réplicas o el daemon durante la prueba de un backend.
-- No lanzar launcher, builds, Testcontainers y carga al mismo tiempo; compiten por recursos y el launcher recrea backend.
-- No borrar `.env.demo` conservando su volumen; no imprimir secrets, tokens de join ni tokens GHCR.
-- No ejecutar seeds contra datos importantes ni improvisar migraciones/SQL.
-- No pegar Bash en PowerShell ni operar un daemon WSL creyendo que es el de Desktop.
-- No afirmar que health prueba todos los CUs, que rollback revierte DB o que CI histórico acredita CD actual.
+# 14. Preparación del entorno desde cero — FUERA de los 20 minutos
 
-# 24. Secuencia exacta de los 20 minutos
+Esta sección no es parte del guion proyectado. **No ejecutar init/leave sobre un cluster existente para “empezar limpio”.** El Mac auditado ya tenía uno con datos. No se ha corregido automáticamente su red.
 
-Las horas siguientes son **duraciones desde que terminan las diapositivas**. Los entornos ya deben estar preparados. Mantener el mismo k6 cliente, dataset y URLs durante comparaciones.
+## 14.1 Verificar IP una vez y anotarla
 
-| Minuto | Quién comparte / PC | Pantalla o acción | Resultado visible / frase de cierre | Transición |
-|---|---|---|---|---|
-| 00–01 | Vanessa, Windows si existe | Launcher ya listo y GUI; health §16 | “Este arranque usa Compose y base real local” | Entrar a flujos |
-| 01–02 | Expositora funcional | GUI, inicio de flujo asignado | Backend responde | Mantener Docker quieto |
-| 02–03 | Expositora funcional | Continuar flujo | Resultado de negocio | Persistencia |
-| 03–04 | Expositora funcional | Refresco/consulta | Estado persistido | Cerrar flujos |
-| 04–05 | Expositora funcional | Resultado final/captura | “Usamos los flujos asignados; estos proveedores son simulados” | Sofía comparte |
-| 05–06 | Sofía, manager | Manifiesto y reporte ya generado o histórico | 81 clases actuales; alcance del reporte | Gate |
-| 06–07 | Sofía | LINE/porcentaje/gate | “100 % es requisito, no resultado acreditado” | k6 |
-| 07–08 | Sofía, cliente k6 | Iniciar 50 VUs §10.1 | Progreso | Esperar resumen |
-| 08–09 | Sofía | Registrar salida 50, iniciar 100 §10.2 | P95/error/throughput 50 | Comparación |
-| 09–10 | Sofía | 100 VUs corriendo | Carga visible | Resumen |
-| 10–11 | Sofía | Registrar 100/captura | PASS/FAIL real de ambos P95 | Availability |
-| 11–12 | Sofía + Vanessa | Verificar 2/2 y nodos, iniciar k6 3m | Tráfico estable | Elegir task |
-| 12–13 | Vanessa worker, Sofía controla | Kill UNA réplica §11.4, cronómetro | Task fallida identificada | Recuperación |
-| 13–14 | Sofía manager | Nueva task, salud en cada nodo | 2/2 y recovery medido | Esperar k6 |
-| 14–15 | Sofía | Resumen availability y captura | Errores/P95/throughput reales | Deployability |
-| 15–16 | Sofía manager | Nodos, tasks en PCs, un script | Distribución física o limitación explícita | Repetición script |
-| 16–17 | Sofía | Repetir deploy.sh previamente preparado | Inicio/resultado; no build frío | Health |
-| 17–18 | Sofía | Convergencia y readiness, o estado en curso | “Este es el estado observado” | GitHub |
-| 18–19 | Sofía navegador | Actions del SHA, jobs reales | CI real y artifact GHCR | CD/launcher |
-| 19–20 | Sofía | deploy/runner y launcher artifact | “CD [estado]; Windows build no es doble clic” | Guardar hoja de resultados |
+**DÓNDE EJECUTAR ESTO — 💻 SOFÍA, Mac manager candidato, Terminal, cualquier carpeta.**
+```bash
+networksetup -listallhardwareports
+route -n get default
+ifconfig
+```
 
-Si una corrida excede tiempo, no recortar silenciosamente duración: registrar corrida parcial y mostrar evidencia previa identificada si existe. Si Swarm no estuvo preparado, reemplazar 11–18 por ensayo local/evidencia parcial explícita, sin atribuir cumplimiento de distribución.
+Identificar Wi-Fi/Ethernet activo. En la auditoría `en0` tenía `192.168.40.13`; no elegir loopback, utun/VPN ni bridge de VM. Anotar la IP actual. Si en0 sigue siendo la interfaz correcta:
 
-# 25. Checklist “profe está mirando”
-
-Marcar solo después de observar, no porque esté declarado en YAML.
-
-- [ ] Frontend y URL del entorno elegido visibles.
-- [ ] Backend y DB reales identificados; límites de simuladores declarados.
-- [ ] Flujo E2E y persistencia mostrados.
-- [ ] Tests/reporte identificados con SHA y tipo de suite.
-- [ ] Coverage y gate mostrados sin afirmar 100 % inexistente.
-- [ ] 50 VUs y 100 VUs ejecutados o limitación declarada.
-- [ ] P95 listado, P95 detalle, error rate y throughput anotados.
-- [ ] Dos nodos en dos computadores comprobados, o requisito pendiente declarado.
-- [ ] Dos backend replicas y placement comprobados.
-- [ ] Una réplica backend interrumpida, task nueva y salud comprobadas.
-- [ ] Continuidad/fallos del servicio cuantificados, recovery anotado.
-- [ ] deploy.sh y stack.yml actuales mostrados.
-- [ ] CI, CD y GHCR mostrados con estados reales.
-- [ ] Health separado de funcionalidad y HA.
-- [ ] Evidencias guardadas sin secretos.
-
-# 26. Resultados que debemos anotar en vivo
-
-No rellenar con números de ejemplo.
-
-| Métrica / contexto | Resultado |
-|---|---|
-| Fecha / hora / operador | |
-| SHA del código | |
-| Tags y digests desplegados | |
-| Entorno / stack / URL medida | |
-| IP manager / IP worker / motores | |
-| NodeIDs y PCs correspondientes | |
-| Nodes Ready | |
-| Backend replicas y distribución | |
-| Versión k6 / arquitectura / recursos | |
-| Dataset: usuarios / productos / pedidos | |
-| Performance 50 VUs P95 listado / detalle | |
-| Performance 50 VUs catalog_error_rate / http_req_failed | |
-| Performance 50 VUs throughput catálogo / HTTP req/s | |
-| Performance 50 VUs exit code / thresholds | |
-| Performance 100 VUs P95 listado / detalle | |
-| Performance 100 VUs catalog_error_rate / http_req_failed | |
-| Performance 100 VUs throughput catálogo / HTTP req/s | |
-| Performance 100 VUs exit code / thresholds | |
-| Availability total HTTP / exitosos / fallidos | |
-| Availability catalog_error_rate / checks | |
-| Availability P95 listado / detalle / HTTP | |
-| Availability throughput catálogo / HTTP req/s | |
-| Task antigua / nodo / container ID | |
-| T0 kill / T1 nueva task healthy | |
-| Recovery time / resolución de medición | |
-| Coverage integración: SHA / clases / tests | |
-| Coverage LINE covered / missed / total / % | |
-| Gate integración y resultado | |
-| CI run / estado | |
-| CD job / runner / estado | |
-| Limitación o fallo observado | |
-
-# 27. Evidencias / capturas
-
-Carpeta **propuesta a crear** `evidencias-sustentacion/` en raíz, no evidencia preexistente. Los JSON se generan solo cuando se ejecutan los comandos. Guardar capturas manualmente con estos nombres:
-
-| Momento exacto | Nombre propuesto | Qué debe verse |
-|---|---|---|
-| Antes del reloj, git/IP | `00-sha-contexto.png` | SHA, fecha, PC/IP |
-| Launcher listo | `01-launcher.png` | Mensaje listo y URL, sin claves |
-| Tras health | `02-health.png` | URL y UP del entorno correcto |
-| Functional terminado | `03-funcional.png` | Resultado/refresco, sin datos sensibles |
-| Coverage explicado | `04-coverage.png` | LINE, alcance, gate y versión |
-| node ls con dos PCs | `05-nodos.png` | Dos IDs Ready/Active y asociación física |
-| service ps antes de kill | `06-placement-2-replicas.png` | Una task por nodo |
-| Inmediatamente después kill | `07-task-caida.png` | Task ID anterior y fallo/timestamp |
-| Nueva task healthy | `08-task-recuperada.png` | Nuevo ID, 2/2 y salud |
-| Resumen 50 VUs | `09-k6-50.png` + `catalogo-50.json` | P95/error/throughput/thresholds |
-| Resumen 100 VUs | `10-k6-100.png` + `catalogo-100.json` | Ídem, VUS=100 |
-| Resumen availability | `11-availability.png` + `availability-k6.json` | Requests/errores/P95 y cronómetro anotado |
-| deploy.sh terminado | `12-deploy.png` | Script único y convergencia, o fallo explícito |
-| Actions | `13-ci-cd.png` | Run, SHA, jobs, queued/fail/success reales |
-| Packages | `14-ghcr.png` | Ambos paquetes, tag/digest |
-| Launcher workflow | `15-launcher-build.png` | Windows runner, SHA y artifact |
-
-No capturar join token, `.env`, passwords ni GitHub token. No dibujar un PASS sobre salida FAIL. Acompañar capturas históricas con fecha y SHA; si no existe evidencia de cierta prueba, escribir “no ejecutada”.
-
-# 28. Preguntas técnicas probables sobre la demo
-
-| Pregunta | Respuesta breve basada en esta implementación |
-|---|---|
-| ¿Por qué Swarm? | El repo describe estado deseado en stack.yml y lo despliega con un script. Swarm mantiene réplicas y reemplaza tasks fallidas; el cumplimiento en dos computadores requiere comprobar placement real. |
-| ¿Qué es una réplica? | Una instancia del servicio ejecutada como task/contenedor. Aquí se piden dos frontend y dos backend; dos instancias pueden caer en el mismo computador. |
-| ¿Qué ocurre si cae una? | El scheduler intenta crear otra según restart policy. La prueba mide errores y tiempo real; no hay garantía de cero errores ni de DB disponible. |
-| ¿Quién balancea? | Nginx sirve frontend y reenvía API al nombre backend. El descubrimiento/VIP de servicios y routing mesh de Swarm distribuyen conexiones según la ruta usada. |
-| ¿Qué es routing mesh? | Publica el puerto ingress en los nodos y encamina hacia tasks. No significa que cada nodo tenga una réplica ni que consulte readiness HTTP para cada request. |
-| ¿Por qué MySQL tiene una réplica? | El stack usa volumen local fijado a un manager para mantener un único escritor. No implementa replicación ni failover DB; es una limitación explícita. |
-| ¿Qué significa P95? | El 95 % de las muestras cae en o por debajo de ese tiempo. Aquí se mide listado y detalle por separado, con umbral de 3 s para cada uno. |
-| ¿Qué mide throughput? | La tasa de trabajo completado. catalog_throughput cuenta detalles exitosos por segundo; http_reqs mide requests HTTP y tiene otro denominador. |
-| ¿Qué significa error rate? | Proporción de muestras consideradas error por cada métrica. El rate de catálogo incluye fallos de negocio/login y no es idéntico a http_req_failed. |
-| ¿Por qué 50/100 VUs? | 50 es la referencia de comparación y 100 la carga asociada al ASR citado de catálogo. Son VUs concurrentes con cookie jars separados, pero el script usa una misma cuenta configurada. |
-| ¿Qué prueba Testcontainers? | Arranca MySQL real para suites que integran persistencia y aplicación. No acredita infraestructura del salón ni proveedores reales si la suite usa WireMock. |
-| ¿Qué significa integration coverage? | Líneas de producción ejecutadas por la selección exclusiva de integración. El perfil no suma cobertura unitaria y exige cero líneas missed; 100 % no está acreditado. |
-| ¿Qué hace deploy.sh? | Verifica motor/imágenes, prepara secrets y despliega stack, luego espera réplicas y probes. No crea un cluster físico real por sí solo ni configura la red de los PCs. |
-| ¿Qué hace stack.yml? | Declara imágenes, servicios, red overlay, volumen, puertos, secrets, réplicas y políticas. La distribución de frontend/backend es preferencia spread y se debe verificar. |
-| ¿Qué hace Docker secret? | Entrega valores a tasks autorizadas mediante archivos, evitando poner claves en configuración de servicio. No protege contra el administrador del daemon ni rota la contraseña de un volumen MySQL automáticamente. |
-| ¿Qué es GHCR? | Registro donde el workflow publica backend y frontend. Cada nodo necesita acceso al artefacto compatible; latest no identifica de forma estable un commit. |
-| ¿Por qué tags SHA? | Relacionan imagen con github.sha del build. Guardar digest mejora la trazabilidad porque una etiqueta puede moverse. |
-| ¿Qué hace CI? | Ejecuta Maven, JaCoCo normal, frontend/Playwright y builds; en main publica imágenes. El perfil de integración 100 % no se ejecuta en el YAML actual. |
-| ¿Qué hace CD? | El job declarado llama deploy.sh en un runner self-hosted del manager. Está implementado en YAML, pero no se acreditó runner operativo ni deploy exitoso del SHA actual. |
-| ¿Health/liveness/readiness? | Health agrupa estado; liveness comprueba proceso, readiness agrega DB. Nginx healthz solo verifica frontend, por eso también se consulta readiness a través del proxy. |
-| ¿Qué demuestra el launcher? | Automatiza arranque Compose local, prepara fixture demo y abre navegador en Windows. El workflow exitoso demuestra construcción del exe, no su ejecución manual en el PC final. |
-| ¿Qué NO demuestra el launcher? | No forma Swarm, no distribuye en dos PCs, no prueba CI/CD ni HA. Un sistema abierto por el exe sigue siendo un despliegue Compose de un host. |
-| ¿Rollback protege los datos? | Frontend/backend tienen rollback de actualización declarado. Flyway y cambios en DB no se revierten por cambiar imagen; MySQL tiene política distinta y volumen persistente. |
-
-# 29. Comandos de emergencia — cheat sheet
-
-**Usar solo el bloque del entorno que realmente existe.** Los comandos transformers asumen receta preparada 18000/18090; marketplace es el stack antiguo observado. Las variables k6 se preparan privadamente en §10.
-
-## Red
-
-**DÓNDE EJECUTAR ESTO — 💻 PC MANAGER Mac, Terminal, cualquier carpeta; en0 solo si se confirmó interfaz.**
+**DÓNDE EJECUTAR ESTO — 💻 SOFÍA, Mac, Terminal, cualquier carpeta; interfaz en0 ya identificada.**
 ```bash
 ipconfig getifaddr en0
-docker info --format '{{.Swarm.NodeAddr}}'
 ```
 
-**DÓNDE EJECUTAR ESTO — 💻 PC WORKER Windows, PowerShell, cualquier carpeta.**
+**DÓNDE EJECUTAR ESTO — 💻 VANESSA, Windows, PowerShell, cualquier carpeta; identificar su interfaz física y alcanzar candidata de Sofía.**
 ```powershell
+Get-NetIPConfiguration
+Get-NetConnectionProfile
+ping -n 3 192.168.40.13
 Test-NetConnection 192.168.40.13 -Port 2377
 ```
 
-## Docker
+Cambiar IP en ese bloque si cambió. 2377 solo tiene sentido con manager activo escuchando; ping bloqueado no prueba ausencia de red. Deben llegar entre motores TCP 2377, TCP/UDP 7946 y UDP 4789; además frontend/backend publicados hacia clientes. TCP abierto no demuestra overlay UDP.
 
-**DÓNDE EJECUTAR ESTO — 💻 AMBOS PCs, terminal local, cualquier carpeta.**
+**DÓNDE EJECUTAR ESTO — 💻 VANESSA, worker macOS/Linux, Terminal, cualquier carpeta; alternativa a la prueba Windows.**
+```bash
+ping -c 3 192.168.40.13
+nc -vz -w 3 192.168.40.13 2377
+nc -vz -w 3 192.168.40.13 7946
+```
+
+Mismo Wi-Fi puede aislar clientes. Docker Desktop ejecuta daemon en VM: IP del host no garantiza alcance de puertos del motor. La auditoría observó NodeAddr **192.168.65.3** en Desktop. Si esa red no alcanza al otro motor, resolver topología antes (motores Linux/VMs con red alcanzable); no hay comando mágico en el repo que convierta NAT en cluster físico funcional. Referencia: [red Swarm de Docker](https://docs.docker.com/engine/swarm/networking/).
+
+## 14.2 Formar cluster sin destruir el existente
+
+**DÓNDE EJECUTAR ESTO — 💻 AMBOS PCs, terminal local del motor elegido, cualquier carpeta; lectura.**
 ```text
 docker context show
-docker info --format '{{.OSType}} {{.Swarm.LocalNodeState}} {{.Swarm.NodeID}}'
-docker ps --format '{{.Names}}\t{{.Status}}\t{{.Ports}}'
+docker info --format '{{.OSType}} {{.Swarm.LocalNodeState}} {{.Swarm.ControlAvailable}} {{.Swarm.NodeID}} {{.Swarm.NodeAddr}}'
 ```
 
-## Swarm
+`inactive`: disponible para init/join. `active true`: ya es manager. `active false`: ya es worker. Si está en el cluster correcto, conservarlo. Si está en otro, planificar preservación de cargas; no usar leave --force como receta de emergencia.
 
-**DÓNDE EJECUTAR ESTO — 💻 PC MANAGER, terminal local, raíz.**
+**DÓNDE EJECUTAR ESTO — 💻 PC MANAGER, terminal del motor nuevo, cualquier carpeta; SOLO inactive, dirección confirmada y red alcanzable.**
+```bash
+docker swarm init --advertise-addr 192.168.40.13
+```
+
+**DÓNDE EJECUTAR ESTO — 💻 PC MANAGER activo, terminal privada, cualquier carpeta; no proyectar token.**
+```bash
+docker swarm join-token worker
+```
+
+Copiar el comando completo que emite Docker y ejecutarlo en el worker. Si anuncia dirección inaccesible, arreglar topología antes; cambiar texto no corrige overlay.
+
+**DÓNDE EJECUTAR ESTO — 💻 PC WORKER, terminal local del motor elegido, cualquier carpeta; plantilla: sustituir por el comando real emitido por manager.**
+```text
+docker swarm join --token REEMPLAZAR_TOKEN_REAL 192.168.40.13:2377
+```
+
+**DÓNDE EJECUTAR ESTO — 💻 PC MANAGER, Bash, raíz del repo; worker unido, copiar su ID real en prompt.**
 ```bash
 docker node ls
-docker stack ls
+MANAGER_NODE_ID=$(docker info --format '{{.Swarm.NodeID}}')
+read -r -p 'NodeID real del worker: ' WORKER_NODE_ID
+docker node update --label-add backend_zone=pc1 "$MANAGER_NODE_ID"
+docker node update --label-add backend_zone=pc2 "$WORKER_NODE_ID"
 ```
 
-## Services
+Ready = motor disponible; Active = acepta tasks; Leader = manager líder. Las etiquetas favorecen reparto y el máximo por nodo impide colocar las dos réplicas del mismo servicio juntas en modo real. Dos NodeIDs deben corresponder a dos PCs, no dos VMs en un único PC.
 
-**DÓNDE EJECUTAR ESTO — 💻 PC MANAGER del stack transformers PREPARADO, terminal local, raíz.**
+## 14.3 GHCR, secrets y primer deploy
+
+En manager, entrar a repo y establecer las variables de §3.1 **sin exigir todavía stack services/health**. Elegir un tag realmente publicado para ambas arquitecturas.
+
+**DÓNDE EJECUTAR ESTO — 💻 PC MANAGER, Bash privada, raíz; preparación GHCR, sin proyectar credenciales.**
 ```bash
-docker stack services transformers
-docker service ps --no-trunc transformers_backend
-docker service ps --no-trunc transformers_frontend
+docker login ghcr.io
+docker manifest inspect "ghcr.io/transformersas/transformers-as-backend:${BACKEND_IMAGE_TAG}"
+docker manifest inspect "ghcr.io/transformersas/transformers-as-frontend:${FRONTEND_IMAGE_TAG}"
 ```
 
-## Logs
+`denied`: revisar acceso al paquete. `manifest unknown`: tag no publicado. No cambiar silenciosamente a latest. `deploy.sh` transmite auth a agentes mediante `--with-registry-auth`; ambos nodos necesitan red al registry y arquitectura compatible. Predescargas manuales del worker privado requieren credenciales de lectura allí.
 
-**DÓNDE EJECUTAR ESTO — 💻 PC MANAGER de transformers, terminal local, raíz.**
-```bash
-docker service logs --tail 80 transformers_backend
-docker service logs --tail 80 transformers_mysql
-```
+Para stack transformers se usan `transformers_db_password_v1`, `transformers_mysql_root_password_v1` y `transformers_logistics_webhook_secret_v1`. Si no existen, deploy pide las dos claves DB sin eco y genera webhook aleatorio; si existen, los reutiliza. Hacer primer arranque fuera de pantalla compartida. Guardar claves de forma segura y consistentes con volumen existente.
 
-## k6
+Para ejecución no interactiva: archivos fuera del repo, sin salto final, no vacíos; `DB_PASSWORD_SECRET_FILE`, `MYSQL_ROOT_PASSWORD_SECRET_FILE`, `LOGISTICS_WEBHOOK_SECRET_FILE` apuntan a rutas del manager/runner. No basta definir esas rutas en GitHub si archivos no existen en el runner. No proyectar contenido. Deploy no carga `.env`.
 
-**DÓNDE EJECUTAR ESTO — 💻 PC cliente de carga, MISMA terminal Bash de §10, raíz, URL/cuenta exportadas.**
-```bash
-k6 run -e VUS=100 -e DURATION=1m --summary-export evidencias-sustentacion/catalogo-100.json scripts/k6/catalog-browse.js
-```
-
-## Health
-
-**DÓNDE EJECUTAR ESTO — 💻 PC MANAGER/WORKER cliente, Bash, cualquier carpeta; Swarm preparado y candidata verificada.**
-```bash
-curl --fail --max-time 5 http://192.168.40.13:18000/healthz
-curl --fail --max-time 5 http://192.168.40.13:18000/api/actuator/health/readiness
-```
-
-## Launcher
-
-**DÓNDE EJECUTAR ESTO — 💻 PC Windows launcher, PowerShell, raíz; el exe arranca/recrea demo, usar solo fuera de flujos/carga.**
-```powershell
-.\Marketplace.exe
-```
-
-## GitHub
-
-**DÓNDE EJECUTAR ESTO — 💻 PC MANAGER, terminal local, raíz; lectura, no dispara ejecución.**
-```bash
-gh run view 35717326168 --repo TransformersAS/Transformers-AS
-gh run view 35715767674 --repo TransformersAS/Transformers-AS
-```
-
-## Validación de esta guía y límites de la auditoría
-
-Se contrastaron rutas versionadas, ambos Compose, stack/deploy, Dockerfiles, nginx, propiedades Spring, launcher, k6, manifiesto de integración y workflows. Se ejecutaron **solo lectura**: estado Git/remoto, auditor de 81 clases, `bash -n deploy.sh`, consultas Docker/GitHub y probes indicados en §0. No se ejecutaron comandos de init/join/deploy/kill/pull/seed que aparecen como recetas.
-
-Los paths `evidencias-sustentacion/`, JSON k6, logs de launcher y reportes `target/` son **salidas propuestas o generadas por sus herramientas**, no se afirma que estén presentes. Se verificó ausencia del XML JaCoCo local. Las rutas de Windows y tokens marcados REEMPLAZAR son placeholders, no archivos/secretos encontrados. Los enlaces internos apuntan a documentos existentes; los nombres de imágenes/workflows/endpoints se tomaron del código actual. Los resultados GitHub/runtime cambian: actualizar consultas antes de hablar.
-
-**Cinco fallos más probables:** (1) Docker Desktop/NAT impide overlay entre PCs; (2) puertos/SHA/stack mezclados hacen medir otro sistema; (3) imagen del SHA todavía no publicada, acceso GHCR o arquitectura; (4) catálogo vacío/cuenta no verificada invalidan k6; (5) launcher Windows/build frío o recursos compartidos agotan tiempo. Además, coverage 100 % no acreditado y CD sin runner verificado son brechas de entrega aunque la demo funcional abra.
-
-# 30. SI SOLO PUEDES LEER UNA PÁGINA, LEE ESTO
-
-1. **Antes del reloj:** dos motores alcanzables o declarar fallback; imágenes del SHA, puertos y datos listos; cuenta verificada; reporte y capturas con versión; roles/terminales acordados. No cabe prepararlo todo en 20 min.
-2. **Launcher — Vanessa, Windows:** exe junto a ambos Compose y fuentes completas; Docker Linux listo; doble clic → `http://localhost:4300`. Log `launcher-logs/marketplace.log`. El exe no corre en Mac ni despliega Swarm.
-3. **Swarm — Sofía manager:** IP candidata 192.168.40.13 era del Mac; motor observado anuncia 192.168.65.3 y tiene UN nodo. Stack real observado `marketplace`, backend antiguo 2/2, mysql 1/1, sin frontend Swarm. No llamarlo dos PCs ni main desplegada.
-4. **Deploy:** seguir §8 solo tras red/GHCR/puertos verificados; receta nueva `transformers`, frontend 18000, backend 18090, mysql sin publicar. Configuración previa de §8.9; script único debajo. No forzar salida del Swarm existente.
-5. **Performance:** §10, mismo frontend/cuenta, 50 VUs 1m y 100 VUs 1m. Catálogo listado y detalle P95 ≤3 s, error <2 %. Guardar ambos JSON. Catálogo vacío/login fallido no acreditan performance.
-6. **Availability:** §11, 2/2 en dos PCs; k6 3m; identificar task y contenedor; matar UNA en su nodo, cronómetro, nueva task healthy y 2/2. No matar MySQL. Anotar errores, no prometer cero.
-7. **Coverage/CI/CD:** histórico 97,216671 % con 80 clases; main tiene 81, porcentaje nuevo no verificado. CI al cierre: Maven y E2E success, publicación en curso; CD declarado, cero runners del repo consultados; launcher build histórico sí success. Mostrar estados reales.
-
-**DÓNDE EJECUTAR ESTO — 💻 PC MANAGER, Bash, raíz; primer comando SOLO con preparación completa de §8.9; los demás son lectura del stack propuesto.**
+**DÓNDE EJECUTAR ESTO — 💻 PC MANAGER, M1 — CONTROL, Bash, raíz, después de configurar tags/puertos y cluster. Primer arranque, fuera de los 20 min.**
 ```bash
 bash deploy.sh
-docker node ls
-docker stack services transformers
-docker service ps --no-trunc transformers_backend
-curl --fail --max-time 5 http://192.168.40.13:18000/api/actuator/health/readiness
 ```
 
-**NO HACER:** prune, down -v, borrar .env.demo/volúmenes, leave --force, cambiar thresholds, push, matar DB, inventar resultados. Si falla >90 s: capturar, decir qué faltó, usar entorno/evidencia parcial identificado y continuar.
+Esperar convergencia y comprobar las pantallas §3.1. Si falla, conserva stack para diagnóstico; no borrar datos. Los cambios locales de scripts/stack deben estar disponibles en el manager; el cambio YAML de CI solo estará activo en GitHub después de publicarlo mediante el flujo autorizado, no por editarlo aquí.
+
+## 14.4 Datos para pruebas
+
+El Swarm no activa perfil demo. Se necesitan cuenta verificada y catálogo en su propia base. El exe prepara otra base Compose, por lo que sus cuentas no aparecen automáticamente en Swarm.
+
+Si el dataset ya está preparado, conservarlo. Si no, usar fuera de clase [datos de demostración y rendimiento](../pruebas/datos-demostracion-y-rendimiento.md) sobre una base **desechable identificada y sin tráfico**. Los scripts existentes de CUs no se modificaron; no ejecutarlos sin conocer la base afectada. No cargar/resetear datos mientras k6 corre.
+
+El generador performance existente admite 100 usuarios del pool, 1.000 productos y 10.000 pedidos sintéticos por defecto; incluye cuentas auxiliares. **No afirmar ese volumen si no se cargó y contó en la base medida.** Crear datos no demuestra el ASR. Cuenta verificada y al menos un producto bastan para arrancar el script, pero la escala del dataset debe declararse con honestidad.
+
+## 14.5 Preparar launcher antes de la demo
+
+En Windows descomprimir entrega completa y conservar exe, `Cerrar Marketplace.cmd`, ambos Compose, `frontend/` y `backend/demo/` con Dockerfiles y archivos ocultos de build. Abrir Desktop Linux; puertos 4300/8080/3307 libres; doble clic en exe una vez.
+
+Secuencia real: verifica Docker/Compose → genera/conserva `.env.demo` → MySQL → build/recreación backend con perfil demo → build/recreación frontend → health frontend y readiness proxy → navegador 4300. Puede tardar varios minutos con Internet; límite Docker por etapa 45 min, esperas Compose de 300/300/180 s y HTTP final hasta 3 min. No confundir límites con duración esperada medida.
+
+Logs en `launcher-logs/marketplace.log`. Base/usuario `marketplace_demo`, volumen `marketplace-demo_mysql_data`. No borrar `.env.demo` conservando volumen ni relanzar durante un flujo: prepara/restaura fixture demo. Pago/reembolso y otros proveedores del perfil son simulados; backend/MySQL reales.
+
+## 14.6 Preparar reporte de integración, antes de pruebas de carga
+
+**DÓNDE EJECUTAR ESTO — 💻 SOFÍA, Mac, Terminal dedicada de preparación, raíz; JDK 21, Docker y Python 3 disponibles. No concurrente con k6.**
+```bash
+cd /Users/sofiamantilla/Documents/GitHub/Transformers-AS
+export JAVA_HOME=$(/usr/libexec/java_home -v 21)
+export PATH="$JAVA_HOME/bin:$PATH"
+bash backend/demo/scripts/run-integration-coverage.sh
+```
+
+Aunque tests pasen, verify falla si queda una línea missed. Guardar esa salida; no bajar gate. Después:
+
+**DÓNDE EJECUTAR ESTO — 💻 SOFÍA, MISMA Terminal de preparación, raíz; después de finalizar suite, incluso si falló únicamente el gate.**
+```bash
+python3 backend/demo/scripts/integration-coverage-report.py
+open backend/demo/target/site/jacoco/index.html
+```
+
+Verificar `Complete allowlisted suite: True`, reports `surefire-integration-reports`, datos `jacoco-integration.exec`, resumen tests y contador LINE. La suite normal reutiliza ruta HTML: la existencia del archivo no demuestra que sea integración exclusiva. Guardar SHA/consola/HTML juntos y no correr `clean` después sin copia.
+
+# 15. Referencia auditada — contexto, no un paso de la demo
+
+**Auditoría original:** main `770f3c6da98a1885b69bf43c606a60986b2468e6`, 22 septiembre 2026. Posteriormente se incorporó la guía en `d4a2b830903f7388697767783d6b8276cc76d9fe`; las modificaciones de herramientas/despliegue/CI se encuentran locales al editar esta guía. No se atribuye a esos cambios un resultado remoto no observado.
+
+| Elemento observado en auditoría original | Resultado |
+|---|---|
+| Mac Sofía IP | en0 192.168.40.13; volver a confirmar al preparar |
+| Docker Desktop | Linux ARM64, un nodo docker-desktop; NodeAddr 192.168.65.3 |
+| Stack activo observado | marketplace, backend 2/2 y mysql 1/1; sin frontend como servicio Swarm |
+| Imagen backend activa entonces | sha-7a3c93d93f72c5f44d2838bbe2918b871770c019; anterior a main auditada |
+| Compose activo observado | transformers-as, frontend 4300, backend 18080, mysql 3307 |
+| Contenedor frontend adicional | marketplace-frontend-evidence en 8082; no es servicio del stack |
+| Launcher versionado | Marketplace.exe en raíz, 67.506.529 bytes (~64,38 MiB), Windows x86-64 |
+| Coverage local auditado | Sin XML JaCoCo/reporte nuevo de integración |
+| CI al cierre de auditoría | Maven y E2E success; publicación aún en curso; no se certificó CD |
+| Runners del repositorio consultados | 0; runner organización/disponibilidad no verificados |
+| Build launcher histórico | Success run 35715767674, SHA 856a52b312cef9d16fab8b83bf86f3b46725c13c |
+| Validación posterior de herramientas | 11 tests simulados aprobados; no carga/kill/deploy reales |
+
+| Configuración | Frontend | Backend | MySQL host |
+|---|---|---|---|
+| Compose defaults / launcher | 127.0.0.1:4300 | 127.0.0.1:8080 | 127.0.0.1:3307 |
+| Compose observado en Mac | 127.0.0.1:4300 | 127.0.0.1:18080 | 127.0.0.1:3307 |
+| Swarm defaults | ingress 80 | ingress 8080 | No publicado |
+| Swarm --local defaults | ingress 18000 | ingress 18080 | No publicado |
+| Recorrido de esta guía | ingress 18000 | ingress 18090 | No publicado |
+
+**Scripts de carga existentes:** `scripts/k6/catalog-browse.js` y `scripts/k6/seller-register.js`. El primero acredita el escenario de catálogo con umbrales de 3 s / 2 % si la corrida real pasa; el segundo mide registro/escritura/BCrypt con umbral 4 s / 2 %, no sustituye el ASR de catálogo y no se ejecuta en el guion de 20 min. No se modificó el CU de registro.
+
+**Workflow nuevo local:** `Backend CI and GHCR`, jobs validate, build, publish, frontend-e2e, quality-checks y deploy. `Build Marketplace launcher`, job launcher, sigue siendo construcción manual workflow_dispatch, no despliegue.
+
+**Límites que permanecen:** una réplica MySQL, sin HA DB; rollback de imagen no revierte Flyway; un manager no ofrece redundancia del control; health no valida todos los flujos; cobertura 100 % no acreditada. El enunciado no enumera todos los componentes de CI/CD enseñados ni todos los atributos de clase y el SAD/SRS original no está disponible aquí: no se inventó cumplimiento de esos puntos.
+
+Para detalle técnico de cambios y validaciones, [Pruebas de atributos de calidad](PRUEBAS-ATRIBUTOS-CALIDAD.md). Para operación en vivo, este documento ya contiene los comandos completos; no es necesario saltar al otro archivo.
+
+# 16. Si solo puedes leer una página
+
+**Todo abierto:** Sofía M1 CONTROL, M2 PRUEBAS con cuenta cargada, M3 resultados/GitHub; Vanessa W1 con backend identificado y GUI funcional lista. Entorno calidad transformers, frontend 18000 y backend 18090; QUALITY_URL preparado con IP real. No instalar, seedear ni formar cluster durante el reloj.
+
+1. **00–05:** GUI y flujos asignados. Launcher ya listo; no abrirlo otra vez.
+2. **05–07:** coverage preparado; mostrar porcentaje real y gate, no afirmar 100 %.
+3. **07–11:** en M2 ejecutar performance; automáticamente 50 y 100 VUs. Guardar P95 listado/detalle, errores y throughput.
+4. **11–15:** en M2 ejecutar availability; después de tráfico estable Vanessa mata UNA réplica en W1. Sofía muestra reemplazo en M1. Dejar terminar y abrir availability-result.json.
+5. **15–18:** M1 muestra nodos/placement y repite deploy.sh con configuración ya preparada. No prometer éxito hasta convergencia.
+6. **18–20:** Actions/GHCR/CD/launcher, SHA y estados reales. Guardar capturas.
+
+**DÓNDE EJECUTAR ESTO — 💻 SOFÍA, M2 — PRUEBAS, Bash, raíz, QUALITY_URL y cuenta exportadas en §3.2. PRIMERO performance; esperar a que termine.**
+```bash
+python3 scripts/quality/run.py performance --base-url "$QUALITY_URL"
+```
+
+**DÓNDE EJECUTAR ESTO — 💻 SOFÍA, MISMA M2, Bash, raíz, DESPUÉS performance. Coordinar kill en worker según §8, no improvisarlo desde manager.**
+```bash
+python3 scripts/quality/run.py availability --base-url "$QUALITY_URL" --stack transformers
+```
+
+**DÓNDE EJECUTAR ESTO — 💻 SOFÍA, M1 — CONTROL, Bash, raíz, DESPUÉS de terminar carga/availability, con tags/puertos/secrets ya preparados.**
+```bash
+docker node ls
+docker stack services transformers
+bash deploy.sh
+```
+
+**Si falla más de 90 s:** capturar, decir qué no se logró y continuar. **Nunca:** down -v, prune, leave --force, borrar claves/volúmenes, matar DB, cambiar thresholds, inventar resultados o modificar CUs.

@@ -17,6 +17,9 @@ const listDuration = new Trend('catalog_list_duration', true);
 const detailDuration = new Trend('catalog_detail_duration', true);
 const catalogErrorRate = new Rate('catalog_error_rate');
 const catalogThroughput = new Counter('catalog_throughput');
+const catalogRequests = new Counter('catalog_requests');
+const catalogSuccesses = new Counter('catalog_successes');
+const catalogFailures = new Counter('catalog_failures');
 
 const vus = Number(__ENV.VUS || 50);
 const duration = __ENV.DURATION || '1m';
@@ -24,9 +27,9 @@ const p95LimitMs = Number(__ENV.P95_LIMIT_MS || 3000);
 const errorRateLimit = Number(__ENV.ERROR_RATE_LIMIT || 0.02);
 
 const BASE_URL = __ENV.BASE_URL || 'http://127.0.0.1:8080';
-// Cuenta con la que se navega. Si no existe, setup() registra una: el registro es público.
-const EMAIL = __ENV.CATALOG_EMAIL || 'k6-catalog@test.local';
-const PASSWORD = __ENV.CATALOG_PASSWORD || 'K6Marketplace123!';
+// Cuenta ya verificada del entorno de pruebas. No crear cuentas ni saltar verificación.
+const EMAIL = __ENV.CATALOG_EMAIL;
+const PASSWORD = __ENV.CATALOG_PASSWORD;
 
 export const options = {
   scenarios: {
@@ -41,6 +44,8 @@ export const options = {
     catalog_list_duration: [`p(95)<=${p95LimitMs}`],
     catalog_detail_duration: [`p(95)<=${p95LimitMs}`],
     catalog_error_rate: [`rate<${errorRateLimit}`],
+    // Sin detalles exitosos no hay evidencia del recorrido completo.
+    catalog_throughput: ['count>0'],
   },
 };
 
@@ -53,24 +58,27 @@ function csrfToken(jar) {
   return { name: response.json('headerName'), value: response.json('token') };
 }
 
-/**
- * Se ejecuta una sola vez, antes de la prueba: asegura que la cuenta exista. Registrarla es público
- * (CU-12). Si ya existe, el backend rechaza el alta y se sigue con la que hay.
- */
+/** Validar los prerrequisitos antes de lanzar carga, sin registrar ni modificar cuentas. */
 export function setup() {
-  const csrf = csrfToken();
-  if (!csrf) {
-    throw new Error(`No se pudo obtener el token CSRF de ${BASE_URL}. ¿Está arriba el Marketplace?`);
+  if (!EMAIL || !PASSWORD) {
+    throw new Error('Define CATALOG_EMAIL y CATALOG_PASSWORD de una cuenta de prueba ya verificada.');
   }
-  const registered = http.post(
-    `${BASE_URL}/api/sellers/register`,
-    JSON.stringify({ email: EMAIL, password: PASSWORD, storeName: 'K6 Catalogo', acceptTerms: true }),
-    { headers: { 'Content-Type': 'application/json', [csrf.name]: csrf.value } }
-  );
-  if (registered.status !== 201) {
-    console.log(`La cuenta ${EMAIL} no se creó ahora (HTTP ${registered.status}); se usará la existente.`);
+  const credentials = { email: EMAIL, password: PASSWORD };
+  if (!login(credentials)) {
+    throw new Error('Preflight: login fallido; comprobar cuenta, verificación y URL antes de medir.');
   }
-  return { email: EMAIL, password: PASSWORD };
+  const list = http.get(`${BASE_URL}/api/products`, { jar: sessionJar });
+  let products;
+  try { products = list.json(); } catch (_) { products = null; }
+  if (list.status !== 200 || !Array.isArray(products) || products.length === 0) {
+    throw new Error('Preflight: se requiere catálogo accesible y no vacío. No hay prueba válida.');
+  }
+  const detail = http.get(`${BASE_URL}/api/products/${products[0].id}`, { jar: sessionJar });
+  if (detail.status !== 200) {
+    throw new Error('Preflight: el detalle no responde 200. No hay prueba válida.');
+  }
+  // Las métricas personalizadas se añaden solo durante el escenario, no durante setup.
+  return credentials;
 }
 
 /**
@@ -111,6 +119,9 @@ export default function (credentials) {
   listDuration.add(list.timings.duration);
   const listOk = check(list, { 'listado de productos responde 200': (r) => r.status === 200 });
   catalogErrorRate.add(!listOk);
+  catalogRequests.add(1);
+  catalogSuccesses.add(listOk ? 1 : 0);
+  catalogFailures.add(listOk ? 0 : 1);
   if (!listOk) {
     console.error(`GET /api/products: status=${list.status}`);
     // Una sesión caducada o revocada se recupera volviendo a entrar en la siguiente iteración.
@@ -118,7 +129,8 @@ export default function (credentials) {
     return;
   }
 
-  const products = list.json();
+  let products;
+  try { products = list.json(); } catch (_) { products = null; }
   if (!Array.isArray(products) || products.length === 0) {
     console.error('El catálogo está vacío: no hay detalle que medir.');
     catalogErrorRate.add(true);
@@ -131,6 +143,9 @@ export default function (credentials) {
   detailDuration.add(detail.timings.duration);
   const detailOk = check(detail, { 'detalle del producto responde 200': (r) => r.status === 200 });
   catalogErrorRate.add(!detailOk);
+  catalogRequests.add(1);
+  catalogSuccesses.add(detailOk ? 1 : 0);
+  catalogFailures.add(detailOk ? 0 : 1);
   if (detailOk) {
     catalogThroughput.add(1);
   } else {

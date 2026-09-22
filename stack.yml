@@ -13,6 +13,8 @@ services:
     deploy:
       replicas: 2
       placement:
+        # Cluster real: una réplica por motor; --local permite dos para ensayo.
+        max_replicas_per_node: ${APP_MAX_REPLICAS_PER_NODE:-1}
         preferences:
           - spread: node.labels.backend_zone
       restart_policy:
@@ -21,7 +23,8 @@ services:
       update_config:
         parallelism: 1
         delay: 10s
-        order: start-first
+        # Con dos nodos y máximo una réplica por nodo no hay tercer slot libre.
+        order: stop-first
         failure_action: rollback
         monitor: 90s
       rollback_config:
@@ -62,6 +65,8 @@ services:
     deploy:
       replicas: 2
       placement:
+        # Cluster real: una réplica por motor; --local permite dos para ensayo.
+        max_replicas_per_node: ${APP_MAX_REPLICAS_PER_NODE:-1}
         preferences:
           - spread: node.labels.backend_zone
       restart_policy:
@@ -70,7 +75,8 @@ services:
       update_config:
         parallelism: 1
         delay: 10s
-        order: start-first
+        # Con dos nodos y máximo una réplica por nodo no hay tercer slot libre.
+        order: stop-first
         failure_action: rollback
         monitor: 90s
       rollback_config:
