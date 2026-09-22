@@ -181,6 +181,26 @@ las imágenes anteriores al arreglo multi-arquitectura pueden contener solo amd6
 Si falta la arquitectura del nodo, usar una versión publicada compatible; no se
 asume emulación en Swarm ni se sustituye GHCR por una imagen local.
 
+## Despliegue continuo desde GitHub Actions
+
+`backend-ci.yml` agrega un job `deploy` que corre solo en push a `main`, después de que
+`publish` suba las imágenes a GHCR (`needs: publish`, `if: github.ref == 'refs/heads/main'`).
+Se ejecuta en un self-hosted runner (`[self-hosted, swarm-manager]`) con Docker, bash y
+acceso directo al manager del Swarm, bajo el Environment de GitHub `production`.
+
+El job exporta `BACKEND_IMAGE_TAG` y `FRONTEND_IMAGE_TAG` en `sha-<SHA del push>` —así
+despliega exactamente la imagen que `publish` acaba de subir, nunca `latest`— y `STACK_NAME`,
+y termina llamando a `bash deploy.sh` sin `--local`, igual que en el cluster real. Las rutas a
+los archivos de secrets (`DB_PASSWORD_SECRET_FILE`, `MYSQL_ROOT_PASSWORD_SECRET_FILE`,
+`LOGISTICS_WEBHOOK_SECRET_FILE`) no están en el YAML ni se commitean: el job las lee de las
+Variables del Environment `production` (`vars.DB_PASSWORD_SECRET_FILE`, etc.), que se
+configuran una sola vez en Settings → Environments → production con las rutas reales del
+runner, fuera del repositorio. `deploy.sh` ya valida Docker/Swarm, espera health/readiness y
+sale con código distinto de cero si algo falla; el job de CD no duplica esa lógica.
+
+El runner necesita el `docker login ghcr.io` manual descrito más abajo para poder hacer
+`docker pull` de las imágenes privadas: el workflow no vuelve a autenticar.
+
 ## Validación estática
 
 Desde la raíz:

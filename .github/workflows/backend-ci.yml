@@ -173,3 +173,27 @@ jobs:
             frontend/test-results-real/
           if-no-files-found: warn
           retention-days: 14
+
+  deploy:
+    name: Deploy to Swarm (self-hosted)
+    needs: publish
+    if: ${{ github.ref == 'refs/heads/main' }}
+    runs-on: [self-hosted, swarm-manager]
+    environment: production
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Run deploy.sh against the real Swarm cluster
+        env:
+          STACK_NAME: transformers
+          BACKEND_IMAGE_TAG: sha-${{ github.sha }}
+          FRONTEND_IMAGE_TAG: sha-${{ github.sha }}
+          DB_PASSWORD_SECRET_FILE: ${{ vars.DB_PASSWORD_SECRET_FILE }}
+          MYSQL_ROOT_PASSWORD_SECRET_FILE: ${{ vars.MYSQL_ROOT_PASSWORD_SECRET_FILE }}
+          LOGISTICS_WEBHOOK_SECRET_FILE: ${{ vars.LOGISTICS_WEBHOOK_SECRET_FILE }}
+        run: bash deploy.sh
