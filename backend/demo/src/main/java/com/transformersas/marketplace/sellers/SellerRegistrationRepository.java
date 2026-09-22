@@ -19,9 +19,9 @@ public class SellerRegistrationRepository {
                 Boolean.class, accountId);
     }
 
-    public void markVerified(Long accountId) {
-        jdbc.update("UPDATE user_accounts SET email_verified_at = COALESCE(email_verified_at, CURRENT_TIMESTAMP(6)) "
-                + "WHERE id = ?", accountId);
+    public boolean hasTermsAcceptance(Long accountId) {
+        return jdbc.queryForObject("SELECT COUNT(*) FROM seller_terms_acceptances WHERE account_id = ?",
+                Integer.class, accountId) > 0;
     }
 
     public void recordTermsAcceptance(Long accountId, String version) {

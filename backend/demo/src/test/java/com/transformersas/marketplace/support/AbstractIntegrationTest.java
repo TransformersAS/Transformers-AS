@@ -80,7 +80,7 @@ public abstract class AbstractIntegrationTest {
     // ---------- Cuentas y sesiones ----------
 
     protected Long createAccount(String email, String... roles) {
-        jdbc.update("INSERT INTO user_accounts(email, password_hash, status) VALUES (?,?,'ACTIVA')", email, PASSWORD_HASH);
+        jdbc.update("INSERT INTO user_accounts(email, password_hash, status, email_verified_at) VALUES (?,?,'ACTIVA',CURRENT_TIMESTAMP(6))", email, PASSWORD_HASH);
         Long id = jdbc.queryForObject("SELECT id FROM user_accounts WHERE email = ?", Long.class, email);
         for (String role : roles) {
             jdbc.update("INSERT INTO user_account_roles(account_id, role) VALUES (?,?)", id, role);
@@ -152,6 +152,14 @@ public abstract class AbstractIntegrationTest {
         return jdbc.queryForObject("SELECT MAX(id) FROM addresses", Long.class);
     }
 
+    protected long seedAddress(Session buyer) throws Exception {
+        long accountId = json.readTree(perform(buyer, get("/api/auth/me")).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString()).get("accountId").asLong();
+        long address = seedAddress();
+        jdbc.update("UPDATE addresses SET account_id=? WHERE id=?", accountId, address);
+        return address;
+    }
+
     /**
      * Inserta un pedido de una línea directamente en BD (sin pasar por el checkout), con su snapshot de entrega
      * y el registro inicial de historial. Devuelve el id del pedido.
@@ -182,7 +190,7 @@ public abstract class AbstractIntegrationTest {
      * devuelve el id del pedido creado. La dirección se siembra por BD.
      */
     protected long checkoutOrder(Session buyer, long productId, int quantity) throws Exception {
-        long address = seedAddress();
+        long address = seedAddress(buyer);
         perform(buyer, post("/api/cart/items").contentType("application/json")
                 .content("{\"productId\":" + productId + ",\"quantity\":" + quantity + "}"))
                 .andExpect(status().isCreated());

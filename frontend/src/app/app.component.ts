@@ -193,7 +193,7 @@ export class AppComponent {
     this.catalogo.obtenerCategorias();
 
   recommendations$ =
-  this.recommendation.getRecommendations(1);
+  this.recommendation.getRecommendations();
 
   // =========================================================
   // CARRITO
@@ -345,7 +345,6 @@ export class AppComponent {
   this.carrito.agregar(id);
 
   this.interaction.register({
-    userId: 1,
     productId: id,
     interactionType: 'ADD_TO_CART',
     searchTerm: null
@@ -370,7 +369,6 @@ verProducto(
 ): void {
 
   this.interaction.register({
-    userId: 1,
     productId: id,
     interactionType: 'VIEW',
     searchTerm: null
@@ -402,7 +400,6 @@ buscarProductos(): void {
   }
 
   this.interaction.register({
-    userId: 1,
     productId: null,
     interactionType: 'SEARCH',
     searchTerm: term
@@ -419,7 +416,7 @@ buscarProductos(): void {
       // para que considere la nueva búsqueda.
       this.recommendations$ =
         this.recommendation
-          .getRecommendations(1);
+          .getRecommendations();
     },
 
     error: error => {
@@ -839,7 +836,7 @@ buscarProductos(): void {
             this.carrito.refrescar();
             this.recommendations$ =
             this.recommendation
-             .getRecommendations(1);
+             .getRecommendations();
           }
         },
 

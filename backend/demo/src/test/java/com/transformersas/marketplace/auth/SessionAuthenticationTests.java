@@ -57,7 +57,7 @@ class SessionAuthenticationTests {
             return null;
         }).when(recoveryNotifier).notifyRecovery(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString());
         hash = encoder.encode("TestPassword!123");
-        accounts.save(new UserAccount(null, "person@example.com", hash, AccountStatus.ACTIVA, Set.of(Role.COMPRADOR)));
+        saveVerified(new UserAccount(null, "person@example.com", hash, AccountStatus.ACTIVA, Set.of(Role.COMPRADOR)));
     }
 
     @Test
@@ -140,7 +140,7 @@ class SessionAuthenticationTests {
 
     @Test
     void multipleRolesRequireSelectionAndSwitchPermissionsInOnlyThatSession() throws Exception {
-        accounts.save(new UserAccount(null, "multi@example.com", hash, AccountStatus.ACTIVA,
+        saveVerified(new UserAccount(null, "multi@example.com", hash, AccountStatus.ACTIVA,
                 Set.of(Role.COMPRADOR, Role.VENDEDOR)));
         Cookie first = login(csrf(null), "multi@example.com", "TestPassword!123", 204);
         Cookie second = login(csrf(null), "multi@example.com", "TestPassword!123", 204);
@@ -173,7 +173,7 @@ class SessionAuthenticationTests {
             "vendedor, COMPRADOR, 403"
     })
     void headValidationUsesTheSameActiveRoleAuthorizationAsGet(String endpoint, Role activeRole, int expectedStatus) throws Exception {
-        accounts.save(new UserAccount(null, "multi@example.com", hash, AccountStatus.ACTIVA,
+        saveVerified(new UserAccount(null, "multi@example.com", hash, AccountStatus.ACTIVA,
                 Set.of(Role.COMPRADOR, Role.VENDEDOR)));
         Cookie cookie = login(csrf(null), "multi@example.com", "TestPassword!123", 204);
         selectRole(cookie, activeRole.name(), 200);
@@ -215,7 +215,7 @@ class SessionAuthenticationTests {
     void listsOwnSessionsAndRevokesOnlyTheSelectedSession() throws Exception {
         Cookie first = login(csrf(null), "person@example.com", "TestPassword!123", 204);
         Cookie second = login(csrf(null), "person@example.com", "TestPassword!123", 204);
-        accounts.save(new UserAccount(null, "other@example.com", hash, AccountStatus.ACTIVA, Set.of(Role.COMPRADOR)));
+        saveVerified(new UserAccount(null, "other@example.com", hash, AccountStatus.ACTIVA, Set.of(Role.COMPRADOR)));
         Cookie other = login(csrf(null), "other@example.com", "TestPassword!123", 204);
         var result = mvc.perform(get("/api/auth/sessions").cookie(first)).andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(2)).andReturn();
@@ -253,7 +253,7 @@ class SessionAuthenticationTests {
     @Test
     void cannotRevokeAnotherAccountsSessionOrAnUnknownSession() throws Exception {
         Cookie own = login(csrf(null), "person@example.com", "TestPassword!123", 204);
-        accounts.save(new UserAccount(null, "other@example.com", hash, AccountStatus.ACTIVA, Set.of(Role.COMPRADOR)));
+        saveVerified(new UserAccount(null, "other@example.com", hash, AccountStatus.ACTIVA, Set.of(Role.COMPRADOR)));
         Cookie other = login(csrf(null), "other@example.com", "TestPassword!123", 204);
         revoke(own, currentManagementId(other), 404);
         revoke(own, "unknown", 404);
@@ -300,7 +300,7 @@ class SessionAuthenticationTests {
         Cookie current = login(csrf(null), "person@example.com", "TestPassword!123", 204);
         Cookie second = login(csrf(null), "person@example.com", "TestPassword!123", 204);
         Cookie third = login(csrf(null), "person@example.com", "TestPassword!123", 204);
-        accounts.save(new UserAccount(null, "other@example.com", hash, AccountStatus.ACTIVA, Set.of(Role.VENDEDOR)));
+        saveVerified(new UserAccount(null, "other@example.com", hash, AccountStatus.ACTIVA, Set.of(Role.VENDEDOR)));
         Cookie other = login(csrf(null), "other@example.com", "TestPassword!123", 204);
         var before = accounts.findByEmail("person@example.com").orElseThrow();
         changePassword(current, "TestPassword!123", "NewPassword!456", 204);
@@ -376,7 +376,7 @@ class SessionAuthenticationTests {
     void recoveryRequestIsGenericAndStoresOnlyHashWithExpiry() throws Exception {
         var existing = requestRecovery(" PERSON@example.com ");
         var missing = requestRecovery("missing@example.com");
-        accounts.save(new UserAccount(null, "inactive@example.com", hash, AccountStatus.INACTIVA, Set.of(Role.COMPRADOR)));
+        saveVerified(new UserAccount(null, "inactive@example.com", hash, AccountStatus.INACTIVA, Set.of(Role.COMPRADOR)));
         var inactive = requestRecovery("inactive@example.com");
         assertThat(existing.getResponse().getContentAsString()).isEqualTo(missing.getResponse().getContentAsString())
                 .isEqualTo(inactive.getResponse().getContentAsString());
@@ -396,7 +396,7 @@ class SessionAuthenticationTests {
     void recoveryResetsPasswordAndRevokesAllOwnSessionsOnly() throws Exception {
         Cookie first = login(csrf(null), "person@example.com", "TestPassword!123", 204);
         Cookie second = login(csrf(null), "person@example.com", "TestPassword!123", 204);
-        accounts.save(new UserAccount(null, "other@example.com", hash, AccountStatus.ACTIVA, Set.of(Role.COMPRADOR)));
+        saveVerified(new UserAccount(null, "other@example.com", hash, AccountStatus.ACTIVA, Set.of(Role.COMPRADOR)));
         Cookie other = login(csrf(null), "other@example.com", "TestPassword!123", 204);
         requestRecovery("person@example.com");
         String token = recoveryTokens.getFirst();
@@ -496,6 +496,12 @@ class SessionAuthenticationTests {
         org.mockito.Mockito.verify(recoveryNotifier).notifyRecovery(org.mockito.ArgumentMatchers.eq("person@example.com"),
                 org.mockito.ArgumentMatchers.matches("[A-Za-z0-9_-]{43}"));
         assertThat(accounts.findByEmail("person@example.com").orElseThrow().passwordHash()).isEqualTo(hash);
+    }
+
+    private UserAccount saveVerified(UserAccount account) {
+        var saved = accounts.save(account);
+        accounts.markEmailVerified(saved.id());
+        return saved;
     }
 
     private MvcResult requestRecovery(String email) throws Exception {

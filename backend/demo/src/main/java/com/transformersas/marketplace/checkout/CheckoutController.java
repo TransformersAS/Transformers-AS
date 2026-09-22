@@ -1,5 +1,8 @@
 package com.transformersas.marketplace.checkout;
 
+import com.transformersas.marketplace.auth.infrastructure.security.AccountPrincipal;
+import com.transformersas.marketplace.auth.infrastructure.security.BuyerAccess;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import com.transformersas.marketplace.checkout.dto.CheckoutPreviewRequest;
 import com.transformersas.marketplace.checkout.dto.CheckoutPreviewResponse;
 
@@ -30,12 +33,13 @@ public class CheckoutController {
 
     @PostMapping("/preview")
     public ResponseEntity<CheckoutPreviewResponse> preview(
+            @AuthenticationPrincipal AccountPrincipal principal,
             @RequestBody CheckoutPreviewRequest request
     ) {
 
         CheckoutPreviewResponse response =
                 checkoutService.preview(
-                        request
+                        BuyerAccess.accountId(principal), request
                 );
 
 

@@ -38,17 +38,26 @@ export class AuthService {
     this.obtenerCuentaActual().subscribe({ error: () => this.olvidar() });
   }
 
-  iniciarSesion(email: string, password: string): Observable<CuentaSesion> {
-    const credenciales: CredencialesLogin = { email, password };
-    const cuerpo = new HttpParams().set('email', credenciales.email).set('password', credenciales.password).toString();
+  iniciarSesion(email: string, password: string, rememberMe = false): Observable<CuentaSesion> {
+    const credenciales: CredencialesLogin = { email, password, rememberMe };
+    const cuerpo = new HttpParams().set('email', credenciales.email).set('password', credenciales.password)
+      .set('rememberMe', credenciales.rememberMe).toString();
     return this.refrescarCsrf().pipe(
       switchMap(() => this.http.post(`${API_BASE}/auth/login`, cuerpo,
-        { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, responseType: 'text' })),
+        { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } })),
       // El token CSRF cambia al autenticarse: hay que pedir el nuevo.
       switchMap(() => this.refrescarCsrf()),
       switchMap(() => this.http.get<CuentaSesion>(`${API_BASE}/auth/me`)),
       tap(cuenta => this._cuenta.set(cuenta))
     );
+  }
+
+  reenviarVerificacion(email: string, password: string): Observable<void> {
+    return this.http.post<void>(`${API_BASE}/auth/email-verification/resend`, { email, password });
+  }
+
+  confirmarCorreo(token: string): Observable<void> {
+    return this.http.post<void>(`${API_BASE}/auth/email-verification/confirm`, { token });
   }
 
   cambiarRol(rol: Rol): Observable<CuentaSesion> {
@@ -60,7 +69,7 @@ export class AuthService {
 
   cerrarSesion(): Observable<void> {
     return this.http.post(`${API_BASE}/auth/logout`, {}, { responseType: 'text' }).pipe(
-      catchError(() => of(null)),
+      // Solo olvidar la cuenta cuando el servidor confirma el cierre; los errores llegan a la UI.
       tap(() => this.olvidar()),
       map(() => undefined)
     );
@@ -82,6 +91,10 @@ export class AuthService {
 
   listarSesiones(): Observable<SesionActiva[]> {
     return this.http.get<SesionActiva[]>(`${API_BASE}/auth/sessions`);
+  }
+
+  cerrarDemasSesiones(): Observable<void> {
+    return this.http.post<void>(`${API_BASE}/auth/sessions/revoke-others`, {});
   }
 
   /** Recibe una sesión de listarSesiones(); solo limpia la cuenta si se revoca la actual. */

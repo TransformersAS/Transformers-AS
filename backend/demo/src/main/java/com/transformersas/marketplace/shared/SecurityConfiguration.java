@@ -2,6 +2,11 @@ package com.transformersas.marketplace.shared;
 
 import jakarta.servlet.DispatcherType;
 import com.transformersas.marketplace.auth.infrastructure.security.AccountPrincipal;
+import com.transformersas.marketplace.auth.infrastructure.security.CurrentAccountSessionFilter;
+import org.springframework.security.web.context.SecurityContextHolderFilter;
+import com.transformersas.marketplace.auth.infrastructure.security.EmailNotVerifiedException;
+import com.transformersas.marketplace.auth.infrastructure.security.LoginSessionPolicy;
+import com.transformersas.marketplace.users.domain.repository.UserAccountRepository;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.beans.factory.annotation.Value;
@@ -17,8 +22,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
-import org.springframework.session.web.http.CookieSerializer;
-import org.springframework.session.web.http.DefaultCookieSerializer;
+import org.springframework.boot.convert.DurationStyle;
+import java.time.temporal.ChronoUnit;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -32,18 +37,24 @@ public class SecurityConfiguration {
     }
 
     @Bean
-    CookieSerializer sessionCookieSerializer() {
-        var serializer = new DefaultCookieSerializer();
-        serializer.setUseHttpOnlyCookie(true);
-        serializer.setSameSite("Lax");
-        // Secure follows request.isSecure(), preserving local HTTP and enabling it on HTTPS.
-        return serializer;
+    LoginSessionPolicy sessionCookieSerializer(
+            @Value("${spring.session.timeout:30m}") String normalTimeout,
+            @Value("${app.session.persistent-timeout:7d}") String persistentTimeout) {
+        return new LoginSessionPolicy(DurationStyle.detectAndParse(normalTimeout, ChronoUnit.SECONDS),
+                DurationStyle.detectAndParse(persistentTimeout, ChronoUnit.SECONDS));
     }
 
     @Bean
-    DaoAuthenticationProvider accountAuthenticationProvider(UserDetailsService users, PasswordEncoder encoder) {
+    DaoAuthenticationProvider accountAuthenticationProvider(UserDetailsService users, PasswordEncoder encoder,
+            UserAccountRepository accounts) {
         var provider = new DaoAuthenticationProvider(users);
         provider.setPasswordEncoder(encoder);
+        // Post-checks run AFTER password validation: wrong credentials never reveal verification status.
+        provider.setPostAuthenticationChecks(user -> {
+            if (!accounts.isEmailVerified(((AccountPrincipal) user).accountId())) {
+                throw new EmailNotVerifiedException();
+            }
+        });
         return provider;
     }
 
@@ -68,11 +79,14 @@ public class SecurityConfiguration {
 
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http, DaoAuthenticationProvider provider,
-                                            SecurityContextRepository contexts) throws Exception {
+                                            SecurityContextRepository contexts, LoginSessionPolicy sessionPolicy,
+                                            UserAccountRepository accounts) throws Exception {
         return http
                 .cors(Customizer.withDefaults())
                 .authenticationProvider(provider)
                 .securityContext(context -> context.securityContextRepository(contexts))
+                // Only register inside Spring Security, after loading the JDBC context and before authorization.
+                .addFilterAfter(new CurrentAccountSessionFilter(accounts, contexts), SecurityContextHolderFilter.class)
                 .authorizeHttpRequests(authorize -> authorize
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                         .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
@@ -80,10 +94,12 @@ public class SecurityConfiguration {
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/password-recovery/request",
                                 "/api/auth/password-recovery/confirm").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/email-verification/resend",
+                                "/api/auth/email-verification/confirm").permitAll()
                         // Registro de vendedores (CU-12): un visitante lee las condiciones, se registra y confirma su
                         // correo sin sesión. Habilitar el rol con una cuenta existente sí exige sesión.
                         .requestMatchers(HttpMethod.GET, "/api/sellers/terms").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/sellers/register", "/api/sellers/verify-email").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/sellers/register").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/auth/validation/comprador").hasRole("COMPRADOR")
                         .requestMatchers(HttpMethod.GET, "/api/auth/validation/vendedor").hasRole("VENDEDOR")
                         .requestMatchers(HttpMethod.HEAD, "/api/auth/validation/comprador").hasRole("COMPRADOR")
@@ -105,6 +121,10 @@ public class SecurityConfiguration {
                         .requestMatchers("/api/claims/**").hasRole("COMPRADOR")
                         // Administración del catálogo (CU-17): categorías, marcas y atributos.
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                        .requestMatchers("/api/cart", "/api/cart/**", "/api/addresses", "/api/addresses/**",
+                                "/api/checkout/preview", "/api/reservations/cart", "/api/payments/process")
+                                .hasRole("COMPRADOR")
+                        .requestMatchers(HttpMethod.POST, "/api/products").hasRole("VENDEDOR")
                         .requestMatchers("/api/**").authenticated()
                         .anyRequest().denyAll())
                 // Sin sesión no hay token CSRF que enviar: el webhook se protege con la firma del cuerpo.
@@ -124,10 +144,20 @@ public class SecurityConfiguration {
                             var context = SecurityContextHolder.createEmptyContext();
                             context.setAuthentication(active);
                             SecurityContextHolder.setContext(context);
+                            sessionPolicy.onAuthenticationSuccess(request);
                             contexts.saveContext(context, request, response);
                             response.setStatus(204);
                         })
-                        .failureHandler((request, response, exception) -> response.setStatus(401)))
+                        .failureHandler((request, response, exception) -> {
+                            if (exception instanceof EmailNotVerifiedException) {
+                                response.setStatus(403);
+                                response.setContentType("application/json");
+                                response.setCharacterEncoding("UTF-8");
+                                response.getWriter().write("{\"code\":\"EMAIL_NOT_VERIFIED\",\"message\":\"Debes verificar tu correo antes de iniciar sesión\"}");
+                            } else {
+                                response.setStatus(401);
+                            }
+                        }))
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .logout(logout -> logout
                         .logoutUrl("/api/auth/logout")

@@ -1,5 +1,6 @@
 package com.transformersas.marketplace.address;
 
+import com.transformersas.marketplace.auth.infrastructure.security.BuyerAccess;
 import com.transformersas.marketplace.address.dto.AddressRequest;
 import com.transformersas.marketplace.address.dto.AddressResponse;
 import org.springframework.stereotype.Service;
@@ -15,13 +16,14 @@ public class AddressService {
         this.addressRepository = addressRepository;
     }
 
-    public List<AddressResponse> getAll() {
-        return addressRepository.findAll().stream().map(AddressResponse::from).toList();
+    public List<AddressResponse> getAll(Long accountId) {
+        return addressRepository.findByAccountId(BuyerAccess.requireAccountId(accountId)).stream().map(AddressResponse::from).toList();
     }
 
     @Transactional
-    public AddressResponse create(AddressRequest request) {
+    public AddressResponse create(Long accountId, AddressRequest request) {
         Address address = new Address();
+        address.setAccountId(BuyerAccess.requireAccountId(accountId));
         address.setRecipientName(request.recipientName());
         address.setStreet(request.street());
         address.setCity(request.city());

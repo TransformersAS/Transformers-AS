@@ -83,6 +83,12 @@ public class SessionController {
         return sessions.list(principal, request.getSession(false).getId());
     }
 
+    @PostMapping("/sessions/revoke-others")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void revokeOtherSessions(@AuthenticationPrincipal AccountPrincipal principal, HttpServletRequest request) {
+        sessions.revokeOthers(principal, request.getSession(false).getId());
+    }
+
     @DeleteMapping("/sessions/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void revokeSession(@AuthenticationPrincipal AccountPrincipal principal, @PathVariable String id,

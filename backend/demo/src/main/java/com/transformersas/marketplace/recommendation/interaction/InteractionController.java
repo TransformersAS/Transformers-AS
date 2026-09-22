@@ -1,5 +1,8 @@
 package com.transformersas.marketplace.recommendation.interaction;
 
+import com.transformersas.marketplace.auth.infrastructure.security.AccountPrincipal;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+
 import com.transformersas.marketplace.recommendation.interaction.dto.InteractionRequest;
 import com.transformersas.marketplace.recommendation.interaction.dto.InteractionResponse;
 
@@ -28,11 +31,13 @@ public class InteractionController {
     @ResponseStatus(HttpStatus.CREATED)
     public InteractionResponse register(
         @RequestBody
-        InteractionRequest request
+        InteractionRequest request,
+        @AuthenticationPrincipal
+        AccountPrincipal principal
     ) {
 
         return service.register(
-            request
+            new InteractionRequest(principal.accountId(), request.productId(), request.interactionType(), request.searchTerm())
         );
     }
 
@@ -40,12 +45,12 @@ public class InteractionController {
     @GetMapping
     public List<InteractionResponse>
         findByUser(
-            @RequestParam
-            Long userId
+            @AuthenticationPrincipal
+            AccountPrincipal principal
         ) {
 
         return service.findByUser(
-            userId
+            principal.accountId()
         );
     }
 }

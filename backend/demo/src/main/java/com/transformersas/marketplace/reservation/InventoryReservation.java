@@ -13,6 +13,10 @@ public class InventoryReservation {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    // NULL only for legacy data whose owner cannot be established safely.
+    @Column(name = "account_id")
+    private Long accountId;
+
     @ManyToOne(optional = false)
     @JoinColumn(name = "product_id", nullable = false)
     private Product product;
@@ -34,6 +38,10 @@ public class InventoryReservation {
     public InventoryReservation() {
     }
 
+
+    public Long getAccountId() { return accountId; }
+
+    public void setAccountId(Long accountId) { this.accountId = accountId; }
 
     public Long getId() {
         return id;

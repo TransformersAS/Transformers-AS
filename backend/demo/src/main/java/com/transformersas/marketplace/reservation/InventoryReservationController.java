@@ -1,5 +1,8 @@
 package com.transformersas.marketplace.reservation;
 
+import com.transformersas.marketplace.auth.infrastructure.security.AccountPrincipal;
+import com.transformersas.marketplace.auth.infrastructure.security.BuyerAccess;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import com.transformersas.marketplace.reservation.dto.ReservationResponse;
 
 import org.springframework.http.ResponseEntity;
@@ -25,10 +28,10 @@ public class InventoryReservationController {
 
     @PostMapping("/cart")
     public ResponseEntity<List<ReservationResponse>>
-    reserveCart() {
+    reserveCart(@AuthenticationPrincipal AccountPrincipal principal) {
 
         return ResponseEntity.ok(
-                reservationService.reserveCart()
+                reservationService.reserveCart(BuyerAccess.accountId(principal))
         );
     }
 }

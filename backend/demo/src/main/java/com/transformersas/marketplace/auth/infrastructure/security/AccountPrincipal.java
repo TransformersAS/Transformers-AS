@@ -34,6 +34,15 @@ public final class AccountPrincipal extends User {
     public Set<Role> roles() { return roles; }
     public Role activeRole() { return activeRole; }
 
+    /** Refresh an existing session without applying the single-role default used at login. */
+    public AccountPrincipal refresh(UserAccount account) {
+        Role retained = activeRole != null && account.roles().contains(activeRole) ? activeRole : null;
+        var refreshed = new AccountPrincipal(account.id(), account.email(), "", account.status() == AccountStatus.ACTIVA,
+                account.roles(), retained);
+        refreshed.eraseCredentials();
+        return refreshed;
+    }
+
     public AccountPrincipal withActiveRole(Role role) {
         if (role == null || !roles.contains(role)) throw new IllegalArgumentException("Rol no disponible");
         var selected = new AccountPrincipal(accountId, getUsername(), "", isEnabled(), roles, role);

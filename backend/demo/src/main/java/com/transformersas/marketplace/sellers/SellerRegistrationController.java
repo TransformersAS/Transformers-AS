@@ -11,7 +11,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 /**
- * Registro de vendedores (CU-12). Las condiciones, el registro de una cuenta nueva y la confirmación son públicos (ver
+ * Registro de vendedores (CU-12). Las condiciones y el registro de una cuenta nueva son públicos (ver
  * SecurityConfiguration); habilitar el rol con una cuenta existente exige la sesión de esa cuenta.
  */
 @RestController
@@ -30,13 +30,6 @@ public class SellerRegistrationController {
     public record EnableRequest(
             @NotBlank @Size(max = 100) String storeName,
             @AssertTrue(message = "Debes aceptar las condiciones para vender") boolean acceptTerms
-    ) {
-    }
-
-    /** Confirmación: el correo de la cuenta y el nombre de la tienda que registró. */
-    public record VerifyRequest(
-            @NotBlank @Size(max = 254) String email,
-            @NotBlank @Size(max = 100) String storeName
     ) {
     }
 
@@ -66,9 +59,4 @@ public class SellerRegistrationController {
         return service.enable(account.accountId(), request.storeName());
     }
 
-    @PostMapping("/verify-email")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void verify(@Valid @RequestBody VerifyRequest request) {
-        service.verify(request.email(), request.storeName());
-    }
 }

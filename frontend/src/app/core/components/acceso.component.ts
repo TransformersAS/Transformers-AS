@@ -3,18 +3,18 @@ import { DatePipe } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { IonButton, IonInput, IonItem, IonSelect, IonSelectOption, IonText } from '@ionic/angular/standalone';
+import { IonButton, IonCheckbox, IonInput, IonItem, IonSelect, IonSelectOption, IonText } from '@ionic/angular/standalone';
 import { Observable, catchError, finalize, of, switchMap, tap } from 'rxjs';
 import { AuthService, Rol } from '../services/auth.service';
 import { SesionActiva } from '../models/auth.model';
 import { PerfilResumenComponent } from '../../cuenta/components/perfil-resumen.component';
 
-type Vista = 'cuenta' | 'sesiones' | 'password' | 'solicitar' | 'confirmar';
+type Vista = 'cuenta' | 'sesiones' | 'password' | 'solicitar' | 'confirmar' | 'verificar';
 
 @Component({
   selector: 'app-acceso',
   standalone: true,
-  imports: [FormsModule, DatePipe, PerfilResumenComponent, IonButton, IonInput, IonItem, IonSelect, IonSelectOption, IonText],
+  imports: [FormsModule, DatePipe, PerfilResumenComponent, IonButton, IonCheckbox, IonInput, IonItem, IonSelect, IonSelectOption, IonText],
   templateUrl: './acceso.component.html',
   styleUrl: './acceso.component.scss'
 })
@@ -26,10 +26,12 @@ export class AccesoComponent {
   vista: Vista = 'cuenta';
   correo = '';
   clave = '';
+  mantenerSesion = false;
   actual = '';
   nueva = '';
   confirmacion = '';
   token = '';
+  correoSinVerificar = false;
   enviando = false;
   error = '';
   exito = '';
@@ -72,14 +74,34 @@ export class AccesoComponent {
 
   enviar(): void {
     if (!this.datosValidos()) return;
-    this.ejecutar(this.auth.iniciarSesion(this.correo.trim(), this.clave), cuenta => {
+    this.correoSinVerificar = false;
+    this.ejecutar(this.auth.iniciarSesion(this.correo.trim(), this.clave, this.mantenerSesion), cuenta => {
       this.limpiarClaves();
+      this.mantenerSesion = false;
       this.sesiones = [];
       this.sesionesCargadas = false;
       this.pendiente = null;
       this.vista = 'cuenta';
       this.exito = cuenta.activeRole ? 'Sesión iniciada.' : 'Sesión iniciada. Selecciona tu rol activo.';
     }, 'No se pudo iniciar sesión. Comprueba correo y contraseña.');
+  }
+
+  reenviarVerificacion(): void {
+    if (!this.datosValidos()) return;
+    this.ejecutar(this.auth.reenviarVerificacion(this.correo.trim(), this.clave), () => {
+      this.exito = 'Si tu correo sigue pendiente, enviamos un nuevo código. Usa el último recibido; vence en 30 minutos.';
+    }, 'No se pudo enviar el correo de verificación. Inténtalo de nuevo más tarde.');
+  }
+
+  verificarCorreo(): void {
+    if (!this.token.trim()) return;
+    this.ejecutar(this.auth.confirmarCorreo(this.token.trim()), () => {
+      this.token = '';
+      this.correoSinVerificar = false;
+      this.limpiarClaves();
+      this.vista = 'cuenta';
+      this.exito = 'Correo verificado. Ya puedes iniciar sesión.';
+    }, 'Código de verificación inválido, vencido o ya utilizado. Solicita otro desde el inicio de sesión.');
   }
 
   cambiarRol(rol: Rol): void {
@@ -95,7 +117,7 @@ export class AccesoComponent {
       this.sesiones = [];
       this.vista = 'cuenta';
       this.cerrar.emit();
-    }, 'No se pudo cerrar la sesión.');
+    }, 'No se pudo confirmar el cierre de sesión. Inténtalo de nuevo.');
   }
 
   cargarSesiones(): void {
@@ -103,6 +125,25 @@ export class AccesoComponent {
       this.sesiones = sesiones;
       this.sesionesCargadas = true;
     }, 'No se pudieron cargar las sesiones. Intenta actualizar.');
+  }
+
+  cerrarDemasSesiones(): void {
+    if (this.enviando) return;
+    const operacion = this.auth.cerrarDemasSesiones().pipe(
+      tap(() => {
+        this.pendiente = null;
+        this.sesiones = this.sesiones.filter(sesion => sesion.current);
+        this.exito = 'Las demás sesiones se cerraron. Esta sesión continúa activa.';
+      }),
+      switchMap(() => this.auth.listarSesiones().pipe(
+        catchError(() => {
+          this.error = 'Las demás sesiones se cerraron, pero no se pudo actualizar la lista. Pulsa Actualizar.';
+          return of(this.sesiones);
+        })
+      ))
+    );
+    this.ejecutar(operacion, sesiones => { this.sesiones = sesiones; },
+      'No se pudo confirmar el cierre de las demás sesiones. Actualiza la lista e inténtalo de nuevo.');
   }
 
   pedirRevocacion(sesion: SesionActiva): void {
@@ -180,6 +221,11 @@ export class AccesoComponent {
     ).subscribe({
       next: alCompletar,
       error: (e: HttpErrorResponse) => {
+        if (e.status === 403 && e.error?.code === 'EMAIL_NOT_VERIFIED') {
+          this.correoSinVerificar = true;
+          this.error = 'Debes verificar tu correo antes de iniciar sesión. Puedes reenviar el código o ingresar el recibido.';
+          return;
+        }
         this.error = e.status === 0 ? 'No se pudo conectar con el servidor. Inténtalo de nuevo.'
           : e.status === 401 && !this.auth.autenticada() ? 'La sesión no está disponible o las credenciales son incorrectas. Inicia sesión para continuar.'
           : mensajeError;

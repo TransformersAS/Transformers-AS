@@ -101,14 +101,17 @@ type Modo = 'nueva' | 'existente';
       } @else if (paso === 'verificar') {
         <h2>Confirma tu registro</h2>
         <p>Reservamos tu tienda a nombre de <strong>{{ correoPendiente }}</strong>. Para activar tu rol de vendedor,
-          escribe el nombre de tu tienda para confirmar.</p>
+          copia el código que enviamos a tu correo. Vence en 30 minutos; usa el último recibido.</p>
         <form (ngSubmit)="confirmar()" novalidate>
           <ion-item>
-            <ion-input label="Nombre de tu tienda" labelPlacement="stacked" name="confirmacion"
-              [(ngModel)]="nombreConfirmacion" [disabled]="enviando"></ion-input>
+            <ion-input label="Código de verificación" labelPlacement="stacked" name="confirmacion" type="password" autocomplete="off"
+              [(ngModel)]="codigoVerificacion" [disabled]="enviando"></ion-input>
           </ion-item>
-          <ion-button type="submit" [disabled]="enviando || !nombreConfirmacion.trim()">Confirmar registro</ion-button>
+          <ion-button type="submit" [disabled]="enviando || !codigoVerificacion.trim()">Confirmar correo</ion-button>
         </form>
+        <p>Si no llegó, escribe tu contraseña para solicitar otro código.</p>
+        <ion-item><ion-input label="Contraseña para reenviar" labelPlacement="stacked" type="password" [(ngModel)]="clave" autocomplete="current-password" [disabled]="enviando"></ion-input></ion-item>
+        <ion-button [disabled]="enviando || !clave" (click)="reenviar()">Reenviar verificación</ion-button>
       } @else {
         <h2>¡Listo!</h2>
         <p>
@@ -146,7 +149,7 @@ export class RegistroVendedorComponent implements OnInit {
   confirmacion = '';
   tienda = '';
   acepto = false;
-  nombreConfirmacion = '';
+  codigoVerificacion = '';
 
   correoPendiente = '';
   verificado = false;
@@ -192,14 +195,26 @@ export class RegistroVendedorComponent implements OnInit {
       this.correoPendiente = this.modo === 'nueva' ? this.correo : (this.auth.cuenta()?.email ?? '');
       this.clave = this.confirmacion = '';
       this.paso = resultado.emailVerificationRequired ? 'verificar' : 'listo';
+      if (resultado.verificationDeliveryFailed) {
+        this.error = 'Tu cuenta y tienda se crearon, pero no se pudo enviar el correo. Puedes reintentar el envío aquí.';
+      }
     });
   }
 
-  /** Primera entrega: se confirma escribiendo el nombre de la tienda registrada (no comprueba el buzón del correo). */
+  /** El código enviado al buzón demuestra acceso al correo. */
   confirmar(): void {
-    this.tramitar(this.servicio.confirmarRegistro(this.correoPendiente, this.nombreConfirmacion.trim()), () => {
+    this.tramitar(this.auth.confirmarCorreo(this.codigoVerificacion.trim()), () => {
       this.verificado = true;
+      this.codigoVerificacion = this.clave = '';
       this.paso = 'listo';
+    });
+  }
+
+  reenviar(): void {
+    if (!this.clave || this.enviando) return;
+    this.tramitar(this.auth.reenviarVerificacion(this.correoPendiente, this.clave), () => {
+      this.clave = '';
+      this.aviso = 'Enviamos un nuevo código. Usa el último recibido por correo.';
     });
   }
 

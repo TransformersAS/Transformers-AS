@@ -56,9 +56,13 @@ class BusinessApiIntegrationTests {
         jdbc.update("DELETE FROM addresses");
         jdbc.update("DELETE FROM SPRING_SESSION");
         jdbc.update("DELETE FROM user_account_roles");
+        jdbc.update("UPDATE stores SET owner_account_id=NULL");
         jdbc.update("DELETE FROM user_accounts");
-        jdbc.update("INSERT INTO user_accounts(email,password_hash,status) VALUES (?,?,?)",
+        jdbc.update("INSERT INTO user_accounts(email,password_hash,status,email_verified_at) VALUES (?,?,?,CURRENT_TIMESTAMP(6))",
                 "business@example.com", TEST_HASH, "ACTIVA");
+        jdbc.update("INSERT INTO user_account_roles(account_id,role) SELECT id,'COMPRADOR' FROM user_accounts");
+        jdbc.update("INSERT INTO user_account_roles(account_id,role) SELECT id,'VENDEDOR' FROM user_accounts");
+        jdbc.update("UPDATE stores SET owner_account_id=(SELECT id FROM user_accounts WHERE email='business@example.com') WHERE id=1");
         var csrf = mvc.perform(get("/api/auth/csrf")).andExpect(status().isOk()).andReturn();
         var token = json.readTree(csrf.getResponse().getContentAsString());
         var login = mvc.perform(post("/api/auth/login").cookie(csrf.getResponse().getCookie("SESSION"))
@@ -283,6 +287,12 @@ class BusinessApiIntegrationTests {
 
     private ResultActions perform(org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder request)
             throws Exception {
+        var built = request.buildRequest(mvc.getDispatcherServlet().getServletContext());
+        String role = built.getMethod().equals("POST") && built.getRequestURI().equals("/api/products")
+                ? "VENDEDOR" : "COMPRADOR";
+        mvc.perform(put("/api/auth/active-role").cookie(sessionCookie).header(csrfHeader, csrfToken)
+                .contentType("application/json").content("{\"role\":\"" + role + "\"}"))
+                .andExpect(status().isOk());
         return mvc.perform(request.cookie(sessionCookie).header(csrfHeader, csrfToken));
     }
 

@@ -1,0 +1,37 @@
+# Isolated, disposable CU-08 test environment. These credentials are test fixtures only.
+services:
+  mysql:
+    image: mysql:8.4.11
+    environment:
+      MYSQL_DATABASE: cu08_e2e
+      MYSQL_USER: cu08_test
+      MYSQL_PASSWORD: cu08_test_only
+      MYSQL_ROOT_PASSWORD: cu08_root_test_only
+    healthcheck:
+      test: [CMD-SHELL, 'MYSQL_PWD="$${MYSQL_PASSWORD}" mysql -h 127.0.0.1 -u "$${MYSQL_USER}" "$${MYSQL_DATABASE}" -e "SELECT 1"']
+      interval: 5s
+      timeout: 5s
+      retries: 30
+  backend:
+    build: ./backend/demo
+    environment:
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: cu08_e2e
+      DB_USER: cu08_test
+      DB_PASSWORD: cu08_test_only
+    depends_on:
+      mysql:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, curl, --fail, --silent, http://127.0.0.1:8080/actuator/health/readiness]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+  frontend:
+    build: ./frontend
+    ports:
+      - "127.0.0.1:${CU08_E2E_PORT:-14300}:80"
+    depends_on:
+      backend:
+        condition: service_healthy

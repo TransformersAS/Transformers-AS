@@ -10,8 +10,6 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -23,6 +21,19 @@ class SellerRegistrationTests extends AbstractIntegrationTest {
 
     @org.springframework.beans.factory.annotation.Autowired
     SellerRegistrationService registrationService;
+
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    com.transformersas.marketplace.auth.application.port.EmailVerificationNotifier notifier;
+    private final java.util.Map<String, String> tokens = new java.util.concurrent.ConcurrentHashMap<>();
+
+    @org.junit.jupiter.api.BeforeEach
+    void captureVerification() {
+        tokens.clear();
+        org.mockito.Mockito.doAnswer(invocation -> {
+            tokens.put(invocation.getArgument(0), invocation.getArgument(1));
+            return null;
+        }).when(notifier).notifyVerification(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString());
+    }
 
     @Test
     void concurrentRegistrationsPersistEveryAccountStoreAndTermsAcceptance() throws Exception {
@@ -88,8 +99,19 @@ class SellerRegistrationTests extends AbstractIntegrationTest {
                 .content(enableBody(storeName, acceptTerms)));
     }
 
-    private ResultActions verify(String email, String storeName) throws Exception {
-        return publicPost(API + "/verify-email", "{\"email\":\"" + email + "\",\"storeName\":\"" + storeName + "\"}");
+    private ResultActions verify(String token) throws Exception {
+        return publicPost("/api/auth/email-verification/confirm", json.writeValueAsString(java.util.Map.of("token", token)));
+    }
+
+    private void assertUnverifiedLogin(String email) throws Exception {
+        var response = mvc.perform(get("/api/auth/csrf")).andReturn().getResponse();
+        var csrf = json.readTree(response.getContentAsString());
+        var cookie = response.getCookie("SESSION");
+        mvc.perform(post("/api/auth/login").cookie(cookie)
+                .header(csrf.get("headerName").asString(), csrf.get("token").asString())
+                .param("email", email).param("password", PASSWORD))
+                .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("EMAIL_NOT_VERIFIED"));
+        mvc.perform(get("/api/auth/me").cookie(cookie)).andExpect(status().isUnauthorized());
     }
 
     private List<String> rolesOf(String email) {
@@ -130,12 +152,8 @@ class SellerRegistrationTests extends AbstractIntegrationTest {
         assertThat(jdbc.queryForObject("SELECT email_verified_at IS NULL FROM user_accounts WHERE id = ?",
                 Boolean.class, accountId)).isTrue();
 
-        // Antes de confirmar solo es comprador.
-        Session before = login("nuevo@example.com");
-        perform(before, get("/api/auth/me")).andExpect(jsonPath("$.roles", containsInAnyOrder("COMPRADOR")));
-
-        // El nombre se compara sin distinguir mayúsculas, tildes ni espacios sobrantes.
-        verify("Nuevo@Example.com", "  MI   tienda nueva ").andExpect(status().isNoContent());
+        assertUnverifiedLogin("nuevo@example.com");
+        verify(tokens.get("nuevo@example.com")).andExpect(status().isNoContent());
 
         assertThat(rolesOf("nuevo@example.com")).containsExactlyInAnyOrder("COMPRADOR", "VENDEDOR");
         assertThat(jdbc.queryForObject("SELECT email_verified_at IS NOT NULL FROM user_accounts WHERE id = ?",
@@ -200,31 +218,38 @@ class SellerRegistrationTests extends AbstractIntegrationTest {
     // ---------- Confirmación del registro ----------
 
     @Test
-    void confirmationIsRejectedWhenItDoesNotMatchTheRegistration() throws Exception {
+    void storeNameCannotVerifyAnEmail() throws Exception {
         register("nuevo@example.com", "Mi Tienda").andExpect(status().isCreated());
-        createAccount("sintienda@example.com", "COMPRADOR");
-
-        // Nombre equivocado, correo desconocido y cuenta sin tienda dan la misma respuesta: no se revela quién tiene cuenta.
-        verify("nuevo@example.com", "Otra Tienda").andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("INVALID_VERIFICATION"));
-        verify("nadie@example.com", "Mi Tienda").andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("INVALID_VERIFICATION"));
-        verify("sintienda@example.com", "Mi Tienda").andExpect(status().isBadRequest());
-        // Campos vacíos o ausentes.
-        verify("nuevo@example.com", " ").andExpect(status().isBadRequest());
-        publicPost(API + "/verify-email", "{\"email\":\"nuevo@example.com\"}").andExpect(status().isBadRequest());
-
+        publicPost(API + "/verify-email", "{\"email\":\"nuevo@example.com\",\"storeName\":\"Mi Tienda\"}")
+                .andExpect(status().isUnauthorized());
+        verify("Mi Tienda").andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_VERIFICATION_TOKEN"));
+        assertUnverifiedLogin("nuevo@example.com");
         assertThat(rolesOf("nuevo@example.com")).containsExactly("COMPRADOR");
     }
 
     @Test
-    void confirmingTwiceChangesNothing() throws Exception {
+    void usedVerificationTokenIsRejected() throws Exception {
         register("nuevo@example.com", "Mi Tienda").andExpect(status().isCreated());
-
-        verify("nuevo@example.com", "Mi Tienda").andExpect(status().isNoContent());
-        verify("nuevo@example.com", "Mi Tienda").andExpect(status().isNoContent());
-
+        String token = tokens.get("nuevo@example.com");
+        verify(token).andExpect(status().isNoContent());
+        verify(token).andExpect(status().isBadRequest());
         assertThat(rolesOf("nuevo@example.com")).containsExactlyInAnyOrder("COMPRADOR", "VENDEDOR");
+    }
+
+    @Test
+    void failedEmailDeliveryKeepsRegistrationPendingAndAllowsResend() throws Exception {
+        org.mockito.Mockito.doThrow(new IllegalStateException("SMTP unavailable"))
+                .when(notifier).notifyVerification(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString());
+        register("nuevo@example.com", "Mi Tienda").andExpect(status().isCreated())
+                .andExpect(jsonPath("$.verificationDeliveryFailed").value(true));
+        assertThat(rolesOf("nuevo@example.com")).containsExactly("COMPRADOR");
+        assertUnverifiedLogin("nuevo@example.com");
+        captureVerification();
+        publicPost("/api/auth/email-verification/resend", json.writeValueAsString(java.util.Map.of(
+                "email", "nuevo@example.com", "password", PASSWORD))).andExpect(status().isAccepted());
+        verify(tokens.get("nuevo@example.com")).andExpect(status().isNoContent());
+        login("nuevo@example.com");
     }
 
     // ---------- Con cuenta: se usa la misma cuenta y credenciales ----------
@@ -253,20 +278,12 @@ class SellerRegistrationTests extends AbstractIntegrationTest {
     }
 
     @Test
-    void anAccountWithoutConfirmationReservesItsStoreButWaitsToConfirm() throws Exception {
+    void anAccountWithoutConfirmationCannotLoginToEnableItsStore() throws Exception {
         createAccount("sinconfirmar@example.com", "COMPRADOR");
-        Session buyer = login("sinconfirmar@example.com");
-
-        enable(buyer, "Tienda Pendiente", true).andExpect(status().isCreated())
-                .andExpect(jsonPath("$.emailVerificationRequired").value(true))
-                .andExpect(jsonPath("$.sellerRoleActive").value(false));
-
-        assertThat(rolesOf("sinconfirmar@example.com")).containsExactly("COMPRADOR");
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM stores WHERE name = 'Tienda Pendiente'", Integer.class))
-                .isEqualTo(1);
-
-        verify("sinconfirmar@example.com", "Tienda Pendiente").andExpect(status().isNoContent());
-        assertThat(rolesOf("sinconfirmar@example.com")).containsExactlyInAnyOrder("COMPRADOR", "VENDEDOR");
+        jdbc.update("UPDATE user_accounts SET email_verified_at = NULL WHERE email = 'sinconfirmar@example.com'");
+        assertUnverifiedLogin("sinconfirmar@example.com");
+        publicPost(API + "/enable", enableBody("Tienda Pendiente", true)).andExpect(status().isUnauthorized());
+        assertThat(count("stores")).isEqualTo(1);
     }
 
     @Test
@@ -306,11 +323,7 @@ class SellerRegistrationTests extends AbstractIntegrationTest {
     @Test
     void theStoreOfANewSellerCannotBeOperatedUntilTheRegistrationIsConfirmed() throws Exception {
         register("nuevo@example.com", "Mi Tienda").andExpect(status().isCreated());
-        Session buyerOnly = login("nuevo@example.com");
-        long storeId = jdbc.queryForObject("SELECT id FROM stores WHERE name = 'Mi Tienda'", Long.class);
-
-        // Sin el rol VENDEDOR la tienda existe pero no se puede operar.
-        performAsSeller(buyerOnly, storeId, get("/api/seller/products")).andExpect(status().isForbidden());
-        perform(buyerOnly, get("/api/auth/me")).andExpect(jsonPath("$.roles", not(hasItem("VENDEDOR"))));
+        assertUnverifiedLogin("nuevo@example.com");
+        mvc.perform(get("/api/seller/products")).andExpect(status().isUnauthorized());
     }
 }

@@ -1,5 +1,8 @@
 package com.transformersas.marketplace.recommendation.web;
 
+import com.transformersas.marketplace.auth.infrastructure.security.AccountPrincipal;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+
 import com.transformersas.marketplace.recommendation.application.RecommendationService;
 import com.transformersas.marketplace.recommendation.dto.RecommendationResponse;
 
@@ -29,13 +32,13 @@ public class RecommendationController {
     @GetMapping
     public RecommendationResponse recommend(
 
-        @RequestParam
-        Long userId
+        @AuthenticationPrincipal
+        AccountPrincipal principal
 
     ) {
 
         return service.recommend(
-            userId
+            principal.accountId()
         );
     }
 }

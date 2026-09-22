@@ -159,11 +159,17 @@ jobs:
         working-directory: frontend
         run: npx playwright test --project=chrome --reporter=html
 
+      - name: Run real CU-08 browser/backend/MySQL E2E
+        run: bash scripts/cu08-real-e2e.sh
+
       - name: Upload Playwright report
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report-${{ github.sha }}
-          path: frontend/playwright-report/
+          path: |
+            frontend/playwright-report/
+            frontend/playwright-report-real/
+            frontend/test-results-real/
           if-no-files-found: warn
           retention-days: 14

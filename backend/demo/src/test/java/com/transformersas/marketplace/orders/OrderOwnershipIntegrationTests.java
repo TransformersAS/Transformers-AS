@@ -67,6 +67,7 @@ class OrderOwnershipIntegrationTests {
         String hash = encoder.encode("OrderPassword!123");
         firstAccount = accounts.save(new UserAccount(null, "first@example.com", hash, AccountStatus.ACTIVA, Set.of(Role.COMPRADOR))).id();
         secondAccount = accounts.save(new UserAccount(null, "second@example.com", hash, AccountStatus.ACTIVA, Set.of(Role.COMPRADOR))).id();
+        jdbc.update("UPDATE user_accounts SET email_verified_at = CURRENT_TIMESTAMP(6)");
         jdbc.update("INSERT INTO addresses(recipient_name,street,city,department,phone) VALUES ('Ana','Calle 1','Bogotá','Bogotá','1234567')");
         address = jdbc.queryForObject("SELECT id FROM addresses", Long.class);
         jdbc.update("INSERT INTO products(name,price,stock,category,active) VALUES ('Producto',100,10,'Hogar',true)");
@@ -361,18 +362,29 @@ class OrderOwnershipIntegrationTests {
     }
 
     private Long pay(Session session, String method, Long spoofedOwner) throws Exception {
-        jdbc.update("INSERT INTO cart_items(cart_id,product_id,quantity) VALUES (?,?,2)", cart, product);
+        long owner = json.readTree(mvc.perform(get("/api/auth/me").cookie(session.cookie()))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).get("accountId").asLong();
+        Long ownedCart = json.readTree(mvc.perform(get("/api/cart").cookie(session.cookie()))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).get("cartId").asLong();
+        Long ownedAddress = address;
+        if (owner == firstAccount.longValue()) {
+            jdbc.update("UPDATE addresses SET account_id=? WHERE id=?", owner, address);
+        } else {
+            jdbc.update("INSERT INTO addresses(account_id,recipient_name,street,city,department,phone) VALUES (?,'Otro','Calle 2','Bogotá','Bogotá','1234567')", owner);
+            ownedAddress = jdbc.queryForObject("SELECT MAX(id) FROM addresses", Long.class);
+        }
+        jdbc.update("INSERT INTO cart_items(cart_id,product_id,quantity) VALUES (?,?,2)", ownedCart, product);
         jdbc.update("""
-                INSERT INTO inventory_reservations(product_id,quantity,status,created_at,expires_at)
-                VALUES (?,2,'ACTIVE',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP + INTERVAL 1 DAY)
-                """, product);
+                INSERT INTO inventory_reservations(account_id,product_id,quantity,status,created_at,expires_at)
+                VALUES (?,?,2,'ACTIVE',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP + INTERVAL 1 DAY)
+                """, owner, product);
         Long reservation = jdbc.queryForObject("SELECT MAX(id) FROM inventory_reservations", Long.class);
         mvc.perform(post("/api/checkout/preview").cookie(session.cookie()).header(session.header(), session.token())
-                .contentType("application/json").content(json.writeValueAsString(Map.of("addressId", address, "shippingMethod", "STANDARD"))))
+                .contentType("application/json").content(json.writeValueAsString(Map.of("addressId", ownedAddress, "shippingMethod", "STANDARD"))))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.total").value(10200));
         var result = mvc.perform(post("/api/payments/process").cookie(session.cookie()).header(session.header(), session.token())
                 .contentType("application/json").content(json.writeValueAsString(Map.of(
-                        "paymentMethod", method, "reservationIds", List.of(reservation), "addressId", address,
+                        "paymentMethod", method, "reservationIds", List.of(reservation), "addressId", ownedAddress,
                         "shippingMethod", "STANDARD", "accountId", spoofedOwner, "buyerId", spoofedOwner))))
                 .andExpect(status().isOk()).andReturn();
         var id = json.readTree(result.getResponse().getContentAsString()).get("orderId");

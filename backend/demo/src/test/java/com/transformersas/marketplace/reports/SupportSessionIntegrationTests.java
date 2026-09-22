@@ -77,6 +77,7 @@ class SupportSessionIntegrationTests {
                 Set.of(Role.SOPORTE))).id();
         accounts.save(new UserAccount(null, "comprador@example.com", hash, AccountStatus.ACTIVA,
                 Set.of(Role.COMPRADOR)));
+        jdbc.update("UPDATE user_accounts SET email_verified_at = CURRENT_TIMESTAMP(6)");
     }
 
     @Test

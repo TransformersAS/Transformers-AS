@@ -10,7 +10,9 @@ const ENDPOINTS_SIN_LIMPIEZA_POR_401 = new Set([
   `${API_BASE}/auth/login`,
   `${API_BASE}/auth/logout`,
   `${API_BASE}/auth/password-recovery/request`,
-  `${API_BASE}/auth/password-recovery/confirm`
+  `${API_BASE}/auth/password-recovery/confirm`,
+  `${API_BASE}/auth/email-verification/resend`,
+  `${API_BASE}/auth/email-verification/confirm`
 ]);
 
 /** El backend responde 401 con este código a una sesión válida cuya cuenta aún no tiene tienda (CU-18). */

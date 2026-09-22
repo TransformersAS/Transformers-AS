@@ -10,6 +10,8 @@ import java.util.List;
 public interface InventoryReservationRepository
         extends JpaRepository<InventoryReservation, Long> {
 
+    List<InventoryReservation> findByAccountIdAndIdIn(Long accountId, List<Long> ids);
+
     List<InventoryReservation>
     findByProduct_IdAndStatusAndExpiresAtAfter(
             Long productId,

@@ -77,7 +77,7 @@ public class CreateOrderUseCase {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Se requiere un comprador válido");
         }
 
-        Cart cart = cartRepository.findAll().stream().findFirst()
+        Cart cart = cartRepository.findByAccountId(accountId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "No existe un carrito"));
 
         List<CartItem> cartItems = cartItemRepository.findByCartId(cart.getId());
@@ -87,7 +87,7 @@ public class CreateOrderUseCase {
         }
 
         Long storeId = resolveStore(cartItems);
-        DeliverySnapshot delivery = snapshotOf(addressId);
+        DeliverySnapshot delivery = snapshotOf(accountId, addressId);
 
         List<OrderItem> orderItems = cartItems.stream()
                 .map(item -> {
@@ -147,8 +147,8 @@ for (CartItem cartItem : cartItems) {
     }
 
     /** Copia los datos de entrega vigentes: desde aquí el pedido no vuelve a leer la dirección del comprador. */
-    private DeliverySnapshot snapshotOf(Long addressId) {
-        Address address = addressRepository.findById(addressId)
+    private DeliverySnapshot snapshotOf(Long accountId, Long addressId) {
+        Address address = addressRepository.findByIdAndAccountId(addressId, accountId)
                 .orElseThrow(() -> BusinessException.notFound("ADDRESS_NOT_FOUND",
                         "La dirección seleccionada no existe"));
         return new DeliverySnapshot(address.getRecipientName(), address.getStreet(), address.getCity(),

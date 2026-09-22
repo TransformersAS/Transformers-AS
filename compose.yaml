@@ -19,6 +19,13 @@ services:
       DB_NAME: ${DB_NAME:-marketplace}
       DB_USER: ${DB_USER:-marketplace_app}
       DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      # Shared SMTP transport, with independent senders for verification and password recovery.
+      SPRING_MAIL_HOST: ${SPRING_MAIL_HOST:-}
+      SPRING_MAIL_PORT: ${SPRING_MAIL_PORT:-587}
+      SPRING_MAIL_USERNAME: ${SPRING_MAIL_USERNAME:-}
+      SPRING_MAIL_PASSWORD: ${SPRING_MAIL_PASSWORD:-}
+      EMAIL_VERIFICATION_FROM: ${EMAIL_VERIFICATION_FROM:-}
+      PASSWORD_RECOVERY_FROM: ${PASSWORD_RECOVERY_FROM:-}
       # Opcional, solo desarrollo: SPRING_PROFILES_ACTIVE=local crea la cuenta y el producto demo (ver .env.example).
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-}
       # Opcional: correo de la cuenta VENDEDOR que será dueña de la tienda principal (ver docs/swarm.md).

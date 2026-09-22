@@ -1,6 +1,7 @@
 package com.transformersas.marketplace.product;
 
 import com.transformersas.marketplace.product.dto.ProductRequest;
+import com.transformersas.marketplace.shared.security.CurrentActorProvider;
 import com.transformersas.marketplace.product.dto.ProductResponse;
 import com.transformersas.marketplace.reports.application.ContentVisibility;
 import com.transformersas.marketplace.reports.domain.model.ContentModerationState;
@@ -15,10 +16,12 @@ import java.util.Set;
 @Service
 @Transactional(readOnly = true)
 public class ProductService {
+    private final CurrentActorProvider actor;
     private final ProductRepository productRepository;
     private final ContentVisibility contentVisibility;
 
-    public ProductService(ProductRepository productRepository, ContentVisibility contentVisibility) {
+    public ProductService(ProductRepository productRepository, ContentVisibility contentVisibility, CurrentActorProvider actor) {
+        this.actor = actor;
         this.productRepository = productRepository;
         this.contentVisibility = contentVisibility;
     }
@@ -47,7 +50,9 @@ public class ProductService {
 
     @Transactional
     public ProductResponse createProduct(ProductRequest request) {
+        Long storeId = actor.storeId();
         Product product = new Product();
+        product.setStoreId(storeId);
         product.setName(request.name());
         product.setDescription(request.description());
         product.setPrice(request.price());
