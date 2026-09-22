@@ -9,7 +9,7 @@ import { AuthService, Rol } from '../services/auth.service';
 import { SesionActiva } from '../models/auth.model';
 import { PerfilResumenComponent } from '../../cuenta/components/perfil-resumen.component';
 
-type Vista = 'cuenta' | 'sesiones' | 'password' | 'solicitar' | 'confirmar';
+type Vista = 'cuenta' | 'sesiones' | 'password' | 'solicitar' | 'confirmar' | 'verificar';
 
 @Component({
   selector: 'app-acceso',
@@ -30,6 +30,7 @@ export class AccesoComponent {
   nueva = '';
   confirmacion = '';
   token = '';
+  correoSinVerificar = false;
   enviando = false;
   error = '';
   exito = '';
@@ -72,6 +73,7 @@ export class AccesoComponent {
 
   enviar(): void {
     if (!this.datosValidos()) return;
+    this.correoSinVerificar = false;
     this.ejecutar(this.auth.iniciarSesion(this.correo.trim(), this.clave), cuenta => {
       this.limpiarClaves();
       this.sesiones = [];
@@ -80,6 +82,24 @@ export class AccesoComponent {
       this.vista = 'cuenta';
       this.exito = cuenta.activeRole ? 'Sesión iniciada.' : 'Sesión iniciada. Selecciona tu rol activo.';
     }, 'No se pudo iniciar sesión. Comprueba correo y contraseña.');
+  }
+
+  reenviarVerificacion(): void {
+    if (!this.datosValidos()) return;
+    this.ejecutar(this.auth.reenviarVerificacion(this.correo.trim(), this.clave), () => {
+      this.exito = 'Si tu correo sigue pendiente, enviamos un nuevo código. Usa el último recibido; vence en 30 minutos.';
+    }, 'No se pudo enviar el correo de verificación. Inténtalo de nuevo más tarde.');
+  }
+
+  verificarCorreo(): void {
+    if (!this.token.trim()) return;
+    this.ejecutar(this.auth.confirmarCorreo(this.token.trim()), () => {
+      this.token = '';
+      this.correoSinVerificar = false;
+      this.limpiarClaves();
+      this.vista = 'cuenta';
+      this.exito = 'Correo verificado. Ya puedes iniciar sesión.';
+    }, 'Código de verificación inválido, vencido o ya utilizado. Solicita otro desde el inicio de sesión.');
   }
 
   cambiarRol(rol: Rol): void {
@@ -180,6 +200,11 @@ export class AccesoComponent {
     ).subscribe({
       next: alCompletar,
       error: (e: HttpErrorResponse) => {
+        if (e.status === 403 && e.error?.code === 'EMAIL_NOT_VERIFIED') {
+          this.correoSinVerificar = true;
+          this.error = 'Debes verificar tu correo antes de iniciar sesión. Puedes reenviar el código o ingresar el recibido.';
+          return;
+        }
         this.error = e.status === 0 ? 'No se pudo conectar con el servidor. Inténtalo de nuevo.'
           : e.status === 401 && !this.auth.autenticada() ? 'La sesión no está disponible o las credenciales son incorrectas. Inicia sesión para continuar.'
           : mensajeError;

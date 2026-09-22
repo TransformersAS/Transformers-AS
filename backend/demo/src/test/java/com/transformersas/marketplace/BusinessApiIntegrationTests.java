@@ -57,7 +57,7 @@ class BusinessApiIntegrationTests {
         jdbc.update("DELETE FROM SPRING_SESSION");
         jdbc.update("DELETE FROM user_account_roles");
         jdbc.update("DELETE FROM user_accounts");
-        jdbc.update("INSERT INTO user_accounts(email,password_hash,status) VALUES (?,?,?)",
+        jdbc.update("INSERT INTO user_accounts(email,password_hash,status,email_verified_at) VALUES (?,?,?,CURRENT_TIMESTAMP(6))",
                 "business@example.com", TEST_HASH, "ACTIVA");
         var csrf = mvc.perform(get("/api/auth/csrf")).andExpect(status().isOk()).andReturn();
         var token = json.readTree(csrf.getResponse().getContentAsString());

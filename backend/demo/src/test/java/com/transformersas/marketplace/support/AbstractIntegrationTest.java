@@ -80,7 +80,7 @@ public abstract class AbstractIntegrationTest {
     // ---------- Cuentas y sesiones ----------
 
     protected Long createAccount(String email, String... roles) {
-        jdbc.update("INSERT INTO user_accounts(email, password_hash, status) VALUES (?,?,'ACTIVA')", email, PASSWORD_HASH);
+        jdbc.update("INSERT INTO user_accounts(email, password_hash, status, email_verified_at) VALUES (?,?,'ACTIVA',CURRENT_TIMESTAMP(6))", email, PASSWORD_HASH);
         Long id = jdbc.queryForObject("SELECT id FROM user_accounts WHERE email = ?", Long.class, email);
         for (String role : roles) {
             jdbc.update("INSERT INTO user_account_roles(account_id, role) VALUES (?,?)", id, role);

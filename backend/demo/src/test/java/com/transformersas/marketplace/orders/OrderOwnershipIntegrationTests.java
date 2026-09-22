@@ -67,6 +67,7 @@ class OrderOwnershipIntegrationTests {
         String hash = encoder.encode("OrderPassword!123");
         firstAccount = accounts.save(new UserAccount(null, "first@example.com", hash, AccountStatus.ACTIVA, Set.of(Role.COMPRADOR))).id();
         secondAccount = accounts.save(new UserAccount(null, "second@example.com", hash, AccountStatus.ACTIVA, Set.of(Role.COMPRADOR))).id();
+        jdbc.update("UPDATE user_accounts SET email_verified_at = CURRENT_TIMESTAMP(6)");
         jdbc.update("INSERT INTO addresses(recipient_name,street,city,department,phone) VALUES ('Ana','Calle 1','Bogotá','Bogotá','1234567')");
         address = jdbc.queryForObject("SELECT id FROM addresses", Long.class);
         jdbc.update("INSERT INTO products(name,price,stock,category,active) VALUES ('Producto',100,10,'Hogar',true)");

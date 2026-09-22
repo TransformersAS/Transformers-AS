@@ -13,10 +13,12 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.text.Normalizer;
+import com.transformersas.marketplace.auth.application.usecase.VerifyAccountEmail;
+import com.transformersas.marketplace.auth.domain.model.EmailVerified;
+import org.springframework.context.event.EventListener;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import java.util.HashSet;
-import java.util.Locale;
-import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -25,16 +27,17 @@ import java.util.Set;
  * y acepta las condiciones. El rol VENDEDOR se concede cuando el registro está confirmado; una cuenta anterior a este
  * caso de uso ya cuenta como confirmada.
  *
- * <p>Primera entrega: la confirmación consiste en escribir el nombre de la tienda registrada. Sirve para asegurar el
- * paso, pero NO comprueba que la persona tenga acceso al buzón del correo; enviar un código secreto por correo queda
- * para una entrega posterior.
+ * El correo se confirma exclusivamente mediante el token enviado al buzón (CU-08).
  */
 @Service
 public class SellerRegistrationService {
 
     /** Resultado del registro: qué tienda quedó reservada y en qué punto está el rol de vendedor. */
     public record Registration(Long storeId, String storeName, boolean emailVerificationRequired,
-                               boolean sellerRoleActive) {
+                               boolean sellerRoleActive, boolean verificationDeliveryFailed) {
+        public Registration(Long storeId, String storeName, boolean emailVerificationRequired, boolean sellerRoleActive) {
+            this(storeId, storeName, emailVerificationRequired, sellerRoleActive, false);
+        }
     }
 
     private final UserAccountRepository accounts;
@@ -42,15 +45,20 @@ public class SellerRegistrationService {
     private final CreateStoreUseCase createStore;
     private final StoreRepository stores;
     private final SellerRegistrationRepository registrations;
+    private final VerifyAccountEmail verification;
+    private final TransactionTemplate transaction;
 
     public SellerRegistrationService(UserAccountRepository accounts, PasswordEncoder encoder,
                                      CreateStoreUseCase createStore, StoreRepository stores,
-                                     SellerRegistrationRepository registrations) {
+                                     SellerRegistrationRepository registrations, VerifyAccountEmail verification,
+                                     PlatformTransactionManager transactions) {
         this.accounts = accounts;
         this.encoder = encoder;
         this.createStore = createStore;
         this.stores = stores;
         this.registrations = registrations;
+        this.verification = verification;
+        this.transaction = new TransactionTemplate(transactions);
     }
 
     /**
@@ -58,8 +66,14 @@ public class SellerRegistrationService {
      * confirmar; el rol VENDEDOR llega al confirmarlo. Todo va en una transacción: si el nombre de la tienda ya existe
      * no queda ni la cuenta.
      */
-    @Transactional
     public Registration register(String email, String password, String storeName) {
+        Registration result = transaction.execute(status -> registerAccount(email, password, storeName));
+        // The account/store transaction is committed before SMTP. A failed delivery never loses the registration.
+        boolean delivered = verification.send(email, password);
+        return new Registration(result.storeId(), result.storeName(), true, false, !delivered);
+    }
+
+    private Registration registerAccount(String email, String password, String storeName) {
         if (accounts.findByEmail(email).isPresent()) {
             throw BusinessException.conflict("EMAIL_ALREADY_REGISTERED",
                     "Ya existe una cuenta con ese correo: inicia sesión y habilita el rol de vendedor");
@@ -92,24 +106,14 @@ public class SellerRegistrationService {
         return new Registration(store.id(), store.profile().name(), !verified, verified);
     }
 
-    /**
-     * Confirma el registro: el correo y el nombre de la tienda deben corresponder a una cuenta con esa tienda. Se
-     * responde igual cuando el correo no existe, para no revelar qué correos tienen cuenta. Confirmar dos veces no
-     * cambia nada.
-     */
-    @Transactional
-    public void verify(String email, String storeName) {
-        Optional<UserAccount> account = accounts.findByEmail(email);
-        Optional<Store> store = account.flatMap(found -> stores.findByOwnerAccountId(found.id()));
-        if (store.isEmpty() || !sameName(store.get().profile().name(), storeName)) {
-            throw BusinessException.invalid("INVALID_VERIFICATION",
-                    "No coincide con el registro: revisa el correo y el nombre de tu tienda");
+    /** Joins the token confirmation transaction; no public name-based verification remains. */
+    @EventListener
+    public void emailVerified(EmailVerified event) {
+        if (stores.findByOwnerAccountId(event.accountId()).isPresent()
+                && registrations.hasTermsAcceptance(event.accountId())) {
+            accounts.findById(event.accountId()).ifPresent(this::grantSellerRole);
         }
-        registrations.markVerified(account.get().id());
-        grantSellerRole(account.get());
     }
-
-    // ---------- Métodos auxiliares ----------
 
     /** Concede el rol VENDEDOR si la cuenta todavía no lo tiene. */
     private void grantSellerRole(UserAccount account) {
@@ -121,16 +125,4 @@ public class SellerRegistrationService {
         accounts.save(new UserAccount(account.id(), account.email(), account.passwordHash(), account.status(), roles));
     }
 
-    /** Compara nombres sin distinguir mayúsculas, tildes ni espacios sobrantes, igual que la unicidad de las tiendas. */
-    private static boolean sameName(String registered, String typed) {
-        return normalize(registered).equals(normalize(typed));
-    }
-
-    private static String normalize(String name) {
-        return Normalizer.normalize(name == null ? "" : name, Normalizer.Form.NFD)
-                .replaceAll("\\p{M}", "")
-                .toLowerCase(Locale.ROOT)
-                .replaceAll("\\s+", " ")
-                .strip();
-    }
 }

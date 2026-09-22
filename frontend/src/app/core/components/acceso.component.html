@@ -44,17 +44,30 @@
     }
     <ion-button expand="block" color="medium" [disabled]="enviando" (click)="salir()">Cerrar sesión</ion-button>
   } @else {
-    @if (vista !== 'solicitar' && vista !== 'confirmar') {
+    @if (vista !== 'solicitar' && vista !== 'confirmar' && vista !== 'verificar') {
       <h3>Iniciar sesión</h3>
       <form (ngSubmit)="enviar()" novalidate>
         <ion-item><ion-input label="Correo" labelPlacement="stacked" type="email" name="correo" [(ngModel)]="correo" required autocomplete="email" [disabled]="enviando"></ion-input></ion-item>
         <ion-item><ion-input label="Contraseña" labelPlacement="stacked" type="password" name="clave" [(ngModel)]="clave" required autocomplete="current-password" [disabled]="enviando"></ion-input></ion-item>
         <ion-button type="submit" expand="block" [disabled]="enviando || !datosValidos()">Iniciar sesión</ion-button>
       </form>
+      @if (correoSinVerificar) {
+        <ion-button expand="block" [disabled]="enviando || !datosValidos()" (click)="reenviarVerificacion()">Reenviar verificación</ion-button>
+        <p class="ayuda">Para reenviar, conserva o vuelve a escribir tu correo y contraseña.</p>
+      }
+      <ion-button expand="block" fill="clear" [disabled]="enviando" (click)="cambiarVista('verificar')">Verificar correo</ion-button>
       <ion-button expand="block" fill="clear" [disabled]="enviando" (click)="cambiarVista('solicitar')">Olvidé mi contraseña</ion-button>
       <ion-button expand="block" fill="clear" [disabled]="enviando" (click)="cambiarVista('confirmar')">Ya tengo un token de recuperación</ion-button>
     } @else {
       <ion-button fill="clear" size="small" [disabled]="enviando" (click)="cambiarVista('cuenta')">Volver al inicio de sesión</ion-button>
+      @if (vista === 'verificar') {
+        <h3>Verificar correo</h3>
+        <p>Copia el código recibido por correo. Vence en 30 minutos; si pediste varios, usa el último.</p>
+        <form (ngSubmit)="verificarCorreo()" novalidate>
+          <ion-item><ion-input label="Código de verificación" labelPlacement="stacked" type="password" name="verificacion" [(ngModel)]="token" autocomplete="off" [disabled]="enviando"></ion-input></ion-item>
+          <ion-button type="submit" expand="block" [disabled]="enviando || !token.trim()">Confirmar correo</ion-button>
+        </form>
+      }
       @if (vista === 'solicitar') {
         <h3>Solicitar recuperación</h3>
         <form (ngSubmit)="solicitarRecuperacion()" novalidate>

@@ -276,7 +276,7 @@ void checkoutRejectsCartWithProductsFromDifferentStores() {
     @Test
     void orderCreationRejectsEmptyAndMissingCartWithoutPersistingOrder() {
         String hash = new org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder(4).encode("TestPassword!123");
-        jdbc.update("INSERT INTO user_accounts(email,password_hash,status) VALUES ('buyer@example.com',?,'ACTIVA')", hash);
+        jdbc.update("INSERT INTO user_accounts(email,password_hash,status,email_verified_at) VALUES ('buyer@example.com',?,'ACTIVA',CURRENT_TIMESTAMP(6))", hash);
         long accountId = jdbc.queryForObject("SELECT id FROM user_accounts WHERE email='buyer@example.com'", Long.class);
         int ordersBefore = jdbc.queryForObject("SELECT COUNT(*) FROM orders", Integer.class);
         error(() -> createOrder.execute(accountId, addressId, "STANDARD", "transaction", new java.math.BigDecimal("10000")),

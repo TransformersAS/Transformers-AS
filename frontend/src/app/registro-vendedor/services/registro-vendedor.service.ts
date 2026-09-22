@@ -28,8 +28,4 @@ export class RegistroVendedorService {
     return this.http.post<ResultadoRegistro>(`${this.url}/enable`, { storeName, acceptTerms });
   }
 
-  /** Confirma el registro: el correo de la cuenta y el nombre de la tienda que se registró. */
-  confirmarRegistro(email: string, storeName: string): Observable<void> {
-    return this.http.post<void>(`${this.url}/verify-email`, { email, storeName });
-  }
 }

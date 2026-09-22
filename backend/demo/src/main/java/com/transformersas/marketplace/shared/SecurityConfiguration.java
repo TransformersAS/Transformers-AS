@@ -2,6 +2,8 @@ package com.transformersas.marketplace.shared;
 
 import jakarta.servlet.DispatcherType;
 import com.transformersas.marketplace.auth.infrastructure.security.AccountPrincipal;
+import com.transformersas.marketplace.auth.infrastructure.security.EmailNotVerifiedException;
+import com.transformersas.marketplace.users.domain.repository.UserAccountRepository;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.beans.factory.annotation.Value;
@@ -41,9 +43,16 @@ public class SecurityConfiguration {
     }
 
     @Bean
-    DaoAuthenticationProvider accountAuthenticationProvider(UserDetailsService users, PasswordEncoder encoder) {
+    DaoAuthenticationProvider accountAuthenticationProvider(UserDetailsService users, PasswordEncoder encoder,
+            UserAccountRepository accounts) {
         var provider = new DaoAuthenticationProvider(users);
         provider.setPasswordEncoder(encoder);
+        // Post-checks run AFTER password validation: wrong credentials never reveal verification status.
+        provider.setPostAuthenticationChecks(user -> {
+            if (!accounts.isEmailVerified(((AccountPrincipal) user).accountId())) {
+                throw new EmailNotVerifiedException();
+            }
+        });
         return provider;
     }
 
@@ -80,10 +89,12 @@ public class SecurityConfiguration {
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/password-recovery/request",
                                 "/api/auth/password-recovery/confirm").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/email-verification/resend",
+                                "/api/auth/email-verification/confirm").permitAll()
                         // Registro de vendedores (CU-12): un visitante lee las condiciones, se registra y confirma su
                         // correo sin sesión. Habilitar el rol con una cuenta existente sí exige sesión.
                         .requestMatchers(HttpMethod.GET, "/api/sellers/terms").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/sellers/register", "/api/sellers/verify-email").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/sellers/register").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/auth/validation/comprador").hasRole("COMPRADOR")
                         .requestMatchers(HttpMethod.GET, "/api/auth/validation/vendedor").hasRole("VENDEDOR")
                         .requestMatchers(HttpMethod.HEAD, "/api/auth/validation/comprador").hasRole("COMPRADOR")
@@ -127,7 +138,16 @@ public class SecurityConfiguration {
                             contexts.saveContext(context, request, response);
                             response.setStatus(204);
                         })
-                        .failureHandler((request, response, exception) -> response.setStatus(401)))
+                        .failureHandler((request, response, exception) -> {
+                            if (exception instanceof EmailNotVerifiedException) {
+                                response.setStatus(403);
+                                response.setContentType("application/json");
+                                response.setCharacterEncoding("UTF-8");
+                                response.getWriter().write("{\"code\":\"EMAIL_NOT_VERIFIED\",\"message\":\"Debes verificar tu correo antes de iniciar sesión\"}");
+                            } else {
+                                response.setStatus(401);
+                            }
+                        }))
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .logout(logout -> logout
                         .logoutUrl("/api/auth/logout")

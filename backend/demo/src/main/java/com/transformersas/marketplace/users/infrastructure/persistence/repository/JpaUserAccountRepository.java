@@ -11,6 +11,16 @@ import java.util.Optional;
 @Repository
 @Transactional(readOnly = true)
 public class JpaUserAccountRepository implements UserAccountRepository {
+    @Override
+    public boolean isEmailVerified(Long id) {
+        return repository.countVerifiedEmail(id) == 1;
+    }
+
+    @Override
+    @Transactional
+    public void markEmailVerified(Long id) {
+        repository.markEmailVerified(id);
+    }
     private final SpringDataUserAccountRepository repository;
 
     public JpaUserAccountRepository(SpringDataUserAccountRepository repository) {

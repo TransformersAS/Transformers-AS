@@ -43,12 +43,20 @@ export class AuthService {
     const cuerpo = new HttpParams().set('email', credenciales.email).set('password', credenciales.password).toString();
     return this.refrescarCsrf().pipe(
       switchMap(() => this.http.post(`${API_BASE}/auth/login`, cuerpo,
-        { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, responseType: 'text' })),
+        { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } })),
       // El token CSRF cambia al autenticarse: hay que pedir el nuevo.
       switchMap(() => this.refrescarCsrf()),
       switchMap(() => this.http.get<CuentaSesion>(`${API_BASE}/auth/me`)),
       tap(cuenta => this._cuenta.set(cuenta))
     );
+  }
+
+  reenviarVerificacion(email: string, password: string): Observable<void> {
+    return this.http.post<void>(`${API_BASE}/auth/email-verification/resend`, { email, password });
+  }
+
+  confirmarCorreo(token: string): Observable<void> {
+    return this.http.post<void>(`${API_BASE}/auth/email-verification/confirm`, { token });
   }
 
   cambiarRol(rol: Rol): Observable<CuentaSesion> {

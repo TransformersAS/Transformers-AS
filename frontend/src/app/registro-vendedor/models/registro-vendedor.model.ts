@@ -14,4 +14,6 @@ export interface ResultadoRegistro {
   emailVerificationRequired: boolean;
   /** Si es true, la cuenta ya tiene el rol VENDEDOR. */
   sellerRoleActive: boolean;
+  /** La cuenta se creó, pero debe reintentarse el envío del correo. */
+  verificationDeliveryFailed: boolean;
 }
