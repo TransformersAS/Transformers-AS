@@ -109,6 +109,33 @@ Este arranque usa Compose; `deploy.sh` y `stack.yml` corresponden al escenario s
 
 ## Arranque manual para desarrollo (alternativa al ejecutable)
 
+### Windows: arranque con productos de ejemplo
+
+Con Docker Desktop abierto, ejecutar desde la raiz en PowerShell:
+
+```powershell
+# Primera vez o despues de cambiar codigo: construye las imagenes.
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\desplegar-local.ps1 -Build
+
+# Siguientes arranques sin cambios: reutiliza las imagenes.
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\desplegar-local.ps1
+```
+
+El script activa el perfil `local`, arranca MySQL, backend y frontend, comprueba
+readiness y carga diez productos de ejemplo desde `scripts/catalogo-local.sql`.
+La carga es exclusiva para desarrollo local: no usar contra una base de produccion
+ni ejecutar dos cargas simultaneas. Repetirla no duplica productos por nombre y
+tienda ni restablece existencias, precios o estados existentes. No carga imagenes.
+
+Reutiliza las variables `DB_PASSWORD` y `MYSQL_ROOT_PASSWORD` de la terminal o el
+archivo `.env`. Si no hay `.env` y faltan variables, pide las claves de forma oculta;
+con una base existente deben ser las claves originales. No guarda contrasenas.
+Un `.env` existente debe tener ambas claves configuradas.
+
+Abrir http://localhost:4300 (o el puerto `FRONTEND_PORT` configurado).
+Cuenta local: `demo@marketplace.local` / `MarketplaceDemo123!`.
+Los datos se conservan al detener el sistema con `docker compose down`.
+
 - JDK **21**, seleccionado en `JAVA_HOME`, para ejecutar el backend o sus pruebas desde el host.
   No es necesario si todo se ejecuta con Docker Compose.
 - Docker con Compose v2; Docker Desktop activo en macOS.

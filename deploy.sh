@@ -8,7 +8,7 @@ local_mode=false
 case "${1:-}" in
   --local) local_mode=true ;;
   '') ;;
-  *) fail 'Uso: ./deploy.sh [--local]. Consultar docs/swarm.md.' ;;
+  *) fail 'Uso: bash deploy.sh [--local]. Consultar docs/despliegue/docker-swarm.md.' ;;
 esac
 [[ $# -le 1 ]] || fail 'Demasiados argumentos.'
 
@@ -31,6 +31,7 @@ else
   export FRONTEND_HOST_PORT="${FRONTEND_HOST_PORT:-80}"
 fi
 deploy_timeout="${DEPLOY_TIMEOUT_SECONDS:-600}"
+evidence_dir="${DEPLOY_EVIDENCE_DIR:-$script_dir/artifacts/deploy-$(date -u +%Y%m%dT%H%M%SZ)-$$}"
 [[ "$STACK_NAME" =~ ^[a-z][a-z0-9_-]*$ ]] || fail 'STACK_NAME no válido.'
 [[ "$BACKEND_IMAGE_TAG" =~ ^[a-zA-Z0-9_][a-zA-Z0-9_.-]{0,127}$ ]] || fail 'BACKEND_IMAGE_TAG no válido.'
 [[ "$FRONTEND_IMAGE_TAG" =~ ^[a-zA-Z0-9_][a-zA-Z0-9_.-]{0,127}$ ]] || fail 'FRONTEND_IMAGE_TAG no válido.'
@@ -196,6 +197,29 @@ while (( SECONDS < deadline )); do
     && curl --fail --silent --max-time 5 "$frontend_readiness_url" | grep -Eq '"status"[[:space:]]*:[[:space:]]*"UP"'; then
     stable=$((stable + 1))
     if (( stable >= 3 )); then
+      # Solo campos seleccionados: nunca exportar inspect completo, Env o secrets.
+      mkdir -p "$evidence_dir"
+      {
+        printf 'Fecha UTC: %s\nStack: %s\nEnsayo local: %s\n' "$(date -u +%FT%TZ)" "$STACK_NAME" "$local_mode"
+        printf 'Backend solicitado: %s\nFrontend solicitado: %s\n' "$backend_image" "$frontend_image"
+        printf 'Revision del checkout: '
+        git -C "$script_dir" rev-parse HEAD 2>/dev/null || printf 'no disponible\n'
+        printf 'Verificar manualmente que los NodeID corresponden a computadores distintos.\n'
+      } > "$evidence_dir/resumen.txt"
+      docker node ls > "$evidence_dir/nodos.txt"
+      docker stack services "$STACK_NAME" > "$evidence_dir/servicios.txt"
+      docker stack ps --no-trunc "$STACK_NAME" > "$evidence_dir/tareas.txt"
+      for service in frontend backend mysql; do
+        docker service inspect --format '{{.Spec.Name}} imagen={{.Spec.TaskTemplate.ContainerSpec.Image}}' \
+          "${STACK_NAME}_${service}" >> "$evidence_dir/imagenes.txt"
+        for task_id in $(docker service ps --filter desired-state=running -q "${STACK_NAME}_${service}"); do
+          docker inspect --type task --format '{{.ID}} nodo={{.NodeID}} estado={{.Status.State}}' "$task_id"
+        done > "$evidence_dir/${service}-nodos.txt"
+      done
+      curl --fail --silent --show-error --max-time 5 "$health_url" > "$evidence_dir/backend-readiness.json"
+      curl --fail --silent --show-error --max-time 5 "$frontend_url" > "$evidence_dir/frontend-health.json"
+      curl --fail --silent --show-error --max-time 5 "$frontend_readiness_url" > "$evidence_dir/frontend-readiness.json"
+      printf 'Evidencia tecnica guardada en %s\n' "$evidence_dir"
       docker stack services "$STACK_NAME"
       printf '\nFrontend y API disponibles; réplicas convergidas y readiness accesible. Revisar también la salud de cada task en su nodo.\n'
       printf 'docker stack services %s\ndocker stack ps --no-trunc %s\ndocker service ls\n' "$STACK_NAME" "$STACK_NAME"

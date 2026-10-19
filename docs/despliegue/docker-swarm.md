@@ -190,6 +190,7 @@ asume emulación en Swarm ni se sustituye GHCR por una imagen local.
 
 `backend-ci.yml` agrega un job `deploy` que corre solo en push a `main`, después de que
 `publish` suba las imágenes a GHCR (`needs: publish`, `if: github.ref == 'refs/heads/main'`).
+Requiere habilitar `ENABLE_SWARM_DEPLOY=true` en las variables del repositorio.
 Se ejecuta en un self-hosted runner (`[self-hosted, swarm-manager]`) con Docker, bash y
 acceso directo al manager del Swarm, bajo el Environment de GitHub `production`.
 
@@ -215,6 +216,7 @@ Desde la raíz:
 MYSQL_NODE_ID=validation-node \
 DB_PASSWORD_SECRET=validation-app \
 MYSQL_ROOT_PASSWORD_SECRET=validation-root \
+LOGISTICS_WEBHOOK_SECRET=validation-logistics \
 docker stack config -c stack.yml
 
 bash -n deploy.sh
@@ -371,7 +373,7 @@ al nombre de uno nuevo, no reescribir el que hay.
 Volver a ejecutar el mismo comando reutiliza secrets, volumen y datos. Para retirarlo, la sección
 **Retirada explícita** al final de este documento.
 
-## Futuro cluster con dos computadores
+## Despliegue real con dos computadores
 
 Usar motores Docker Linux con IPs alcanzables entre sí. La VM de Docker Desktop,
 NAT, VPN y firewalls pueden impedir que dos Macs formen una overlay funcional.
@@ -413,11 +415,11 @@ Manager: backend réplica 1 + MySQL (volumen local)
 Worker:  backend réplica 2
 ```
 
-Es una preferencia, no una restricción de una réplica por nodo. Nodos sin etiqueta
-forman otro grupo y siguen siendo elegibles. Si cae un worker, ambas réplicas
-pueden ejecutarse en el manager si hay capacidad. Por eso no se usa
-`max_replicas_per_node: 1`, que impediría dos réplicas en el ensayo local y podría
-impedir recuperación con un único nodo disponible.
+La preferencia de etiquetas ayuda al reparto, pero la restriccion efectiva es
+`max_replicas_per_node: 1` en modo real. Frontend y backend tienen dos replicas
+cada uno y deben ocupar dos nodos distintos. Si solo queda un nodo elegible,
+la segunda replica queda pendiente; no se promete recuperar 2/2 en ese caso.
+`--local` permite dos replicas por nodo exclusivamente para ensayo.
 
 Referencias: [placement](https://docs.docker.com/engine/swarm/services/),
 [routing mesh](https://docs.docker.com/engine/swarm/ingress/).
@@ -591,6 +593,78 @@ Salir destruye el estado Swarm de este manager y no es parte del despliegue ni
 una limpieza automática. No ejecutarlo sobre un cluster real.
 
 ## Evidencia
+
+### Procedimiento de aceptacion para dos computadores
+
+Esta prueba sigue pendiente hasta ejecutarse en dos equipos reales. Un ensayo
+con `--local`, pruebas simuladas o dos nodos en el mismo computador no la acredita.
+Para evitar problemas de NAT de Docker Desktop, preparar motores Docker Linux
+con direcciones de red alcanzables entre ambos equipos. Si se usan maquinas
+virtuales, alojar una en cada computador y comprobar la conectividad entre ellas.
+
+1. Preparar el manager y unir el segundo computador como worker siguiendo la
+   seccion **Despliegue real con dos computadores**. Esta preparacion del cluster
+   es previa al comando unico de despliegue; no se repite en cada arranque.
+2. En el manager, comprobar `docker node ls`: dos nodos Linux Ready/Active.
+   Registrar que computador fisico corresponde a cada NodeID y su IP privada.
+3. Autenticar el manager en GHCR y elegir un tag `sha-<SHA_PUBLICADO>` existente
+   para ambas imagenes. El codigo local sin publicar no se incluye en ese tag.
+   Preparar los archivos de claves fuera del repositorio como en el paso local;
+   usar claves propias y conservarlas junto con los secrets existentes.
+4. Desde la raiz del checkout, en Bash del manager, ejecutar un unico comando
+   (sustituir los valores de ejemplo):
+
+   ```bash
+   STACK_NAME=marketplace-prueba \
+   MYSQL_NODE_ID=ID_REAL_MANAGER \
+   BACKEND_IMAGE_TAG=sha-SHA_PUBLICADO \
+   FRONTEND_IMAGE_TAG=sha-SHA_PUBLICADO \
+   DB_PASSWORD_SECRET_FILE="$HOME/swarm-secrets/db.txt" \
+   MYSQL_ROOT_PASSWORD_SECRET_FILE="$HOME/swarm-secrets/root.txt" \
+   bash deploy.sh
+   ```
+
+5. Esperar salida cero, frontend/backend 2/2 y MySQL 1/1. El script valida
+   NodeID distintos para las replicas de cada servicio de aplicacion y tres
+   comprobaciones consecutivas UP. MySQL permanece en el manager seleccionado.
+6. Desde el segundo computador, comprobar el frontend a traves del manager:
+
+   ```bash
+   curl --fail http://IP_REAL_MANAGER/healthz
+   curl --fail http://IP_REAL_MANAGER/api/actuator/health/readiness
+   ```
+
+   Abrir tambien `http://IP_REAL_MANAGER` en su navegador. Permitir TCP 80 entre
+   el cliente y el manager, ademas de los puertos Swarm indicados anteriormente.
+   El stack distribuido no activa el perfil local ni crea la cuenta demo local.
+   Para pruebas de negocio, preparar cuentas verificadas y datos de prueba.
+
+7. Adjuntar las salidas anteriores y capturas de la aplicacion y de los dos
+   computadores. No ejecutar el script Compose `desplegar-local.ps1` como
+   sustituto de esta prueba. El catalogo local no se carga automaticamente en Swarm.
+
+Al finalizar correctamente, `deploy.sh` guarda evidencia tecnica en
+`artifacts/deploy-<fecha UTC>-<proceso>/` (ignorada por Git). Se puede elegir otra
+carpeta mediante `DEPLOY_EVIDENCE_DIR`; usar una nueva en cada ejecucion.
+Incluye nodos, servicios, tareas, NodeID, referencias de imagen y respuestas
+de salud. No recoge el contenido de secrets ni variables de los contenedores.
+La revision del checkout identifica el script usado, no necesariamente el codigo
+de las imagenes: conservar tambien sus referencias y digests en `imagenes.txt`.
+
+Copiar las evidencias revisadas a la entrega y completar este registro:
+
+| Comprobacion | Resultado que se debe adjuntar |
+| --- | --- |
+| Fecha, responsable y comando | Registro de la ejecucion, sin claves |
+| Dos computadores | Nombre/IP privada y NodeID de cada equipo |
+| Servicios completos | Frontend 2/2, backend 2/2 y MySQL 1/1 |
+| Distribucion | Tasks frontend/backend con NodeID distintos |
+| Conectividad | Readiness UP consultado desde el segundo equipo |
+| Uso del sistema | Capturas y operacion funcional observada |
+| Repeticion | Segunda ejecucion, estado final y persistencia de datos |
+
+Si falla, conservar la salida y revisar `docker stack ps --no-trunc <stack>` y
+`docker service logs --tail 100 <stack>_backend`. No borrar volumen ni secrets.
 
 Guardar validación estática, commit/tag/digest de imagen, `docker node ls`, servicios
 1/1 y 2/2, tasks/nodos, estados healthy, respuestas Actuator y logs de conexión a

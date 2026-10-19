@@ -63,6 +63,7 @@ class LocalDemoAccountConfigurationTests {
                     runner.run(new DefaultApplicationArguments());
                     verify(accounts, times(1)).save(any());
                     verify(assignStoreOwner, times(2)).execute(1L, 9L);
+                    verify(accounts, times(2)).markEmailVerified(9L);
                 });
     }
 
@@ -80,6 +81,7 @@ class LocalDemoAccountConfigurationTests {
                 .run(app -> app.getBean(ApplicationRunner.class).run(new DefaultApplicationArguments()));
         verify(accounts, never()).save(any());
         verify(assignStoreOwner).execute(1L, 4L);
+        verify(accounts).markEmailVerified(4L);
     }
 
     @Test
