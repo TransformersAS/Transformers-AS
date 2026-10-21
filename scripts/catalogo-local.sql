@@ -10,7 +10,7 @@ FROM (
     UNION ALL SELECT 'Chaqueta ligera demo', 'Chaqueta ligera para clima fresco.', 145000, 15, 'Ropa'
     UNION ALL SELECT 'Tenis urbanos demo', 'Calzado comodo para uso diario.', 120000, 30, 'Calzado'
     UNION ALL SELECT 'Mochila urbana demo', 'Mochila con compartimento principal amplio.', 85000, 20, 'Accesorios'
-    UNION ALL SELECT 'Reloj digital demo', 'Reloj digital de uso cotidiano.', 75000, 18, 'Accesorios'
+    UNION ALL SELECT 'Cafetera de goteo demo', 'Cafetera de goteo para preparar cafe en casa.', 75000, 18, 'Hogar'
     UNION ALL SELECT 'Audifonos bluetooth demo', 'Audifonos inalambricos de ejemplo.', 99000, 35, 'Tecnologia'
     UNION ALL SELECT 'Teclado USB demo', 'Teclado para computador con conexion USB.', 65000, 22, 'Tecnologia'
     UNION ALL SELECT 'Lampara de escritorio demo', 'Lampara para escritorio y lectura.', 55000, 16, 'Hogar'

@@ -11,6 +11,7 @@ computadores.
 | --- | --- | --- |
 | [`scripts/desplegar-local.ps1`](../../scripts/desplegar-local.ps1) | Creado | Automatiza el arranque con Docker Compose en Windows y la carga del catálogo de ejemplo. |
 | [`scripts/catalogo-local.sql`](../../scripts/catalogo-local.sql) | Creado | Inserta diez productos de ejemplo en la tienda principal. |
+| [`scripts/ajustar-catalogo-local.sql`](../../scripts/ajustar-catalogo-local.sql) | Creado | Ajuste puntual local: conserva una lámpara LED activa, retira el reloj demo y agrega una cafetera sin borrar el historial. |
 | [`LocalDemoAccountConfiguration.java`](../../backend/demo/src/main/java/com/transformersas/marketplace/users/infrastructure/config/LocalDemoAccountConfiguration.java) | Modificado | Marca como verificado el correo de la cuenta demo al arrancar con el perfil `local`. |
 | [`LocalDemoAccountConfigurationTests.java`](../../backend/demo/src/test/java/com/transformersas/marketplace/users/infrastructure/config/LocalDemoAccountConfigurationTests.java) | Modificado | Agrega comprobaciones de verificación del correo para la cuenta nueva y la existente, incluyendo la repetición del arranque. |
 | [`deploy.sh`](../../deploy.sh) | Modificado | Agrega captura automática de evidencia al terminar correctamente el despliegue y corrige la ruta de ayuda. |
@@ -45,6 +46,12 @@ El catálogo incluye ropa, calzado, accesorios, tecnología y hogar, con precios
 existencias iniciales. No incluye imágenes. Al repetir la carga se omiten los
 productos con el mismo nombre y tienda, sin restablecer precios, stock ni estados.
 No ejecutar dos cargas simultáneas.
+
+El catálogo actualizado incluye una cafetera de goteo en lugar del reloj digital.
+Para una base local que ya tuviera el reloj y las lámparas duplicadas se agregó
+`scripts/ajustar-catalogo-local.sql`, aplicado durante este ajuste. Es un cambio
+puntual separado del arranque: retira las publicaciones anteriores conservando
+sus IDs y referencias. Repetirlo conserva la lámpara activa y no duplica la cafetera.
 
 El frontend se abre en `http://localhost:4300`, salvo un puerto personalizado.
 La cuenta local es `demo@marketplace.local`, con contraseña `MarketplaceDemo123!`.

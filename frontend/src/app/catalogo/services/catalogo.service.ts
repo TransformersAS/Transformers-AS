@@ -108,6 +108,26 @@ export class CatalogoService {
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '');
 
+    if (producto.includes('camiseta')) {
+      return 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=700&q=85';
+    }
+
+    if (producto.includes('jean')) {
+      return 'https://images.unsplash.com/photo-1542272604-787c3835535d?auto=format&fit=crop&w=700&q=85';
+    }
+
+    if (producto.includes('chaqueta')) {
+      return 'https://images.unsplash.com/photo-1551028719-00167b16eac5?auto=format&fit=crop&w=700&q=85';
+    }
+
+    if (producto.includes('mochila')) {
+      return 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&w=700&q=85';
+    }
+
+    if (producto.includes('reloj') || producto.includes('smartwatch')) {
+      return 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=700&q=85';
+    }
+
     if (producto.includes('audifonos')) {
       return 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=700&q=85';
     }
@@ -165,7 +185,7 @@ export class CatalogoService {
       return 'https://images.unsplash.com/photo-1484101403633-562f891dc89a?auto=format&fit=crop&w=700&q=85';
     }
 
-    if (categoriaNormalizada === 'moda') {
+    if (categoriaNormalizada === 'moda' || categoriaNormalizada === 'ropa') {
       return 'https://images.unsplash.com/photo-1445205170230-053b83016050?auto=format&fit=crop&w=700&q=85';
     }
 
@@ -178,6 +198,11 @@ export class CatalogoService {
     }
 
     // Imagen genérica final
-    return 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=700&q=85';
+    return 'data:image/svg+xml,' + encodeURIComponent(
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 700">' +
+      '<rect width="700" height="700" fill="#f3eee5"/>' +
+      '<text x="350" y="350" text-anchor="middle" font-family="sans-serif" font-size="28" fill="#53676b">Imagen no disponible</text>' +
+      '</svg>'
+    );
   }
 }
