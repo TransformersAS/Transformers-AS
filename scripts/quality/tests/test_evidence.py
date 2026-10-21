@@ -56,6 +56,19 @@ class EvidenceTests(unittest.TestCase):
         self.assertEqual(extracted['http_req_failed']['passes'], 1)
         self.assertEqual(extracted['catalog_requests']['count'], 10)
 
+    def test_stack_deploy_phase_starts_at_docker_service_output(self):
+        self.assertTrue(quality.STACK_DEPLOY_LINE.match('Creating service transformers_backend\n'))
+        self.assertTrue(quality.STACK_DEPLOY_LINE.match('Updating service transformers_mysql (id: x)\n'))
+        self.assertFalse(quality.STACK_DEPLOY_LINE.match('Reutilizando secret transformers_db_password_v1\n'))
+
+    def test_deploy_ports_follow_deploy_sh_defaults(self):
+        saved = {k: quality.os.environ.pop(k, None) for k in ('BACKEND_HOST_PORT', 'FRONTEND_HOST_PORT')}
+        try:
+            self.assertEqual(quality.deploy_ports(True), (18080, 18000))
+            self.assertEqual(quality.deploy_ports(False), (8080, 80))
+        finally:
+            quality.os.environ.update({k: v for k, v in saved.items() if v is not None})
+
 
 if __name__ == '__main__':
     unittest.main()
