@@ -5,7 +5,8 @@
   "scripts": {
     "start": "ng serve --port 4300",
     "build": "ng build",
-    "test": "ng test"
+    "test": "ng test",
+    "test:catalogo": "playwright test --config=playwright.catalogo.config.ts"
   },
   "dependencies": {
     "@angular/common": "18.2.14",

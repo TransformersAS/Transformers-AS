@@ -2054,3 +2054,60 @@ footer > div {
     bottom: 12.5rem;
   }
 }
+.catalogo-filtros {
+  display: flex; flex-wrap: wrap; gap: 1rem; align-items: end; margin: 1.5rem 0;
+  label { display: grid; gap: .4rem; }
+  input, select { max-width: 12rem; padding: .65rem; border: 1px solid #8c9b9e; background: white; color: #183139; }
+}
+.catalogo-nombre { text-align: left; background: transparent; border: 0; font: inherit; color: inherit; cursor: pointer; padding: 0; text-decoration: underline; }
+.catalogo-comparacion { margin-top: 2rem; padding: 1rem; border: 1px solid #dcd7ce; }
+.catalogo-tabla { overflow-x: auto;
+  table { border-collapse: collapse; width: 100%; }
+  th, td { padding: .75rem; border: 1px solid #dcd7ce; text-align: left; min-width: 9rem; }
+  img { width: 100px; height: 100px; object-fit: cover; }
+}
+.catalogo-detalle-fondo { position: fixed; inset: 0; z-index: 10000; background: #18313999; display: grid; place-items: center; padding: 1rem; }
+.catalogo-detalle { background: #fffdf8; color: #183139; padding: 1.5rem; border-radius: 1rem; width: min(100%, 640px); max-height: 90vh; overflow-y: auto;
+  img { display: block; width: 100%; max-height: 300px; object-fit: contain; margin: 1rem 0; }
+  button { padding: .65rem; margin: .25rem; cursor: pointer; }
+}
+.catalogo-detalle {
+  width: min(1120px, 100%); padding: 0; border: 1px solid #e1dfd7;
+  .detalle-cabecera { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 1rem 1.5rem; border-bottom: 1px solid #e5e2da; color: #58717a; }
+  .detalle-cabecera button { background: transparent; border: 1px solid #d8dedc; border-radius: 8px; }
+  .detalle-contenido { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(270px, 1fr); gap: 2rem; padding: 1.5rem; }
+  .detalle-ruta { color: #63777c; font-size: .8rem; margin: 0 0 1rem; }
+  .detalle-galeria { margin: 0; background: #f5f4ef; border-radius: 12px; padding: 1rem; }
+  img.detalle-imagen { height: 350px; max-height: 350px; margin: 0; width: 100%; object-fit: contain; }
+  figcaption { text-align: center; color: #687c80; font-size: .75rem; padding-top: .7rem; }
+  .detalle-miniaturas { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .5rem; }
+  .detalle-miniaturas button { background: white; border: 1px solid #ccd5d4; border-radius: 8px; }
+  .detalle-miniaturas button[aria-pressed="true"] { border: 2px solid #173c44; }
+  .detalle-miniaturas img { width: 55px; height: 55px; margin: 0; object-fit: contain; }
+  .detalle-compra { border: 1px solid #deded4; border-radius: 12px; padding: 1.4rem; align-self: start; }
+  .detalle-categoria { color: #677d81; font-size: .8rem; }
+  h2 { font-size: 1.6rem; line-height: 1.2; margin: .8rem 0; }
+  .detalle-marca { color: #577478; font-size: .85rem; }
+  .detalle-precio { display: block; font-size: 2.2rem; margin: 1.5rem 0; font-weight: 500; }
+  .detalle-disponibilidad { color: #247455; font-weight: 600; }
+  .detalle-disponibilidad span { display: block; font-weight: 400; color: #607379; font-size: .85rem; margin-top: .4rem; }
+  button.detalle-agregar, button.detalle-comparar { display: block; width: 100%; margin: .7rem 0; border-radius: 8px; padding: .9rem; font-weight: 600; }
+  .detalle-agregar { background: #193b43; color: white; border: 1px solid #193b43; }
+  .detalle-agregar:disabled { opacity: .5; cursor: not-allowed; }
+  .detalle-comparar { background: #e8eee7; color: #193b43; border: 1px solid #d4dfd4; }
+  .detalle-seccion, .detalle-tienda { border-top: 1px solid #e1e3dc; margin-top: 1.5rem; padding-top: 1rem; }
+  h3 { font-size: 1.1rem; margin: .5rem 0 1rem; }
+  .detalle-caracteristicas { margin: 0; }
+  .detalle-caracteristicas > div { display: grid; grid-template-columns: 1fr 1fr; padding: .8rem; gap: 1rem; }
+  .detalle-caracteristicas > div:nth-child(odd) { background: #f0f1eb; }
+  dt { font-weight: 600; } dd { margin: 0; overflow-wrap: anywhere; }
+  .detalle-descripcion { white-space: pre-line; line-height: 1.7; }
+  .detalle-ayuda { font-size: .8rem; line-height: 1.6; color: #607479; }
+  .detalle-variantes { padding: 0; list-style: none; } .detalle-variantes li { display: grid; gap: .4rem; padding: .7rem; border-bottom: 1px solid #e1e3dc; }
+}
+@media (max-width: 720px) {
+  .catalogo-detalle .detalle-contenido { grid-template-columns: 1fr; gap: 1rem; padding: 1rem; }
+  .catalogo-detalle img.detalle-imagen { height: 240px; }
+  .catalogo-detalle .detalle-compra { grid-row: 1; }
+  .catalogo-detalle .detalle-cabecera > span { display: none; }
+}

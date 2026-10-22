@@ -12,6 +12,11 @@ interface ProductoApi {
   stock: number;
   category: string;
   active: boolean;
+  brand?: string;
+  store?: { id: number; name: string; description?: string };
+  imageUrls?: string[];
+  specifications?: { name: string; value: string }[];
+  variants?: { name: string; price: number; stock: number }[];
 }
 
 @Injectable({ providedIn: 'root' })
@@ -30,36 +35,38 @@ export class CatalogoService {
         productos
           .filter((producto) => producto.active)
 
-          .map((producto) => ({
-            id: producto.id,
-
-            nombre: producto.name,
-
-            precio: producto.price,
-
-            imagen:
-              this.obtenerImagen(
-                producto.name,
-                producto.category
-              ),
-
-            categoria:
-              producto.category,
-
-            tienda:
-              'Marketplace',
-
-            calificacion:
-              5,
-
-            cantidadResenas:
-              0,
-
-            envioGratis:
-              true
-          }))
+          .map(producto => this.convertirProducto(producto))
       )
     );
+  }
+
+  obtenerDetalle(id: number): Observable<Producto> {
+    return this.http.get<ProductoApi>(`${this.apiUrl}/${id}`).pipe(
+      map(producto => this.convertirProducto(producto))
+    );
+  }
+
+  private convertirProducto(producto: ProductoApi): Producto {
+    return {
+      id: producto.id,
+      nombre: producto.name,
+      descripcion: producto.description,
+      stock: producto.stock,
+      disponible: producto.active,
+      precio: producto.price,
+      imagen: producto.imageUrls?.[0] || this.obtenerImagen(producto.name, producto.category),
+      imagenes: producto.imageUrls?.length ? producto.imageUrls : [this.obtenerImagen(producto.name, producto.category)],
+      imagenIlustrativa: !producto.imageUrls?.length,
+      marca: producto.brand,
+      caracteristicas: (producto.specifications ?? []).map(s => ({ nombre: s.name, valor: s.value })),
+      variantes: (producto.variants ?? []).map(v => ({ nombre: v.name, precio: v.price, stock: v.stock })),
+      descripcionTienda: producto.store?.description,
+      categoria: producto.category,
+      tienda: producto.store?.name || 'Marketplace',
+      calificacion: 5,
+      cantidadResenas: 0,
+      envioGratis: true
+    };
   }
 
   obtenerCategorias(): Observable<Categoria[]> {

@@ -1004,6 +1004,7 @@
             class="category"
             *ngFor="let categoria of categorias"
             href="#catalogo"
+            (click)="categoriaFiltro = categoria.nombre"
           >
 
 
@@ -1134,30 +1135,46 @@
           </div>
 
 
-          <button
-            class="filter"
-            type="button"
-          >
-
-            Ordenar por
-            <b>relevancia</b>
-            ⌄
-
-          </button>
+          <label>Ordenar por
+            <select [(ngModel)]="ordenCatalogo" aria-label="Ordenar productos">
+              <option value="relevancia">Relevancia</option>
+              <option value="precio-asc">Menor precio</option>
+              <option value="precio-desc">Mayor precio</option>
+              <option value="nombre">Nombre</option>
+              <option value="recientes">Más recientes</option>
+            </select>
+          </label>
 
         </div>
 
 
 
-        <div
-          class="product-grid"
-          *ngIf="destacados$ | async as productos"
-        >
+        <ng-container *ngIf="destacados$ | async as productos">
+          <p *ngIf="!autenticada">Inicia sesión para explorar el catálogo.
+            <button type="button" (click)="mostrarAcceso = true">Iniciar sesión</button>
+          </p>
+          <p *ngIf="cargandoCatalogo" role="status">Cargando productos...</p>
+          <p *ngIf="errorCatalogo" role="alert">{{ errorCatalogo }}</p>
+          <div class="catalogo-filtros" *ngIf="autenticada">
+            <label>Categoría
+              <select [(ngModel)]="categoriaFiltro">
+                <option value="">Todas las categorías</option>
+                <option *ngFor="let categoria of categoriasDisponibles(productos)" [value]="categoria">{{ categoria }}</option>
+              </select>
+            </label>
+            <label>Precio mínimo <input type="number" min="0" [(ngModel)]="precioMinimo"></label>
+            <label>Precio máximo <input type="number" min="0" [(ngModel)]="precioMaximo"></label>
+            <button type="button" (click)="limpiarFiltros()">Limpiar filtros</button>
+          </div>
+          <p *ngIf="preciosInvalidos" role="alert">Los precios deben ser positivos o cero y el mínimo no puede superar el máximo.</p>
+          <p *ngIf="autenticada && !cargandoCatalogo && !errorCatalogo" role="status">{{ filtrarProductos(productos).length }} productos encontrados</p>
+          <p *ngIf="autenticada && !cargandoCatalogo && !errorCatalogo && !preciosInvalidos && !filtrarProductos(productos).length">No hay productos que coincidan. Prueba otra búsqueda o limpia los filtros.</p>
+          <div class="product-grid">
 
 
           <article
             class="product-card"
-            *ngFor="let producto of productos"
+            *ngFor="let producto of filtrarProductos(productos)"
           >
 
 
@@ -1200,9 +1217,12 @@
               </p>
 
 
-              <h3>
-                {{ producto.nombre }}
-              </h3>
+              <h3><button type="button" class="catalogo-nombre" (click)="abrirDetalle(producto)">{{ producto.nombre }}</button></h3>
+              <p>{{ producto.categoria }}</p>
+              <button type="button" (click)="abrirDetalle(producto)">Ver detalle</button>
+              <button type="button" [attr.aria-pressed]="estaComparado(producto.id)" (click)="comparar(producto)">
+                {{ estaComparado(producto.id) ? 'Quitar de comparación' : 'Comparar' }}
+              </button>
 
 
 
@@ -1282,6 +1302,24 @@
 
         </div>
 
+        </ng-container>
+        <p *ngIf="errorComparacion" role="alert">{{ errorComparacion }}</p>
+        <section class="catalogo-comparacion" *ngIf="comparados.length" aria-label="Comparación de productos">
+          <h3>Comparar productos ({{ comparados.length }}/3)</h3>
+          <p *ngIf="comparados.length < 2">Selecciona otro producto de la misma categoría.</p>
+          <button type="button" (click)="comparados = []; errorComparacion = ''">Vaciar comparación</button>
+          <div class="catalogo-tabla"><table>
+            <caption>Características de los productos seleccionados</caption>
+            <thead><tr><th scope="col">Característica</th><th scope="col" *ngFor="let p of comparados">{{ p.nombre }} <button type="button" (click)="comparar(p)" [attr.aria-label]="'Quitar ' + p.nombre">Quitar</button></th></tr></thead>
+            <tbody>
+              <tr><th scope="row">Imagen</th><td *ngFor="let p of comparados"><img [src]="p.imagen" [alt]="p.nombre"></td></tr>
+              <tr><th scope="row">Precio</th><td *ngFor="let p of comparados">{{ p.precio | currency:'COP':'symbol-narrow':'1.0-0' }}</td></tr>
+              <tr><th scope="row">Categoría</th><td *ngFor="let p of comparados">{{ p.categoria }}</td></tr>
+              <tr><th scope="row">Descripción</th><td *ngFor="let p of comparados">{{ p.descripcion || 'Sin descripción' }}</td></tr>
+              <tr><th scope="row">Disponibilidad</th><td *ngFor="let p of comparados">{{ p.stock }} unidades</td></tr>
+            </tbody>
+          </table></div>
+        </section>
       </section>
 
 
@@ -1533,4 +1571,62 @@
   <app-registro-vendedor (cerrar)="mostrarRegistroVendedor = false"></app-registro-vendedor>
 </div>
 
+<div class="catalogo-detalle-fondo" *ngIf="detalle || cargandoDetalle || errorDetalle" (keydown)="tecladoDetalle($event)">
+  <section class="catalogo-detalle" role="dialog" aria-modal="true" aria-label="Detalle del producto" tabindex="0">
+    <header class="detalle-cabecera">
+      <span>Conoce todos los detalles</span>
+      <button type="button" (click)="cerrarDetalle()" aria-label="Cerrar detalle">Cerrar detalle ×</button>
+    </header>
+    <p *ngIf="cargandoDetalle" role="status">Consultando producto...</p>
+    <p *ngIf="errorDetalle" role="alert">{{ errorDetalle }}</p>
+    <ng-container *ngIf="detalle as p">
+      <div class="detalle-contenido">
+        <div class="detalle-principal">
+          <p class="detalle-ruta">Catálogo / {{ p.categoria }} / {{ p.nombre }}</p>
+          <figure class="detalle-galeria">
+            <img class="detalle-imagen" [src]="imagenDetalle || p.imagen" [alt]="p.nombre">
+            <figcaption *ngIf="p.imagenIlustrativa">Imagen ilustrativa del producto</figcaption>
+          </figure>
+          <div class="detalle-miniaturas" *ngIf="(p.imagenes?.length || 0) > 1" aria-label="Galería del producto">
+            <button type="button" *ngFor="let imagen of p.imagenes; let i = index"
+              [attr.aria-label]="'Ver imagen ' + (i + 1)" [attr.aria-pressed]="imagenDetalle === imagen"
+              (click)="imagenDetalle = imagen"><img [src]="imagen" [alt]="'Vista ' + (i + 1) + ' de ' + p.nombre"></button>
+          </div>
+          <section class="detalle-seccion" aria-label="Características del producto">
+            <h3>Características del producto</h3>
+            <dl class="detalle-caracteristicas">
+              <div><dt>Marca</dt><dd>{{ p.marca || 'Sin especificar' }}</dd></div>
+              <div><dt>Categoría</dt><dd>{{ p.categoria }}</dd></div>
+              <div><dt>Referencia de publicación</dt><dd>#{{ p.id }}</dd></div>
+              <div *ngFor="let caracteristica of p.caracteristicas"><dt>{{ caracteristica.nombre }}</dt><dd>{{ caracteristica.valor }}</dd></div>
+            </dl>
+            <p class="detalle-ayuda" *ngIf="!p.caracteristicas?.length">El vendedor aún no ha añadido características adicionales.</p>
+          </section>
+          <section class="detalle-seccion">
+            <h3>Descripción</h3>
+            <p class="detalle-descripcion">{{ p.descripcion || 'El vendedor aún no ha añadido una descripción.' }}</p>
+          </section>
+          <section class="detalle-seccion" *ngIf="p.variantes?.length">
+            <h3>Opciones publicadas</h3>
+            <p class="detalle-ayuda">Consulta las opciones y sus existencias. El botón de compra agrega el producto base.</p>
+            <ul class="detalle-variantes"><li *ngFor="let variante of p.variantes"><strong>{{ variante.nombre }}</strong><span>{{ variante.precio | currency:'COP':'symbol-narrow':'1.0-0' }} · {{ variante.stock }} unidades</span></li></ul>
+          </section>
+        </div>
+        <aside class="detalle-compra" aria-label="Información de compra">
+          <span class="detalle-categoria">{{ p.categoria }}</span>
+          <h2>{{ p.nombre }}</h2>
+          <p class="detalle-marca" *ngIf="p.marca">Marca: {{ p.marca }}</p>
+          <strong class="detalle-precio">{{ p.precio | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
+          <p class="detalle-disponibilidad" *ngIf="p.disponible && p.stock">Stock disponible <span>{{ p.stock }} unidades</span></p>
+          <p *ngIf="!p.disponible || !p.stock">No disponible para comprar</p>
+          <button class="detalle-agregar" type="button" [disabled]="cargandoDetalle || !p.stock || !p.disponible" (click)="agregarAlCarrito(p.id)">Agregar al carrito</button>
+          <button class="detalle-comparar" type="button" [disabled]="cargandoDetalle" [attr.aria-pressed]="estaComparado(p.id)" (click)="comparar(p)">{{ estaComparado(p.id) ? 'Quitar de comparación' : 'Comparar' }}</button>
+          <p *ngIf="errorComparacion" role="alert">{{ errorComparacion }}</p>
+          <div class="detalle-tienda"><h3>Vendido por {{ p.tienda }}</h3><p *ngIf="p.descripcionTienda">{{ p.descripcionTienda }}</p></div>
+          <p class="detalle-ayuda">El método y el costo de envío se consultan al calcular el checkout con tu dirección.</p>
+        </aside>
+      </div>
+    </ng-container>
+  </section>
+</div>
 </ion-app>

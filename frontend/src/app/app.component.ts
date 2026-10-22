@@ -43,8 +43,11 @@ import {
 
 import {
   finalize,
-  switchMap
+  switchMap, catchError, of, tap, shareReplay
 } from 'rxjs';
+import { toObservable } from '@angular/core/rxjs-interop';
+import { Producto } from './catalogo/models/producto.model';
+import { categoriaComparable, filtrarCatalogo } from './catalogo/catalogo-filtros';
 
 import {
   CatalogoService
@@ -186,8 +189,103 @@ export class AppComponent {
   // CATÁLOGO
   // =========================================================
 
-  readonly destacados$ =
-    this.catalogo.obtenerDestacados();
+  cargandoCatalogo = false;
+  errorCatalogo = '';
+  categoriaFiltro = '';
+  precioMinimo: number | null = null;
+  precioMaximo: number | null = null;
+  ordenCatalogo = 'relevancia';
+  comparados: Producto[] = [];
+  errorComparacion = '';
+  detalle: Producto | null = null;
+  imagenDetalle = '';
+  errorDetalle = '';
+  cargandoDetalle = false;
+  private detalleSolicitud = 0;
+  private focoAntesDelDetalle: HTMLElement | null = null;
+
+  readonly destacados$ = toObservable(this.auth.cuenta).pipe(
+    tap(() => {
+      this.comparados = [];
+      this.detalle = null;
+      this.detalleSolicitud++;
+      this.cargandoDetalle = false;
+      this.errorDetalle = '';
+      this.errorComparacion = '';
+    }),
+    switchMap(cuenta => {
+      this.errorCatalogo = '';
+      this.cargandoCatalogo = !!cuenta;
+      if (!cuenta) return of([] as Producto[]);
+      return this.catalogo.obtenerDestacados().pipe(
+        catchError(() => {
+          this.errorCatalogo = 'No se pudo cargar el catálogo. Recarga la página para reintentar.';
+          return of([] as Producto[]);
+        }),
+        finalize(() => this.cargandoCatalogo = false)
+      );
+    }),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+
+  get autenticada(): boolean { return this.auth.autenticada(); }
+
+  get preciosInvalidos(): boolean {
+    return (this.precioMinimo !== null && this.precioMinimo < 0)
+      || (this.precioMaximo !== null && this.precioMaximo < 0)
+      || (this.precioMinimo !== null && this.precioMaximo !== null && this.precioMinimo > this.precioMaximo);
+  }
+
+  filtrarProductos(productos: Producto[]): Producto[] {
+    return this.preciosInvalidos ? [] : filtrarCatalogo(productos, this.searchTerm,
+      this.categoriaFiltro, this.precioMinimo, this.precioMaximo, this.ordenCatalogo);
+  }
+
+  categoriasDisponibles(productos: Producto[]): string[] {
+    return [...new Set(productos.map(p => categoriaComparable(p.categoria)))].sort();
+  }
+
+  limpiarFiltros(): void {
+    this.searchTerm = ''; this.categoriaFiltro = '';
+    this.precioMinimo = null; this.precioMaximo = null; this.ordenCatalogo = 'relevancia';
+  }
+
+  estaComparado(id: number): boolean { return this.comparados.some(p => p.id === id); }
+
+  comparar(producto: Producto): void {
+    this.errorComparacion = '';
+    if (this.estaComparado(producto.id)) {
+      this.comparados = this.comparados.filter(p => p.id !== producto.id);
+    } else if (this.comparados.length >= 3) {
+      this.errorComparacion = 'Puedes comparar hasta tres productos. Quita uno para agregar otro.';
+    } else if (this.comparados.length && categoriaComparable(this.comparados[0].categoria) !== categoriaComparable(producto.categoria)) {
+      this.errorComparacion = 'Elige productos de la misma categoría para compararlos.';
+    } else {
+      this.comparados = [...this.comparados, producto];
+    }
+  }
+
+  abrirDetalle(producto: Producto): void {
+    this.detalle = producto;
+    this.imagenDetalle = producto.imagen;
+    this.verProducto(producto.id);
+  }
+
+  cerrarDetalle(): void {
+    this.detalleSolicitud++; this.detalle = null;
+    this.errorDetalle = ''; this.cargandoDetalle = false;
+    this.focoAntesDelDetalle?.focus();
+  }
+
+  tecladoDetalle(evento: KeyboardEvent): void {
+    if (evento.key === 'Escape') { evento.preventDefault(); this.cerrarDetalle(); return; }
+    if (evento.key !== 'Tab') return;
+    const panel = evento.currentTarget as HTMLElement;
+    const controles = Array.from(panel.querySelectorAll<HTMLElement>('button:not([disabled]), [href], input, select, [tabindex="0"]'));
+    const primero = controles[0], ultimo = controles[controles.length - 1];
+    if (evento.shiftKey && document.activeElement === primero) { evento.preventDefault(); ultimo?.focus(); }
+    else if (!evento.shiftKey && document.activeElement === ultimo) { evento.preventDefault(); primero?.focus(); }
+  }
 
   readonly categorias$ =
     this.catalogo.obtenerCategorias();
@@ -368,6 +466,26 @@ verProducto(
   id: number
 ): void {
 
+  const solicitud = ++this.detalleSolicitud;
+  this.focoAntesDelDetalle = document.activeElement as HTMLElement;
+  this.errorDetalle = '';
+  this.cargandoDetalle = true;
+  setTimeout(() => {
+    if (solicitud === this.detalleSolicitud) document.querySelector<HTMLElement>('.catalogo-detalle button')?.focus();
+  });
+  this.catalogo.obtenerDetalle(id).subscribe({
+    next: producto => {
+      if (solicitud !== this.detalleSolicitud) return;
+      this.detalle = producto; this.imagenDetalle = producto.imagen; this.cargandoDetalle = false;
+      this.comparados = this.comparados.map(p => p.id === producto.id ? producto : p);
+    },
+    error: () => {
+      if (solicitud !== this.detalleSolicitud) return;
+      this.detalle = null; this.cargandoDetalle = false;
+      this.errorDetalle = 'El producto ya no está disponible o no se pudo consultar.';
+    }
+  });
+
   this.interaction.register({
     productId: id,
     interactionType: 'VIEW',
@@ -391,6 +509,8 @@ verProducto(
 }
 
 buscarProductos(): void {
+
+  document.querySelector('#catalogo')?.scrollIntoView({ behavior: 'smooth' });
 
   const term =
     this.searchTerm.trim();

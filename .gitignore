@@ -13,3 +13,4 @@ launcher/**/obj/
 launcher-logs/
 artifacts/
 frontend/test-results-demo/
+frontend/test-results/

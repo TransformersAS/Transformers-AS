@@ -46,6 +46,7 @@ try {
 
         Write-Host 'Cargando productos de ejemplo...'
         $seed = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'catalogo-local.sql') -Raw -Encoding UTF8
+        $seed += [Environment]::NewLine + (Get-Content -LiteralPath (Join-Path $PSScriptRoot 'fichas-productos-local.sql') -Raw -Encoding UTF8)
         $previousEncoding = $OutputEncoding
         try {
             $OutputEncoding = [System.Text.UTF8Encoding]::new($false)
