@@ -2,12 +2,21 @@ package com.transformersas.marketplace.product;
 
 import com.transformersas.marketplace.support.AbstractIntegrationTest;
 import org.junit.jupiter.api.Test;
-import org.springframework.transaction.annotation.Transactional;
+import org.junit.jupiter.api.AfterEach;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@Transactional
 class ProductDetailIntegrationTests extends AbstractIntegrationTest {
+    // Spring Session escribe con una transaccion independiente. La preparacion
+    // de estas pruebas debe confirmarse antes de enviar peticiones HTTP.
+    @AfterEach
+    void cleanDetailFixture() {
+        resetDatabase();
+        jdbc.update("DELETE FROM attribute_values WHERE attribute_id IN (SELECT id FROM attributes WHERE name='Potencia ficha CU01')");
+        jdbc.update("DELETE FROM attributes WHERE name='Potencia ficha CU01'");
+        jdbc.update("DELETE FROM brands WHERE name='Marca ficha CU01'");
+    }
+
     @Test
     void buyerReceivesStoredImagesBrandSpecificationsVariantsAndPublicStore() throws Exception {
         var buyer = sessionWithRole("ficha@example.com", "COMPRADOR");

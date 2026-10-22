@@ -1151,13 +1151,13 @@
 
         <ng-container *ngIf="destacados$ | async as productos">
           <p *ngIf="!autenticada">Inicia sesión para explorar el catálogo.
-            <button type="button" (click)="mostrarAcceso = true">Iniciar sesión</button>
+            <button *ngIf="!mostrarAcceso" type="button" (click)="mostrarAcceso = true">Iniciar sesión</button>
           </p>
           <p *ngIf="cargandoCatalogo" role="status">Cargando productos...</p>
           <p *ngIf="errorCatalogo" role="alert">{{ errorCatalogo }}</p>
           <div class="catalogo-filtros" *ngIf="autenticada">
             <label>Categoría
-              <select [(ngModel)]="categoriaFiltro">
+              <select [(ngModel)]="categoriaFiltro" aria-label="Categoría">
                 <option value="">Todas las categorías</option>
                 <option *ngFor="let categoria of categoriasDisponibles(productos)" [value]="categoria">{{ categoria }}</option>
               </select>

@@ -66,9 +66,12 @@ Después de actualizar, abrir una lámpara o cafetera demo y comprobar la tabla 
 características y la descripción. Para verificar una galería con varias imágenes
 deben existir imágenes publicadas por el vendedor.
 
-Las nuevas pruebas del backend y la carga SQL real de las fichas quedan pendientes
-de ejecución. La solicitud de ejecución de Maven no fue autorizada durante esta
-ampliación; no se afirma que la suite de integración haya pasado.
+La validación local de `ProductDetailIntegrationTests` y `SellerProductTests`
+terminó con 20 pruebas correctas y `BUILD SUCCESS`. Se retiró la transacción
+global de la clase de detalle: retenía bloqueos sobre `SPRING_SESSION` durante
+la creación de sesiones. Los datos se limpian explícitamente después de cada
+prueba. La carga SQL real de las fichas y la verificación completa de CI siguen
+pendientes.
 
 ## Archivos
 
@@ -117,10 +120,25 @@ Comprobaciones realizadas durante la implementación:
 - Cuatro pruebas unitarias del catálogo y ocho pruebas existentes de pedidos:
   doce correctas, sin fallos.
 - Playwright instalado y comprobación de tipos de las pruebas correcta.
-- Primera ejecución en Chrome: una prueba correcta y tres fallidas por
-  interrupciones en la descarga del JavaScript del servidor local. Se sustituyó
-  ese servidor por `tests/servir-catalogo.cjs`, con compresión gzip. Falta repetir
-  la suite completa después de ese ajuste; no se da por aprobada todavía.
+- Suite aislada del catálogo en Chrome: cuatro pruebas correctas.
+- Suite completa de interfaz en Chrome con `ng serve`: 27 pruebas correctas.
+  Se bloquean service workers en estas suites con API simulada para que las
+  peticiones no eludan `page.route`. No se cambia el service worker de la aplicación.
+- El filtro de categoría tiene un nombre accesible explícito. El botón de acceso
+  del catálogo se oculta mientras está abierto el formulario, evitando confundirlo
+  con el botón de envío del login.
+
+Para ejecutar la suite completa en un puerto distinto al del Compose local:
+
+```powershell
+cd frontend
+$env:PLAYWRIGHT_PORT = '4402'
+npx.cmd playwright test --project=chrome --workers=2
+```
+
+La configuración no reutiliza un servidor existente cuando se indica ese puerto
+ni durante CI. Estas comprobaciones locales no sustituyen la próxima ejecución
+completa del pipeline de GitHub.
 
 Las pruebas unitarias del catálogo se ejecutan desde `frontend` con:
 
