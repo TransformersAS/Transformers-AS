@@ -39,11 +39,18 @@ test('muestra errores del catalogo y del detalle', async ({ page }) => {
   await expect(page.locator('#catalogo').getByRole('alert')).toContainText('No se pudo cargar el catálogo');
 });
 
-test('solicita sesion sin presentar un catalogo vacio silenciosamente', async ({ page }) => {
+test('el visitante explora el catalogo y solo inicia sesion para comprar', async ({ page }) => {
   await page.route('**/api/auth/me', route => route.fulfill({ status: 401, json: {} }));
   await page.reload();
-  await expect(page.locator('#catalogo')).toContainText('Inicia sesión para explorar el catálogo');
-  await expect(page.locator('#catalogo .product-card')).toHaveCount(0);
+  const catalogo = page.locator('#catalogo');
+  await expect(catalogo.locator('.product-card')).toHaveCount(3);
+  await expect(catalogo).toContainText('Inicia sesión para comprar');
+  await expect(catalogo.getByRole('button', { name: 'Reportar' })).toHaveCount(0);
+  await catalogo.locator('.product-card').first().getByRole('button', { name: 'Ver detalle' }).click();
+  await expect(page.getByRole('dialog')).toContainText('Cafetera compacta');
+  await page.getByRole('button', { name: 'Cerrar detalle' }).click();
+  await catalogo.locator('.product-card').first().getByRole('button', { name: /Agregar/ }).click();
+  await expect(page.getByRole('dialog', { name: /cuenta/i })).toBeVisible();
 });
 
 test('busca, combina filtros y ordena el catalogo', async ({ page }) => {

@@ -48,7 +48,7 @@ class CorrelationIdFilterTests extends AbstractIntegrationTest {
 
     @Test
     void idIsAlsoReturnedOnErrorResponses() throws Exception {
-        MvcResult result = mvc.perform(get("/api/products").header("X-Correlation-Id", "err-1")).andReturn();
+        MvcResult result = mvc.perform(get("/api/cart").header("X-Correlation-Id", "err-1")).andReturn();
         assertThat(result.getResponse().getStatus()).isEqualTo(401);
         assertThat(correlationOf(result)).isEqualTo("err-1");
     }

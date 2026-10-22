@@ -1150,12 +1150,12 @@
 
 
         <ng-container *ngIf="destacados$ | async as productos">
-          <p *ngIf="!autenticada">Inicia sesión para explorar el catálogo.
+          <p *ngIf="!autenticada">Inicia sesión para comprar.
             <button *ngIf="!mostrarAcceso" type="button" (click)="mostrarAcceso = true">Iniciar sesión</button>
           </p>
           <p *ngIf="cargandoCatalogo" role="status">Cargando productos...</p>
           <p *ngIf="errorCatalogo" role="alert">{{ errorCatalogo }}</p>
-          <div class="catalogo-filtros" *ngIf="autenticada">
+          <div class="catalogo-filtros">
             <label>Categoría
               <select [(ngModel)]="categoriaFiltro" aria-label="Categoría">
                 <option value="">Todas las categorías</option>
@@ -1167,8 +1167,8 @@
             <button type="button" (click)="limpiarFiltros()">Limpiar filtros</button>
           </div>
           <p *ngIf="preciosInvalidos" role="alert">Los precios deben ser positivos o cero y el mínimo no puede superar el máximo.</p>
-          <p *ngIf="autenticada && !cargandoCatalogo && !errorCatalogo" role="status">{{ filtrarProductos(productos).length }} productos encontrados</p>
-          <p *ngIf="autenticada && !cargandoCatalogo && !errorCatalogo && !preciosInvalidos && !filtrarProductos(productos).length">No hay productos que coincidan. Prueba otra búsqueda o limpia los filtros.</p>
+          <p *ngIf="!cargandoCatalogo && !errorCatalogo" role="status">{{ filtrarProductos(productos).length }} productos encontrados</p>
+          <p *ngIf="!cargandoCatalogo && !errorCatalogo && !preciosInvalidos && !filtrarProductos(productos).length">No hay productos que coincidan. Prueba otra búsqueda o limpia los filtros.</p>
           <div class="product-grid">
 
 
@@ -1294,7 +1294,7 @@
 
               </button>
 
-              <app-reportar-contenido tipo="PUBLICACION" [contenidoId]="producto.id"></app-reportar-contenido>
+              <app-reportar-contenido *ngIf="autenticada" tipo="PUBLICACION" [contenidoId]="producto.id"></app-reportar-contenido>
 
             </div>
 

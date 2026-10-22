@@ -34,6 +34,7 @@ import {
   flashOutline,
   heartOutline,
   homeOutline,
+  laptopOutline,
   personCircleOutline,
   searchOutline,
   shirtOutline,
@@ -213,10 +214,10 @@ export class AppComponent {
       this.errorDetalle = '';
       this.errorComparacion = '';
     }),
-    switchMap(cuenta => {
+    // El catálogo es público: el visitante lo explora sin sesión y se vuelve a leer al entrar o salir.
+    switchMap(() => {
       this.errorCatalogo = '';
-      this.cargandoCatalogo = !!cuenta;
-      if (!cuenta) return of([] as Producto[]);
+      this.cargandoCatalogo = true;
       return this.catalogo.obtenerDestacados().pipe(
         catchError(() => {
           this.errorCatalogo = 'No se pudo cargar el catálogo. Recarga la página para reintentar.';
@@ -419,6 +420,7 @@ export class AppComponent {
       chatbubbleEllipsesOutline,
       chevronForwardOutline,
       homeOutline,
+      laptopOutline,
       searchOutline,
       shirtOutline,
       sparklesOutline,
@@ -439,6 +441,12 @@ export class AppComponent {
   agregarAlCarrito(
   id: number
 ): void {
+
+  // Comprar sí exige sesión: el visitante inicia sesión primero.
+  if (!this.autenticada) {
+    this.mostrarAcceso = true;
+    return;
+  }
 
   this.carrito.agregar(id);
 
@@ -486,6 +494,9 @@ verProducto(
     }
   });
 
+  // Las interacciones son de una cuenta: las del visitante no se registran.
+  if (!this.autenticada) return;
+
   this.interaction.register({
     productId: id,
     interactionType: 'VIEW',
@@ -515,7 +526,7 @@ buscarProductos(): void {
   const term =
     this.searchTerm.trim();
 
-  if (!term) {
+  if (!term || !this.autenticada) {
     return;
   }
 

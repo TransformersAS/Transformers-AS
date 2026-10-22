@@ -91,9 +91,14 @@ class SessionAuthenticationTests {
 
     @Test
     void protectedEndpointsRejectAnonymousRequests() throws Exception {
-        for (String path : new String[]{"/api/auth/me", "/api/products", "/api/cart", "/api/addresses"}) {
+        for (String path : new String[]{"/api/auth/me", "/api/cart", "/api/addresses", "/api/orders"}) {
             mvc.perform(get(path)).andExpect(status().isUnauthorized());
         }
+        // Solo la lectura del catálogo es pública; publicar un producto sigue exigiendo sesión.
+        mvc.perform(get("/api/products")).andExpect(status().isOk());
+        Csrf anonymous = csrf(null);
+        mvc.perform(post("/api/products").cookie(anonymous.cookie()).header(anonymous.header(), anonymous.token())
+                .contentType("application/json").content("{}")).andExpect(status().isUnauthorized());
     }
 
     @Test

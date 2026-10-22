@@ -50,11 +50,18 @@ class ProductDetailIntegrationTests extends AbstractIntegrationTest {
     }
 
     @Test
-    void detailPreservesAuthenticationAndRetiredProductVisibility() throws Exception {
+    void visitorsBrowseTheCatalogButNeverSeeRetiredProducts() throws Exception {
         long id = seedProduct(1, "Producto retirado ficha", 2, "10000");
-        mvc.perform(get("/api/products/" + id)).andExpect(status().isUnauthorized());
+        // El catálogo es público: sin sesión se ven el listado y la ficha.
+        mvc.perform(get("/api/products")).andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.id == " + id + ")]").exists());
+        mvc.perform(get("/api/products/" + id)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Producto retirado ficha"));
         var buyer = sessionWithRole("ficha-restringida@example.com", "COMPRADOR");
         jdbc.update("UPDATE products SET active=FALSE,status='RETIRED' WHERE id=?", id);
+        mvc.perform(get("/api/products/" + id)).andExpect(status().isNotFound());
+        mvc.perform(get("/api/products")).andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.id == " + id + ")]").doesNotExist());
         perform(buyer, get("/api/products/" + id)).andExpect(status().isNotFound());
     }
 }

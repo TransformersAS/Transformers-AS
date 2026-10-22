@@ -74,7 +74,7 @@ export class CatalogoService {
     return of([
       {
         nombre: 'Tecnología',
-        icono: 'headset-outline',
+        icono: 'laptop-outline',
         color: '#ffd86b'
       },
       {
@@ -175,6 +175,18 @@ export class CatalogoService {
       return 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=700&q=85';
     }
 
+    if (producto.includes('taza')) {
+      return 'https://images.unsplash.com/photo-1514228742587-6b1558fcca3d?auto=format&fit=crop&w=700&q=85';
+    }
+
+    if (producto.includes('libreta') || producto.includes('cuaderno')) {
+      return 'https://images.unsplash.com/photo-1531346878377-a5be20888e57?auto=format&fit=crop&w=700&q=85';
+    }
+
+    if (producto.includes('gorra')) {
+      return 'https://images.unsplash.com/photo-1521369909029-2afed882baee?auto=format&fit=crop&w=700&q=85';
+    }
+
     if (
       producto.includes('facial') ||
       producto.includes('cuidado')
@@ -194,6 +206,14 @@ export class CatalogoService {
 
     if (categoriaNormalizada === 'moda' || categoriaNormalizada === 'ropa') {
       return 'https://images.unsplash.com/photo-1445205170230-053b83016050?auto=format&fit=crop&w=700&q=85';
+    }
+
+    if (categoriaNormalizada === 'papeleria') {
+      return 'https://images.unsplash.com/photo-1531346878377-a5be20888e57?auto=format&fit=crop&w=700&q=85';
+    }
+
+    if (categoriaNormalizada === 'accesorios') {
+      return 'https://images.unsplash.com/photo-1521369909029-2afed882baee?auto=format&fit=crop&w=700&q=85';
     }
 
     if (categoriaNormalizada === 'deportes') {
