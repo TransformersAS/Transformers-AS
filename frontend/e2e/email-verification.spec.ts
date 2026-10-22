@@ -48,14 +48,14 @@ test('pending email blocks login, offers resend, handles delivery failure and ve
   await page.getByRole('button', { name: 'Reenviar verificación', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('No se pudo enviar el correo');
   await page.getByRole('button', { name: 'Reenviar verificación', exact: true }).click();
-  await expect(page.getByRole('status')).toContainText('enviamos un nuevo código');
+  await expect(page.getByRole('status').filter({ hasText: 'enviamos un nuevo código' })).toBeVisible();
   await page.getByRole('button', { name: 'Verificar correo', exact: true }).click();
   await page.locator('ion-input[name="verificacion"] input').fill('invalid');
   await page.getByRole('button', { name: 'Confirmar correo', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('Código de verificación inválido');
   await page.locator('ion-input[name="verificacion"] input').fill('A'.repeat(43));
   await page.getByRole('button', { name: 'Confirmar correo', exact: true }).click();
-  await expect(page.getByRole('status')).toContainText('Correo verificado');
+  await expect(page.getByRole('status').filter({ hasText: 'Correo verificado' })).toBeVisible();
   await page.locator('ion-input[name="clave"] input').fill('CorrectPassword123!');
   await page.getByRole('button', { name: 'Iniciar sesión', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Seguridad de tu cuenta' })).toBeVisible();
