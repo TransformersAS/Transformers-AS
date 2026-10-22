@@ -41,6 +41,9 @@ services:
       DB_USER: ${DB_USER:-marketplace_app}
       # Opcional: correo de la cuenta VENDEDOR que será dueña de la tienda principal (ver docs/swarm.md).
       MAIN_STORE_OWNER_EMAIL: ${MAIN_STORE_OWNER_EMAIL:-}
+      # Datos de demostración al arrancar (ver docs/despliegue/docker-swarm.md). Encendido por defecto porque este
+      # stack es el entorno de demostración y de pruebas de carga; MARKETPLACE_DEMO_DATA=false lo apaga.
+      MARKETPLACE_DEMO_DATA: ${MARKETPLACE_DEMO_DATA:-true}
       SPRING_CONFIG_IMPORT: configtree:/run/secrets/
     secrets:
       - source: db_password

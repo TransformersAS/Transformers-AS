@@ -304,30 +304,31 @@ hasta que la base acepta conexiones. Es esperado y se recupera solo. Distinto es
 después de la convergencia: eso ya es un fallo real, y se mira con
 `docker service logs --tail 100 transformers-local_backend`.
 
-### Paso 4. Cargar datos de demostración
+### Paso 4. Los datos de demostración ya están
 
-El stack arranca **vacío**: sin cuentas y sin productos. Se puede crear una cuenta desde la propia
-aplicación, porque el registro de vendedor es público, pero el catálogo seguiría vacío y no habría
-nada que demostrar.
+La base arranca **con datos**, sin ejecutar nada más: el backend los carga al iniciar porque `stack.yml`
+enciende `MARKETPLACE_DEMO_DATA`. Todas las cuentas usan la contraseña `MarketplaceDemo123!` y tienen el
+correo ya verificado.
 
-Los guiones del repositorio funcionan contra el MySQL del stack; solo hay que apuntarles al
-contenedor, cuyo nombre lo pone Swarm:
+| Cuenta | Rol | Para qué |
+| --- | --- | --- |
+| `demo@marketplace.local` | Comprador y vendedor, dueño de la tienda principal | Atender pedidos (CU-23), devoluciones y reclamaciones de la tienda |
+| `comprador.demo@example.com` | Comprador | Sus nueve pedidos, devoluciones y la reclamación |
+| `vendedor.demo@example.com` | Vendedor de «Tienda vendedor demo» | Una segunda tienda, con tres productos |
+| `soporte.demo@example.com` | Soporte | Moderación y reclamaciones escaladas |
+| `admin.demo@example.com` | Administrador | Configuración del catálogo |
 
-```bash
-MYSQLC=$(docker ps --filter "label=com.docker.swarm.service.name=transformers-local_mysql" \
-  --format '{{.Names}}' | head -1)
+Además: los diez productos del catálogo de ejemplo con sus fichas, y pedidos del comprador en cada
+estado (confirmado, en preparación, listo para despacho con su envío, en camino, cuatro entregados y uno
+cancelado). De los entregados, uno queda libre para solicitar una devolución en vivo, otro tiene una
+devolución aprobada con el retorno en curso (CU-25), otro una devolución recién solicitada y otro una
+reclamación abierta (CU-13).
 
-DB_PASSWORD='UnaClaveLocalApp' DEMO_PASSWORD='UnaClaveDemo2026!' MYSQL_CONTAINER="$MYSQLC" \
-  ./scripts/cu23-demo-seed.sh
-DB_PASSWORD='UnaClaveLocalApp' DEMO_PASSWORD='UnaClaveDemo2026!' MYSQL_CONTAINER="$MYSQLC" \
-  ./scripts/cu24-25-demo-seed.sh
-```
+Es repetible: cada arranque solo completa lo que falta, nunca duplica ni cambia lo que ya hay. Para
+arrancar con la base vacía, `MARKETPLACE_DEMO_DATA=false bash deploy.sh --local`.
 
-`DB_PASSWORD` es la del archivo del paso 1. Eso deja las cuentas `vendedor.demo@example.com` y
-`comprador.demo@example.com`, el catálogo con productos y los pedidos de demostración.
-
-La primera cuenta con rol VENDEDOR recibe la tienda principal, así que puede gestionar sus pedidos.
-Si se prefiere asignarla a otra cuenta, está `MAIN_STORE_OWNER_EMAIL` (ver más abajo).
+La tienda principal queda a nombre de `demo@marketplace.local`. Por eso `MAIN_STORE_OWNER_EMAIL` ya no
+la reasigna: solo actúa sobre una tienda sin dueña.
 
 ### Paso 5. Usarlo
 

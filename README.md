@@ -133,6 +133,25 @@ con una base existente deben ser las claves originales. No guarda contrasenas.
 Un `.env` existente debe tener ambas claves configuradas.
 
 Abrir http://localhost:4300 (o el puerto `FRONTEND_PORT` configurado).
+
+### La base arranca con datos de demostración
+
+Arranque como arranque (este script, `docker compose up`, el ejecutable o `bash deploy.sh` en Swarm), al
+iniciar el backend carga cuentas de cada rol, el catálogo, pedidos en varios estados, devoluciones y una
+reclamación. Solo completa lo que falta: repetir el arranque no duplica nada ni cambia lo existente. Lo
+controla `MARKETPLACE_DEMO_DATA` (encendido por defecto en Compose y Swarm, apagado en producción y pruebas).
+
+Todas las cuentas usan la contraseña `MarketplaceDemo123!` y tienen el correo verificado:
+
+| Cuenta | Rol |
+| --- | --- |
+| `demo@marketplace.local` | Comprador y vendedor (dueño de la tienda principal) |
+| `comprador.demo@example.com` | Comprador, con nueve pedidos en distintos estados |
+| `vendedor.demo@example.com` | Vendedor de una segunda tienda |
+| `soporte.demo@example.com` | Soporte |
+| `admin.demo@example.com` | Administrador |
+
+El detalle de lo que se carga está en `backend/demo/src/main/resources/demo-data/datos-demo.sql`.
 Cuenta local: `demo@marketplace.local` / `MarketplaceDemo123!`.
 Los datos se conservan al detener el sistema con `docker compose down`.
 

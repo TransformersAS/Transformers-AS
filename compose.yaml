@@ -28,6 +28,9 @@ services:
       PASSWORD_RECOVERY_FROM: ${PASSWORD_RECOVERY_FROM:-}
       # Opcional, solo desarrollo: SPRING_PROFILES_ACTIVE=local crea la cuenta y el producto demo (ver .env.example).
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-}
+      # La base arranca con datos de demostración (cuentas de cada rol, catálogo, pedidos, devoluciones y una
+      # reclamación). Solo completa lo que falta; MARKETPLACE_DEMO_DATA=false lo apaga.
+      MARKETPLACE_DEMO_DATA: ${MARKETPLACE_DEMO_DATA:-true}
       # Opcional: correo de la cuenta VENDEDOR que será dueña de la tienda principal (ver docs/swarm.md).
       MAIN_STORE_OWNER_EMAIL: ${MAIN_STORE_OWNER_EMAIL:-}
       # Seguimiento logístico (CU-24/CU-25). Sin secreto el webhook del proveedor queda cerrado; en demostración,
