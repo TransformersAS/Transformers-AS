@@ -14,6 +14,8 @@
   --yellow: #ffcf3f;
 
   display: block;
+  // Keep the root viewport-sized so scrolling stays inside ion-content.
+  height: 100%;
 }
 
 ion-content {
