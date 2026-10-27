@@ -2113,3 +2113,13 @@ footer > div {
   .catalogo-detalle .detalle-compra { grid-row: 1; }
   .catalogo-detalle .detalle-cabecera > span { display: none; }
 }
+// Return from the hosted checkout; status is always verified by the backend.
+.payment-return {
+  margin: 1rem;
+  padding: 1.25rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  background: #f0f9ff;
+  color: #173039;
+  button { padding: .75rem 1rem; border-radius: 8px; cursor: pointer; }
+}

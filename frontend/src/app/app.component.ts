@@ -1,6 +1,6 @@
 import {
   Component,
-  inject
+  inject, effect
 } from '@angular/core';
 
 import {
@@ -86,10 +86,6 @@ import {
 } from './checkout/services/checkout.service';
 
 import {
-  ReservationService
-} from './checkout/services/reservation.service';
-
-import {
   PaymentService
 } from './checkout/services/payment.service';
 
@@ -102,7 +98,7 @@ import {
 } from './checkout/models/checkout.model';
 
 import {
-  PaymentResponse
+  PaymentResponse, HostedCheckout
 } from './checkout/models/payment.model';
 
 import {
@@ -169,9 +165,6 @@ export class AppComponent {
 
   private readonly checkout =
     inject(CheckoutService);
-
-  private readonly reservation =
-    inject(ReservationService);
 
   private readonly payment =
     inject(PaymentService);
@@ -342,7 +335,10 @@ export class AppComponent {
   // PAGO
   // =========================================================
 
-  paymentMethod = 'CARD';
+  readonly paymentReturnId = new URLSearchParams(window.location.search).get('checkout');
+  private readonly returnedPaymentId = new URLSearchParams(window.location.search).get('payment_id');
+  hostedCheckout: HostedCheckout | null = null;
+  private returnAccountId: number | null = null;
 
   procesandoCompra = false;
 
@@ -414,6 +410,19 @@ export class AppComponent {
   constructor() {
 
     this.auth.restaurar();
+
+    effect(() => {
+      const account = this.auth.cuenta();
+      const accountId = account?.activeRole === 'COMPRADOR' ? account.accountId : null;
+      if (this.returnAccountId !== accountId) {
+        this.returnAccountId = accountId;
+        this.hostedCheckout = null;
+        this.compraError = '';
+      }
+      if (accountId !== null && this.paymentReturnId && !this.hostedCheckout && !this.procesandoCompra) {
+        this.revisarPago();
+      }
+    });
 
     addIcons({
       bagHandleOutline,
@@ -837,160 +846,49 @@ buscarProductos(): void {
   // =========================================================
 
   confirmarCompra(): void {
-
-    /*
-     * No permitimos confirmar si el usuario
-     * todavía no calculó el checkout.
-     */
-    if (!this.checkoutPreview) {
-
-      this.compraError =
-        'Primero debes calcular el total de la compra.';
-
+    if (this.procesandoCompra) return;
+    if (!this.checkoutPreview || this.addressId === null) {
+      this.compraError = 'Primero registra la dirección y calcula el total de la compra.';
       return;
     }
-
-
-    /*
-     * Tampoco podemos confirmar si por alguna
-     * razón la dirección todavía no fue guardada.
-     */
-    const addressId =
-      this.addressId;
-
-    if (addressId === null) {
-
-      this.compraError =
-        'Primero debes registrar una dirección de entrega.';
-
-      return;
-    }
-
-
     this.procesandoCompra = true;
-
     this.compraError = '';
-
-    this.compraResultado = null;
-
-
-    /*
-     * PASO 1
-     *
-     * POST /api/reservations/cart
-     *
-     * El backend crea las reservas ACTIVE.
-     */
-    this.reservation
-      .reserveCart()
-
-      .pipe(
-
-        /*
-         * PASO 2
-         *
-         * Tomamos los IDs de las reservas
-         * creadas y procesamos el pago.
-         */
-        switchMap(
-          reservations => {
-
-            const reservationIds =
-              reservations.map(
-                reservation =>
-                  reservation.id
-              );
-
-
-            /*
-             * POST /api/payments/process
-             */
-            return this.payment.process({
-
-              paymentMethod:
-                this.paymentMethod,
-
-              reservationIds,
-
-              /*
-               * Aquí ya usamos el ID REAL
-               * de la dirección creada.
-               */
-              addressId,
-
-              shippingMethod:
-                this.shippingMethod,
-
-              couponCode:
-                this.couponCode
-            });
-          }
-        ),
-
-
-        /*
-         * Esto se ejecuta tanto si funciona
-         * como si ocurre un error.
-         */
-        finalize(() => {
-
-          this.procesandoCompra =
-            false;
-        })
-      )
-
-      .subscribe({
-
-        next: (
-          response: PaymentResponse
-        ) => {
-
-          this.compraResultado =
-            response;
-
-
-          /*
-           * APPROVED:
-           *
-           * El backend ya hizo:
-           *
-           * ACTIVE → CONFIRMED
-           * descontó stock
-           * creó Order
-           * creó OrderItems
-           * vació carrito
-           */
-          if (
-            response.status === 'APPROVED'
-          ) {
-
-            this.carrito.refrescar();
-            this.recommendations$ =
-            this.recommendation
-             .getRecommendations();
-          }
-        },
-
-
-        error: (
-          error: HttpErrorResponse
-        ) => {
-
-          console.error(
-            'Error confirmando compra',
-            error
-          );
-
-
-          this.compraError =
-            error.error?.message
-            ??
-            error.error?.detail
-            ??
-            error.message
-            ??
-            'No fue posible completar la compra.';
+    this.payment.startCheckout({ addressId: this.addressId, shippingMethod: this.shippingMethod,
+      couponCode: this.couponCode }).pipe(finalize(() => this.procesandoCompra = false)).subscribe({
+      next: result => {
+        if (!result.checkoutUrl) { this.compraError = 'No se pudo abrir el checkout de pago.'; return; }
+        const target = new URL(result.checkoutUrl);
+        if (target.protocol !== 'https:' || target.hostname !== 'sandbox.mercadopago.com.co') {
+          this.compraError = 'El enlace de la pasarela de pruebas no es válido.';
+          return;
         }
-      });
+        window.location.assign(target.href);
+      },
+      error: (error: HttpErrorResponse) => {
+        this.compraError = error.error?.detail ?? error.error?.message ?? 'No fue posible iniciar el pago.';
+      }
+    });
+  }
+
+  revisarPago(): void {
+    if (!this.paymentReturnId || !this.esComprador || this.procesandoCompra) return;
+    const accountId = this.auth.cuenta()?.accountId;
+    this.procesandoCompra = true;
+    this.compraError = '';
+    const paymentId = this.returnedPaymentId;
+    const result = paymentId && /^[0-9]{1,30}$/.test(paymentId)
+      ? this.payment.refreshCheckout(this.paymentReturnId, paymentId)
+      : this.payment.checkoutStatus(this.paymentReturnId);
+    result.pipe(finalize(() => this.procesandoCompra = false)).subscribe({
+      next: checkout => {
+        if (this.auth.cuenta()?.accountId !== accountId || !this.esComprador) return;
+        this.hostedCheckout = checkout;
+        if (checkout.status === 'APPROVED') this.carrito.refrescar();
+      },
+      error: (error: HttpErrorResponse) => {
+        if (this.auth.cuenta()?.accountId !== accountId || !this.esComprador) return;
+        this.compraError = error.error?.detail ?? error.error?.message ?? 'No se pudo verificar el pago. Vuelve a consultar.';
+      }
+    });
   }
 }

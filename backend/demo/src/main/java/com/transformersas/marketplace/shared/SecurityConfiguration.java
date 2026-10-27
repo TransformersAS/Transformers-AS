@@ -92,6 +92,7 @@ public class SecurityConfiguration {
                         .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/auth/csrf").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/payments/mercadopago/webhook").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/password-recovery/request",
                                 "/api/auth/password-recovery/confirm").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/email-verification/resend",
@@ -131,7 +132,7 @@ public class SecurityConfiguration {
                         .requestMatchers("/api/**").authenticated()
                         .anyRequest().denyAll())
                 // Sin sesión no hay token CSRF que enviar: el webhook se protege con la firma del cuerpo.
-                .csrf(csrf -> csrf.ignoringRequestMatchers("/api/logistics/webhooks/**"))
+                .csrf(csrf -> csrf.ignoringRequestMatchers("/api/logistics/webhooks/**", "/api/payments/mercadopago/webhook"))
                 .requestCache(AbstractHttpConfigurer::disable)
                 .exceptionHandling(errors -> errors
                         .authenticationEntryPoint((request, response, exception) -> response.setStatus(401))

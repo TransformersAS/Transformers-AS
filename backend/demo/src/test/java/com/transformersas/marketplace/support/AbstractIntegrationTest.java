@@ -63,6 +63,7 @@ public abstract class AbstractIntegrationTest {
 
     @BeforeEach
     protected void resetDatabase() {
+        jdbc.update("DELETE FROM payment_checkouts");
         TABLES_TO_CLEAR.forEach(table -> jdbc.update("DELETE FROM " + table));
         jdbc.update("DELETE FROM stores WHERE id <> 1");
         // La tienda 1 vuelve al estado que deja la migración; sin dueña antes de borrar las cuentas (FK).

@@ -44,6 +44,8 @@ Este es el punto de entrada a las guías de Marketplace. Los documentos están a
 
 ## Pruebas
 
+- [CU-03: checkout con Mercado Pago](pruebas/cu03-mercadopago.md): configuración de sandbox, flujos, límites y pruebas.
+
 | Documento | Para qué sirve |
 | --- | --- |
 | [Pruebas de autenticación y sesiones — CU-08](pruebas/cu-08-autenticacion-y-sesiones.md) | Localizar pruebas de backend, interfaz y extremo a extremo, con sus alcances. |

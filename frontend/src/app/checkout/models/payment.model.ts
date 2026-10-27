@@ -6,6 +6,14 @@ export interface PaymentRequest {
   couponCode: string;
 }
 
+export interface HostedCheckout {
+  id: string;
+  status: 'STARTING' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'REVIEW';
+  checkoutUrl: string | null;
+  orderId: number | null;
+  total: number;
+}
+
 export interface PaymentResponse {
   transactionId: string;
   status: string;

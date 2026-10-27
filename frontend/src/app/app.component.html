@@ -2,6 +2,17 @@
 
   <ion-content [fullscreen]="true">
 
+    <section *ngIf="paymentReturnId" class="payment-return" aria-label="Estado del pago">
+      <h2>Estado de tu pago</h2>
+      <p *ngIf="!autenticada">Inicia sesión con la cuenta que realizó la compra para consultar el resultado.</p>
+      <p *ngIf="hostedCheckout?.status === 'APPROVED'">Pago de pruebas aprobado. Tu pedido es el #{{ hostedCheckout?.orderId }}.</p>
+      <p *ngIf="hostedCheckout?.status === 'PENDING'">Tu pago está pendiente. Confirmaremos el pedido cuando Mercado Pago lo apruebe.</p>
+      <p *ngIf="hostedCheckout?.status === 'REJECTED'">El pago fue rechazado o cancelado. No se confirmó el pedido.</p>
+      <p *ngIf="hostedCheckout?.status === 'REVIEW'">Recibimos una actualización que requiere revisión. No vuelvas a pagar esta compra; contacta a soporte.</p>
+      <p *ngIf="compraError" role="alert">{{ compraError }}</p>
+      <button type="button" (click)="revisarPago()" [disabled]="procesandoCompra || !esComprador">{{ procesandoCompra ? 'Consultando...' : 'Consultar estado del pago' }}</button>
+    </section>
+
 
     <!-- ===================================================== -->
     <!-- BARRA SUPERIOR -->
@@ -647,35 +658,9 @@
           </h3>
 
 
-          <select
-            [(ngModel)]="paymentMethod"
-            class="payment-select"
-          >
-
-            <!-- Flujo normal -->
-            <option value="CARD">
-              Tarjeta
-            </option>
-
-
-            <!-- Alterno A5 -->
-            <option value="TEST_REJECT">
-              Simular pago rechazado
-            </option>
-
-
-            <!-- Alterno A6 -->
-            <option value="TEST_PENDING">
-              Simular pago pendiente
-            </option>
-
-
-            <!-- Alterno A8 -->
-            <option value="TEST_UNAVAILABLE">
-              Simular pasarela no disponible
-            </option>
-
-          </select>
+          <p><strong>Mercado Pago</strong></p>
+          <p>Seleccionarás el medio de pago y completarás los datos en el checkout seguro de Mercado Pago.</p>
+          <p>Entorno de pruebas: utiliza las cuentas y tarjetas de prueba del proveedor. No se realizan cobros reales.</p>
 
         </div>
 
@@ -694,8 +679,8 @@
 
           {{
             procesandoCompra
-            ? 'Procesando compra...'
-            : 'Confirmar compra'
+            ? 'Abriendo Mercado Pago...'
+            : 'Continuar a Mercado Pago'
           }}
 
 

@@ -16,6 +16,9 @@ import org.springframework.web.bind.annotation.*;
 @CrossOrigin(origins = "*")
 public class PaymentController {
 
+    @org.springframework.beans.factory.annotation.Value("${payments.mock-enabled:false}")
+    private boolean mockEnabled;
+
     private final ProcessPaymentUseCase processPaymentUseCase;
 
 
@@ -33,6 +36,9 @@ public class PaymentController {
             @RequestBody PaymentRequest request,
             @AuthenticationPrincipal AccountPrincipal principal
     ) {
+
+        if (!mockEnabled) throw new org.springframework.web.server.ResponseStatusException(
+                org.springframework.http.HttpStatus.GONE, "Utiliza el checkout de Mercado Pago");
 
         PaymentProcessResult result =
                 processPaymentUseCase.execute(
