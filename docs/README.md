@@ -63,6 +63,7 @@ Este es el punto de entrada a las guías de Marketplace. Los documentos están a
 
 | Documento | Para qué sirve |
 | --- | --- |
+| [CU-03: pasarela de pagos](sustentacion/cu-03-pasarela-de-pagos.md) | Explicar la integración con Mercado Pago, levantar la demostración y consultar pagos y productos en MySQL. |
 | [CU-08: autenticación y CU-11: cancelación](sustentacion/cu-08-autenticacion-cu-11-cancelacion.md) | Consultar trazabilidad, diagramas, referencias al código y preguntas para la exposición. |
 
 ## Organización del repositorio
