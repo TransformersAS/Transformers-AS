@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Mediciones en el cliente/manager. No despliega, registra cuentas ni mata contenedores."""
 import argparse
+from collections import Counter
+from http.cookiejar import CookieJar
 import json
 import os
 from pathlib import Path
@@ -8,7 +10,9 @@ import subprocess
 import sys
 import time
 from datetime import datetime, timezone
-from urllib.request import urlopen
+from urllib.error import HTTPError
+from urllib.parse import urlencode
+from urllib.request import HTTPCookieProcessor, Request, build_opener, urlopen
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -148,12 +152,128 @@ def run_k6(args, output, label, vus, duration, monitor=False):
     return valid
 
 
+def served_by(headers):
+    """Cabeceras que pone nginx: réplica del frontend y réplica(s) del backend, la última es la que respondió."""
+    hops = [hop.strip() for hop in (headers.get('X-Served-By-Backend') or '').split(',') if hop.strip()]
+    return headers.get('X-Served-By-Frontend') or '', hops
+
+
+class Distribution:
+    """Reparto observado de una serie de peticiones entre las réplicas."""
+    def __init__(self):
+        self.total = 0
+        self.failures = 0
+        self.retried = 0
+        self.frontends = Counter()
+        self.backends = Counter()
+
+    def add(self, status, headers):
+        self.total += 1
+        if status != 200:
+            self.failures += 1
+        frontend, hops = served_by(headers)
+        if frontend:
+            self.frontends[frontend] += 1
+        if hops:
+            self.backends[hops[-1]] += 1
+        if len(hops) > 1:
+            self.retried += 1
+
+    def result(self, minimum_share, names=None):
+        names = names or {}
+        lowest = min(self.backends.values()) / self.total if self.total and self.backends else 0
+        return {'requests': self.total, 'non_200': self.failures, 'retried_on_another_backend': self.retried,
+                'frontends': dict(self.frontends),
+                'backends': {address: {'requests': count, 'share': round(count / self.total, 3),
+                                       'task': names.get(address.rsplit(':', 1)[0])}
+                             for address, count in self.backends.items()},
+                'balanced': self.failures == 0 and len(self.backends) >= 2 and lowest >= minimum_share,
+                'minimum_share_required': minimum_share}
+
+
+def backend_addresses(stack):
+    """IP de cada réplica del backend en la red interna del stack, con su task y el nombre del nodo.
+
+    Fuera del manager no hay CLI de Swarm: la medición sigue y solo se pierde esa etiqueta."""
+    try:
+        ids = command('docker', 'service', 'ps', '--filter', 'desired-state=running', '-q',
+                      stack + '_backend').split()
+    except (OSError, subprocess.SubprocessError):
+        return {}
+    if not ids:
+        return {}
+    names = {}
+    for task in json.loads(command('docker', 'inspect', '--type', 'task', *ids)):
+        node = command('docker', 'node', 'inspect', '--format', '{{.Description.Hostname}}', task['NodeID'])
+        for attachment in task.get('NetworksAttachments') or []:
+            if attachment['Network']['Spec']['Name'] == stack + '_internal':
+                for address in attachment.get('Addresses') or []:
+                    names[address.split('/')[0]] = {'task': task['ID'], 'node': node}
+    return names
+
+
+def fetch(opener, url):
+    try:
+        with opener.open(url, timeout=10) as response:
+            response.read()
+            return response.status, response.headers
+    except HTTPError as error:
+        return error.code, error.headers
+    except OSError:
+        return None, {}
+
+
+def login(base_url, email, password):
+    """Sesión real como la del navegador: cookie SESSION y token CSRF. Las sesiones viven en MySQL."""
+    opener = build_opener(HTTPCookieProcessor(CookieJar()))
+    with opener.open(base_url + '/api/auth/csrf', timeout=10) as response:
+        csrf = json.load(response)
+    request = Request(base_url + '/api/auth/login', method='POST',
+                      data=urlencode({'email': email, 'password': password}).encode(),
+                      headers={csrf['headerName']: csrf['token']})
+    with opener.open(request, timeout=10) as response:
+        if response.status != 204:
+            raise RuntimeError(f'Login respondió {response.status}; revisar CATALOG_EMAIL/CATALOG_PASSWORD.')
+    return opener
+
+
+def run_balancing(args, output):
+    """Cada petición abre una conexión nueva, como clientes distintos; nginx reparte por petición."""
+    names = backend_addresses(args.stack)
+    print(f'Réplicas del backend: {names or "no se pudieron leer (¿no es el manager?)"}', flush=True)
+    phases = {}
+    anonymous = Distribution()
+    for _ in range(args.requests):
+        anonymous.add(*fetch(build_opener(), args.base_url + '/api/products'))
+    phases['catalogo_sin_sesion'] = anonymous.result(args.minimum_share, names)
+    session = login(args.base_url, os.environ['CATALOG_EMAIL'], os.environ['CATALOG_PASSWORD'])
+    authenticated = Distribution()
+    for _ in range(args.requests):
+        authenticated.add(*fetch(session, args.base_url + '/api/auth/me'))
+    # La misma cookie atendida por varias réplicas con 200 demuestra que la sesión no vive en una sola.
+    phases['sesion_compartida'] = authenticated.result(args.minimum_share, names)
+    for label, phase in phases.items():
+        print(f"{label}: {phase['requests']} peticiones, no-200={phase['non_200']}, "
+              f"reintentos={phase['retried_on_another_backend']}, balanceado={phase['balanced']}", flush=True)
+        for address, row in phase['backends'].items():
+            print(f"  backend {address} {row['task'] or ''}: {row['requests']} ({row['share']:.0%})", flush=True)
+        for frontend, count in phase['frontends'].items():
+            print(f'  frontend {frontend}: {count}', flush=True)
+    passed = all(phase['balanced'] for phase in phases.values())
+    save(output / 'balancing-result.json', {'base_url': args.base_url, 'stack': args.stack, 'phases': phases,
+                                            'measurement_passed': passed, 'physical_computers_verified': False})
+    return passed
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('mode', choices=['performance', 'availability'])
+    parser.add_argument('mode', choices=['performance', 'availability', 'balancing'])
     parser.add_argument('--base-url', required=True, help='URL frontend; sin /api ni contraseña')
     parser.add_argument('--stack', default='transformers')
     parser.add_argument('--output', type=Path, default=ROOT / 'artifacts/quality')
+    parser.add_argument('--requests', type=int, default=200, help='balancing: peticiones por fase')
+    parser.add_argument('--minimum-share', type=float, default=0.3,
+                        help='balancing: parte mínima que debe atender cada réplica del backend')
     args = parser.parse_args()
     args.base_url = args.base_url.rstrip('/')
     from urllib.parse import urlsplit
@@ -170,7 +290,7 @@ def main():
     metadata = {'utc': timestamp(), 'mode': args.mode, 'base_url': args.base_url,
                 'stack': args.stack, 'sha': command('git', '-C', str(ROOT), 'rev-parse', 'HEAD'),
                 'working_tree': command('git', '-C', str(ROOT), 'status', '--short'),
-                'k6_version': command('k6', 'version'),
+                'k6_version': command('k6', 'version') if args.mode != 'balancing' else None,
                 'thresholds': {'catalog_p95_ms': 3000, 'catalog_error_rate_less_than': 0.02},
                 'physical_computers_verified': False}
     save(output / 'context.json', metadata)
@@ -180,6 +300,8 @@ def main():
             passed50 = run_k6(args, output, 'catalogo-50', 50, '1m')
             passed100 = run_k6(args, output, 'catalogo-100', 100, '1m')
             passed = passed50 and passed100
+        elif args.mode == 'balancing':
+            passed = run_balancing(args, output)
         else:
             passed = run_k6(args, output, 'availability', 50, '3m', monitor=True)
     except (OSError, ValueError, RuntimeError, subprocess.SubprocessError, KeyboardInterrupt) as error:

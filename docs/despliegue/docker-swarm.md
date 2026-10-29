@@ -425,6 +425,63 @@ la segunda replica queda pendiente; no se promete recuperar 2/2 en ese caso.
 Referencias: [placement](https://docs.docker.com/engine/swarm/services/),
 [routing mesh](https://docs.docker.com/engine/swarm/ingress/).
 
+## Balanceo de carga
+
+El reparto ocurre en dos niveles:
+
+```text
+Navegador → IP de cualquier nodo:80 → [routing mesh de Swarm] → frontend (réplica 1 o 2)
+                                                                   │ nginx /api
+                                       [nginx, round robin] → backend (réplica 1 o 2) → MySQL
+```
+
+1. **Entrada.** El puerto publicado (`mode: ingress`) abre el 80 en todos los nodos y Swarm reparte cada
+   conexión entre las réplicas del frontend, estén en el nodo que estén.
+2. **Frontend → backend.** nginx no apunta a la IP virtual del servicio (`backend`), que le mostraría una sola
+   dirección, sino a `tasks.backend` (variable `BACKEND_UPSTREAM_HOST` en `stack.yml`), que devuelve la IP de
+   cada réplica. Con eso nginx:
+   - reparte **petición por petición** (round robin) entre las réplicas;
+   - vuelve a consultar el DNS de Docker cada 5 s, así que una réplica nueva recibe tráfico sin reiniciar nginx;
+   - si una réplica no acepta la conexión en 2 s, repite la petición en la otra (`proxy_next_upstream`, como
+     máximo 2 intentos). Solo repite errores de conexión: ni un 5xx de la aplicación ni un POST ya enviado.
+
+Las sesiones se guardan en MySQL (Spring Session JDBC), no en la memoria de una réplica: cualquier réplica
+atiende a un usuario con sesión iniciada. En Compose el mismo nginx usa `backend`, que allí ya devuelve la IP
+del contenedor. MySQL no se balancea: hay una sola instancia, en el manager.
+
+### Verificarlo
+
+Cada respuesta dice quién la atendió: `X-Served-By-Frontend` (contenedor del frontend) y `X-Served-By-Backend`
+(IP de la réplica del backend; dos IP separadas por coma significan que la primera falló y respondió la
+segunda). Para verlo a mano: `curl -sD - -o /dev/null http://<IP_MANAGER>/api/products | grep X-Served`.
+
+La medición completa, en el manager y con la cuenta de demostración:
+
+```bash
+export CATALOG_EMAIL=comprador.demo@example.com
+export CATALOG_PASSWORD='MarketplaceDemo123!'
+python3 scripts/quality/run.py balancing --base-url http://<IP_MANAGER> --stack transformers
+```
+
+Hace 200 peticiones al catálogo sin sesión y 200 con una sesión iniciada, cada una en una conexión nueva, y
+cuenta qué réplica atendió cada una. Pasa si todas responden 200 y cada réplica del backend atiende al menos el
+30 % (`--minimum-share`). Que la misma sesión la atiendan las dos réplicas demuestra que la sesión no depende de
+una de ellas. En el manager asocia cada IP a su task y su nodo; guarda `balancing-result.json` en
+`artifacts/quality/`.
+
+### Medición hecha
+
+En un Swarm de un nodo (`--local`, dos réplicas por nodo), midiendo desde la red del frontend:
+
+| Prueba | `tasks.backend` (actual) | `backend` (IP virtual, antes) |
+| --- | --- | --- |
+| 200 peticiones sin sesión | 100 / 100 entre las dos réplicas | una sola dirección visible: no se puede saber qué réplica atendió |
+| 200 peticiones con sesión | 100 / 100, todas 200 | igual que arriba |
+| 1500 peticiones matando una réplica a los 2 s | 0 fallidas; 1 reintentada en la otra réplica | 1 fallida |
+| Réplica de reemplazo (IP nueva) | recibe tráfico sola en segundos | — |
+
+Falta repetirla con los dos computadores: el reparto entre nodos y la routing mesh solo se acreditan ahí.
+
 ## Prueba de disponibilidad: tráfico, caída y recuperación
 
 Usando el nombre `transformers-local` y puerto 18080; ajustar en el cluster real.
