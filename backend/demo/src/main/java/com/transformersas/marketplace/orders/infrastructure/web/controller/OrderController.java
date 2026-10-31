@@ -58,12 +58,13 @@ public class OrderController {
                               String shippingMethod, String transactionId, LocalDateTime createdAt, List<OrderItem> items,
                               DeliverySnapshot delivery, OrderPaymentStatus paymentStatus, Long storeId,
                               BigDecimal discountAmount, BigDecimal shippingCost, String sellerNameSnapshot,
-                              List<BuyerOrderDetail.History> history, List<BuyerRefund> refunds) {
+                              List<BuyerOrderDetail.History> history, List<BuyerRefund> refunds,
+                              com.transformersas.marketplace.orders.domain.model.OrderProvenance provenance) {
         static OrderDetail from(BuyerOrderDetail detail) {
             Order order = detail.order();
             return new OrderDetail(order.id(), order.status(), order.total(), order.addressId(), order.shippingMethod(),
                     order.transactionId(), order.createdAt(), order.items(), order.delivery(), order.paymentStatus(),
-                    order.storeId(), order.discountAmount(), order.shippingCost(), order.sellerNameSnapshot(), detail.history(), detail.refunds());
+                    order.storeId(), order.discountAmount(), order.shippingCost(), order.sellerNameSnapshot(), detail.history(), detail.refunds(), order.provenance());
         }
     }
 

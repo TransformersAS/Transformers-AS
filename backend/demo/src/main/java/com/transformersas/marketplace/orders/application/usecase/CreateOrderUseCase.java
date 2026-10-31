@@ -125,7 +125,8 @@ public class CreateOrderUseCase {
 
         // El checkout solo llega aquí con el pago aprobado (D4); el comprador es la cuenta autenticada.
         Order order = new Order(null, accountId, OrderStatus.CONFIRMED, OrderPaymentStatus.APPROVED, total, storeId,
-                addressId, shippingMethod, delivery, transactionId, now, orderItems, discountAmount, shippingCost, sellerName);
+                addressId, shippingMethod, delivery, transactionId, now, orderItems, discountAmount, shippingCost, sellerName,
+                com.transformersas.marketplace.orders.domain.model.OrderProvenance.captured());
 
         Order saved = orderRepository.save(order);
         notices.purchased(saved);

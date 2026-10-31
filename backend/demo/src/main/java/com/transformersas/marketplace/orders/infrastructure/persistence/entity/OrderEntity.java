@@ -4,6 +4,7 @@ package com.transformersas.marketplace.orders.infrastructure.persistence.entity;
 import com.transformersas.marketplace.orders.domain.model.OrderPaymentStatus;
 import com.transformersas.marketplace.orders.domain.model.OrderStatus;
 import jakarta.persistence.*;
+import com.transformersas.marketplace.orders.domain.model.OrderProvenance;
 import org.hibernate.annotations.BatchSize;
 
 import java.math.BigDecimal;
@@ -84,6 +85,23 @@ public class OrderEntity {
     @OrderBy("id ASC")
     @BatchSize(size = 100)
     private List<OrderItemEntity> items = new ArrayList<>();
+
+    @Enumerated(EnumType.STRING)
+    @Column(name="delivery_source", nullable=false, updatable=false)
+    private OrderProvenance.Source deliverySource = OrderProvenance.Source.UNKNOWN;
+    @Enumerated(EnumType.STRING)
+    @Column(name="seller_source", nullable=false, updatable=false)
+    private OrderProvenance.Source sellerSource = OrderProvenance.Source.UNKNOWN;
+    @Enumerated(EnumType.STRING)
+    @Column(name="payment_source", nullable=false, updatable=false)
+    private OrderProvenance.Source paymentSource = OrderProvenance.Source.UNKNOWN;
+    @Enumerated(EnumType.STRING)
+    @Column(name="payment_status_at_capture", updatable=false)
+    private OrderPaymentStatus paymentStatusAtCapture;
+    public OrderProvenance provenance() { return new OrderProvenance(deliverySource,sellerSource,paymentSource,paymentStatusAtCapture,false); }
+    public void provenance(OrderProvenance value) {
+        deliverySource=value.deliverySource();sellerSource=value.sellerSource();paymentSource=value.paymentSource();paymentStatusAtCapture=value.paymentStatusAtCapture();
+    }
 
     public OrderEntity() {
     }

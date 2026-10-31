@@ -1,9 +1,11 @@
 import { test, expect, Page } from '@playwright/test';
 
 const unavailable = 'Información histórica no disponible';
-async function openOrder(page: Page, legacy = false, free = false) {
+async function openOrder(page: Page, legacy = false, free = false, source?: 'UNKNOWN' | 'MIGRATED' | 'CAPTURED_AT_PURCHASE', verified = false) {
   let cancelled = false;
   const order = () => ({
+    provenance: source ? { deliverySource: source, sellerSource: source, paymentSource: source,
+      paymentStatusAtCapture: 'APPROVED', financialUpdateVerified: verified } : undefined,
     id: 7, status: cancelled ? 'CANCELLED' : 'CONFIRMED', total: 190000,
     shippingMethod: 'STANDARD', createdAt: '2026-10-01T12:00:00', addressId: 8, transactionId: 'test-transaction',
     storeId: 1, sellerNameSnapshot: legacy ? null : 'Tienda original',
@@ -67,4 +69,29 @@ test('un importe histórico cero se muestra como cero', async ({ page }) => {
   await expect(detail).toContainText('Descuento aplicado: 0.00');
   await expect(detail).toContainText('Costo del envío: 0.00');
   await expect(detail).not.toContainText(unavailable);
+});
+
+for (const source of ['UNKNOWN', 'MIGRATED', 'CAPTURED_AT_PURCHASE'] as const) {
+  test(`procedencia histórica ${source} se presenta sin reconstrucciones falsas`, async ({ page }) => {
+    const detail = await openOrder(page, false, true, source);
+    if (source === 'UNKNOWN') {
+      await expect(detail).toContainText('Dirección de procedencia histórica no verificada');
+      await expect(detail).toContainText('Estado financiero: procedencia histórica no verificada');
+      await expect(detail).not.toContainText('Dirección incorporada por migración');
+    } else if (source === 'MIGRATED') {
+      await expect(detail).toContainText('Dirección incorporada por migración');
+      await expect(detail).toContainText('Estado financiero incorporado por migración');
+      await expect(detail).not.toContainText('Dirección de procedencia histórica no verificada');
+    } else {
+      await expect(detail).toContainText('Dirección de entrega utilizada');
+      await expect(detail).not.toContainText('procedencia histórica no verificada');
+    }
+    await expect(detail).toContainText('Costo del envío: 0.00');
+  });
+}
+test('evidencia de actualización financiera se distingue del origen desconocido', async ({ page }) => {
+  const detail = await openOrder(page, false, false, 'UNKNOWN', true);
+  await expect(detail).toContainText('Actualización financiera respaldada por una confirmación externa registrada');
+  await expect(detail).not.toContainText('Estado financiero: procedencia histórica no verificada');
+  await expect(detail).toContainText('Dirección de procedencia histórica no verificada');
 });

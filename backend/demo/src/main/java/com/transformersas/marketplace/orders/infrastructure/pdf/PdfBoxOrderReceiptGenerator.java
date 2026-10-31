@@ -37,8 +37,11 @@ public class PdfBoxOrderReceiptGenerator implements OrderReceiptPdfGenerator {
                 page.text("Generado al consultar: " + DATE.format(generatedAt) + " (" + generatedAt.getZone() + ")");
                 page.text("Documento generado con los datos registrados y estados actuales; no es un original inmutable.");
                 page.text("Vendedor: " + text(order.sellerNameSnapshot()));
+                provenance(page, "Asociación del vendedor", order.provenance().sellerSource());
                 page.text("Estado actual del pedido: " + status(order.status()));
                 page.text("Estado financiero actual: " + payment(order.paymentStatus()));
+                if (order.provenance().financialUpdateVerified()) page.text("Actualización financiera respaldada por una confirmación externa registrada.");
+                else provenance(page, "Estado financiero", order.provenance().currentPaymentSource(order.paymentStatus()));
                 if (order.transactionId() != null && !order.transactionId().isBlank()) page.text("Transacción: " + order.transactionId());
                 page.text(" ");
                 page.text("Productos comprados");
@@ -57,7 +60,9 @@ public class PdfBoxOrderReceiptGenerator implements OrderReceiptPdfGenerator {
                 page.text("Costo del envío: " + money(order.shippingCost()));
                 page.text("Total original de la compra: " + money(order.total()));
                 page.text(" ");
-                page.text("Dirección de entrega utilizada");
+                page.text(order.provenance().deliverySource() == OrderProvenance.Source.CAPTURED_AT_PURCHASE
+                        ? "Dirección de entrega utilizada" : "Dirección de entrega registrada");
+                provenance(page, "Dirección de entrega", order.provenance().deliverySource());
                 DeliverySnapshot d = order.delivery();
                 if (d == null) page.text(UNKNOWN);
                 else {
@@ -75,6 +80,11 @@ public class PdfBoxOrderReceiptGenerator implements OrderReceiptPdfGenerator {
         } catch (IOException exception) {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "No se pudo generar el comprobante", exception);
         }
+    }
+
+    private static void provenance(Pages page, String field, OrderProvenance.Source source) throws IOException {
+        if (source == OrderProvenance.Source.UNKNOWN) page.text(field + ": procedencia histórica no verificada; el valor registrado no demuestra el dato original de la compra.");
+        if (source == OrderProvenance.Source.MIGRATED) page.text(field + ": dato incorporado por migración; no fue capturado originalmente al comprar.");
     }
 
     private static String text(String value) { return value == null || value.isBlank() ? UNKNOWN : value; }

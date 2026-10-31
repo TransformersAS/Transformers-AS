@@ -70,7 +70,16 @@ export interface SeguimientoReembolso {
   updatedAt: string | null;
   confirmedAt: string | null;
 }
+export type ProcedenciaHistorica = 'CAPTURED_AT_PURCHASE' | 'MIGRATED' | 'UNKNOWN';
+export interface ProcedenciaPedido {
+  deliverySource: ProcedenciaHistorica;
+  sellerSource: ProcedenciaHistorica;
+  paymentSource: ProcedenciaHistorica;
+  paymentStatusAtCapture: EstadoPagoPedido | null;
+  financialUpdateVerified: boolean;
+}
 export interface DetallePedido extends Pedido {
+  provenance?: ProcedenciaPedido;
   refunds: SeguimientoReembolso[];
   history: CambioEstadoPedido[];
   delivery: DireccionHistoricaPedido | null;

@@ -52,9 +52,16 @@
         <button type="button" (click)="cerrarComprobante()">Cerrar comprobante</button>
       </section>
       <p>Vendedor: {{ pedido.sellerNameSnapshot ?? historicoNoDisponible }}</p>
+      <p *ngIf="!pedido.provenance || pedido.provenance.sellerSource === 'UNKNOWN'">Asociación del vendedor: procedencia histórica no verificada.</p>
+      <p *ngIf="pedido.provenance?.sellerSource === 'MIGRATED'">Asociación del vendedor incorporada por migración; no capturada originalmente al comprar.</p>
       <p>Descuento aplicado: {{ pedido.discountAmount == null ? historicoNoDisponible : (pedido.discountAmount | number:'1.2-2') }}</p>
       <p>Costo del envío: {{ pedido.shippingCost == null ? historicoNoDisponible : (pedido.shippingCost | number:'1.2-2') }}</p>
       <p>Estado del pago: {{ pedido.paymentStatus ? etiquetasPago[pedido.paymentStatus] : historicoNoDisponible }}</p>
+      <p *ngIf="pedido.provenance?.financialUpdateVerified">Actualización financiera respaldada por una confirmación externa registrada.</p>
+      <ng-container *ngIf="!pedido.provenance?.financialUpdateVerified">
+        <p *ngIf="!pedido.provenance || pedido.provenance.paymentSource === 'UNKNOWN' || pedido.paymentStatus !== pedido.provenance.paymentStatusAtCapture">Estado financiero: procedencia histórica no verificada. El estado registrado no demuestra por sí solo una acreditación externa.</p>
+        <p *ngIf="pedido.provenance?.paymentSource === 'MIGRATED' && pedido.paymentStatus === pedido.provenance?.paymentStatusAtCapture">Estado financiero incorporado por migración; no representa una verificación externa del pago.</p>
+      </ng-container>
       <section aria-labelledby="titulo-seguimiento-reembolsos">
         <h3 id="titulo-seguimiento-reembolsos">Seguimiento de devoluciones</h3>
         <button type="button" [disabled]="ocupada || cargandoHistorial" (click)="actualizarHistorial()">Actualizar devoluciones</button>
@@ -73,7 +80,9 @@
           </li>
         </ul>
       </section>
-      <h3>Dirección de entrega</h3>
+      <h3>{{ pedido.provenance?.deliverySource === 'CAPTURED_AT_PURCHASE' ? 'Dirección de entrega utilizada' : 'Dirección de entrega registrada' }}</h3>
+      <p *ngIf="!pedido.provenance || pedido.provenance.deliverySource === 'UNKNOWN'">Dirección de procedencia histórica no verificada; no puede confirmarse que sea la utilizada originalmente al comprar.</p>
+      <p *ngIf="pedido.provenance?.deliverySource === 'MIGRATED'">Dirección incorporada por migración desde los datos disponibles entonces; no capturada originalmente al comprar.</p>
       <ng-container *ngIf="pedido.delivery as direccion; else sinDireccionHistorica">
         <p>Destinatario: {{ direccion.recipientName ?? historicoNoDisponible }}</p>
         <p>Dirección: {{ direccion.street ?? historicoNoDisponible }}</p>

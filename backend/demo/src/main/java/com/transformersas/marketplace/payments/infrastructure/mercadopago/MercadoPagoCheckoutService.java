@@ -62,7 +62,7 @@ public class MercadoPagoCheckoutService {
     public record Purchase(Long addressId, String shippingMethod, String couponCode) { }
     public record Snapshot(Long storeId, Long addressId, String shippingMethod, String couponCode, DeliverySnapshot delivery,
                            List<OrderItem> items, List<Long> reservationIds, Map<Long, Integer> cartQuantities,
-                           BigDecimal discountAmount, BigDecimal shippingCost, String sellerNameSnapshot) { }
+                           BigDecimal discountAmount, BigDecimal shippingCost, String sellerNameSnapshot, OrderProvenance provenance) { }
     public record CheckoutStatus(String id, String status, String checkoutUrl, Long orderId, BigDecimal total, LocalDateTime cancelledAt, String financialStatus) { }
     private record Attempt(String id, Long accountId, Snapshot snapshot, BigDecimal total, String status,
                            String url, String paymentId, Long orderId, LocalDateTime expiresAt, LocalDateTime cancelledAt) {
@@ -118,7 +118,8 @@ public class MercadoPagoCheckoutService {
         var snapshot = new Snapshot(storeId, address.getId(), request.shippingMethod(), request.couponCode(),
                 new DeliverySnapshot(address.getRecipientName(), address.getStreet(), address.getCity(),
                         address.getDepartment(), address.getPostalCode(), address.getPhone()),
-                lines, held.stream().map(r -> r.id()).toList(), quantities, preview.discount(), preview.shippingCost(), sellerName);
+                lines, held.stream().map(r -> r.id()).toList(), quantities, preview.discount(), preview.shippingCost(), sellerName, new OrderProvenance(OrderProvenance.Source.CAPTURED_AT_PURCHASE,
+                        OrderProvenance.Source.CAPTURED_AT_PURCHASE, OrderProvenance.Source.UNKNOWN, null, false));
         String id = UUID.randomUUID().toString();
         LocalDateTime expiry = held.stream().map(r -> r.expiresAt()).min(LocalDateTime::compareTo).orElseThrow();
         jdbc.update("""
@@ -275,7 +276,11 @@ public class MercadoPagoCheckoutService {
             var order = orders.save(new Order(null, attempt.accountId, OrderStatus.CONFIRMED,
                     OrderPaymentStatus.APPROVED, attempt.total, snapshot.storeId(), snapshot.addressId(),
                     snapshot.shippingMethod(), snapshot.delivery(), "MP-" + paymentId, now, snapshot.items(),
-                    snapshot.discountAmount(), snapshot.shippingCost(), snapshot.sellerNameSnapshot()));
+                    snapshot.discountAmount(), snapshot.shippingCost(), snapshot.sellerNameSnapshot(),
+                    new OrderProvenance(
+                        snapshot.provenance() == null ? OrderProvenance.Source.UNKNOWN : snapshot.provenance().deliverySource(),
+                        snapshot.provenance() == null ? OrderProvenance.Source.UNKNOWN : snapshot.provenance().sellerSource(),
+                        OrderProvenance.Source.CAPTURED_AT_PURCHASE, OrderPaymentStatus.APPROVED, false)));
             notices.purchased(order);
             history.append(new OrderStatusHistoryEntry(null, order.id(), null, OrderStatus.CONFIRMED,
                     ActorType.SYSTEM, null, "Pago de pruebas verificado con Mercado Pago", CorrelationContext.current(), now));
