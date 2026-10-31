@@ -7,6 +7,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 import java.util.List;
+import com.transformersas.marketplace.orders.domain.model.BuyerOrderFilters;
 
 @Service
 public class FindOwnOrders {
@@ -16,6 +17,12 @@ public class FindOwnOrders {
 
     public List<Order> list(AccountPrincipal principal) {
         return orders.findByAccountId(accountId(principal));
+    }
+
+    public List<Order> list(AccountPrincipal principal, String from, String to, String status) {
+        Long accountId = accountId(principal);
+        BuyerOrderFilters filters = BuyerOrderFilters.parse(from, to, status);
+        return orders.findByAccountId(accountId, filters);
     }
 
     public Order detail(Long id, AccountPrincipal principal) {

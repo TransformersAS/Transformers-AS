@@ -38,6 +38,15 @@ public class OrderEntity {
     @Column(nullable = false, precision = 19, scale = 2)
     private BigDecimal total;
 
+    @Column(name = "discount_amount", precision = 19, scale = 2, updatable = false)
+    private BigDecimal discountAmount;
+
+    @Column(name = "shipping_cost", precision = 19, scale = 2, updatable = false)
+    private BigDecimal shippingCost;
+
+    @Column(name = "seller_name_snapshot", length = 255, updatable = false)
+    private String sellerNameSnapshot;
+
     @Column(name = "store_id", nullable = false, updatable = false)
     private Long storeId;
 
@@ -89,6 +98,15 @@ public class OrderEntity {
 
     public BigDecimal getTotal() { return total; }
     public void setTotal(BigDecimal total) { this.total = total; }
+
+    public BigDecimal getDiscountAmount() { return discountAmount; }
+    public void setDiscountAmount(BigDecimal value) { this.discountAmount = value; }
+
+    public BigDecimal getShippingCost() { return shippingCost; }
+    public void setShippingCost(BigDecimal value) { this.shippingCost = value; }
+
+    public String getSellerNameSnapshot() { return sellerNameSnapshot; }
+    public void setSellerNameSnapshot(String value) { this.sellerNameSnapshot = value; }
 
     public Long getStoreId() { return storeId; }
     public void setStoreId(Long storeId) { this.storeId = storeId; }

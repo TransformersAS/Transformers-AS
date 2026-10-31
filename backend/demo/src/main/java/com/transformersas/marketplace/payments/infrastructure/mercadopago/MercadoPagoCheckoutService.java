@@ -1,5 +1,6 @@
 package com.transformersas.marketplace.payments.infrastructure.mercadopago;
 
+import com.transformersas.marketplace.stores.domain.repository.StoreRepository;
 import com.transformersas.marketplace.address.AddressRepository;
 import com.transformersas.marketplace.cart.*;
 import com.transformersas.marketplace.checkout.CheckoutService;
@@ -37,21 +38,23 @@ public class MercadoPagoCheckoutService {
     private final ProductRepository products;
     private final OrderRepository orders;
     private final OrderStatusHistoryRepository history;
+    private final StoreRepository stores;
 
     public MercadoPagoCheckoutService(JdbcTemplate jdbc, ObjectMapper json, MercadoPagoClient provider,
             CheckoutService checkout, CartRepository carts, CartItemRepository cartItems,
             AddressRepository addresses, InventoryReservationService reservations,
             InventoryReservationRepository reservationRows, ProductRepository products,
-            OrderRepository orders, OrderStatusHistoryRepository history) {
+            OrderRepository orders, OrderStatusHistoryRepository history, StoreRepository stores) {
         this.jdbc = jdbc; this.json = json; this.provider = provider; this.checkout = checkout;
         this.carts = carts; this.cartItems = cartItems; this.addresses = addresses;
         this.reservations = reservations; this.reservationRows = reservationRows;
-        this.products = products; this.orders = orders; this.history = history;
+        this.products = products; this.orders = orders; this.history = history; this.stores = stores;
     }
 
     public record Purchase(Long addressId, String shippingMethod, String couponCode) { }
     public record Snapshot(Long storeId, Long addressId, String shippingMethod, String couponCode, DeliverySnapshot delivery,
-                           List<OrderItem> items, List<Long> reservationIds, Map<Long, Integer> cartQuantities) { }
+                           List<OrderItem> items, List<Long> reservationIds, Map<Long, Integer> cartQuantities,
+                           BigDecimal discountAmount, BigDecimal shippingCost, String sellerNameSnapshot) { }
     public record CheckoutStatus(String id, String status, String checkoutUrl, Long orderId, BigDecimal total) { }
     private record Attempt(String id, Long accountId, Snapshot snapshot, BigDecimal total, String status,
                            String url, String paymentId, Long orderId, LocalDateTime expiresAt) {
@@ -87,11 +90,11 @@ public class MercadoPagoCheckoutService {
                 request.addressId(), request.shippingMethod(), request.couponCode()));
         var items = cartItems.findByCartId(cart.getId());
         if (items.isEmpty()) throw new ResponseStatusException(BAD_REQUEST, "El carrito está vacío");
-        Set<Long> stores = new HashSet<>();
-        items.forEach(item -> stores.add(item.getProduct().getStoreId()));
-        if (stores.size() != 1 || stores.contains(null))
+        Set<Long> storeIds = new HashSet<>();
+        items.forEach(item -> storeIds.add(item.getProduct().getStoreId()));
+        if (storeIds.size() != 1 || storeIds.contains(null))
             throw new ResponseStatusException(CONFLICT, "Compra productos de una sola tienda por operación");
-        Long storeId = stores.iterator().next();
+        Long storeId = storeIds.iterator().next();
         items.stream().map(item -> item.getProduct().getId()).sorted().forEach(id ->
                 products.findForUpdate(id, storeId).orElseThrow(() -> new ResponseStatusException(CONFLICT)));
         var held = reservations.reserveCart(accountId);
@@ -102,10 +105,12 @@ public class MercadoPagoCheckoutService {
                 item.getProduct().getPrice().multiply(BigDecimal.valueOf(item.getQuantity())))).toList();
         Map<Long, Integer> quantities = new HashMap<>();
         items.forEach(item -> quantities.put(item.getId(), item.getQuantity()));
+        String sellerName = stores.findById(storeId).orElseThrow(() ->
+                new ResponseStatusException(NOT_FOUND, "La tienda no existe")).profile().name();
         var snapshot = new Snapshot(storeId, address.getId(), request.shippingMethod(), request.couponCode(),
                 new DeliverySnapshot(address.getRecipientName(), address.getStreet(), address.getCity(),
                         address.getDepartment(), address.getPostalCode(), address.getPhone()),
-                lines, held.stream().map(r -> r.id()).toList(), quantities);
+                lines, held.stream().map(r -> r.id()).toList(), quantities, preview.discount(), preview.shippingCost(), sellerName);
         String id = UUID.randomUUID().toString();
         LocalDateTime expiry = held.stream().map(r -> r.expiresAt()).min(LocalDateTime::compareTo).orElseThrow();
         jdbc.update("""
@@ -153,7 +158,8 @@ public class MercadoPagoCheckoutService {
             LocalDateTime now = LocalDateTime.now();
             var order = orders.save(new Order(null, attempt.accountId, OrderStatus.CONFIRMED,
                     OrderPaymentStatus.APPROVED, attempt.total, snapshot.storeId(), snapshot.addressId(),
-                    snapshot.shippingMethod(), snapshot.delivery(), "MP-" + paymentId, now, snapshot.items()));
+                    snapshot.shippingMethod(), snapshot.delivery(), "MP-" + paymentId, now, snapshot.items(),
+                    snapshot.discountAmount(), snapshot.shippingCost(), snapshot.sellerNameSnapshot()));
             history.append(new OrderStatusHistoryEntry(null, order.id(), null, OrderStatus.CONFIRMED,
                     ActorType.SYSTEM, null, "Pago de pruebas verificado con Mercado Pago", CorrelationContext.current(), now));
             // Preserve any items edited/added while the buyer was at the hosted checkout.

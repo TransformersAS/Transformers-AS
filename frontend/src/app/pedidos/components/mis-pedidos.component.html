@@ -8,8 +8,26 @@
     <p *ngIf="error" class="error" role="alert">{{ error }}</p>
     <p *ngIf="exito" class="exito" role="status">{{ exito }}</p>
     <ng-container *ngIf="!detalle">
+      <form (ngSubmit)="aplicarFiltros(!fechaInicial.validity.valid || !fechaFinal.validity.valid)">
+        <label for="pedidos-desde">Fecha inicial</label>
+        <input #fechaInicial id="pedidos-desde" name="desde" type="date" min="1000-01-01" max="9999-12-31"
+          [(ngModel)]="desde" [disabled]="ocupada">
+        <label for="pedidos-hasta">Fecha final</label>
+        <input #fechaFinal id="pedidos-hasta" name="hasta" type="date" min="1000-01-01" max="9999-12-31"
+          [(ngModel)]="hasta" [disabled]="ocupada">
+        <label for="pedidos-estado">Estado del pedido</label>
+        <select id="pedidos-estado" name="estadoFiltro" [(ngModel)]="estadoFiltro" [disabled]="ocupada">
+          <option value="">Todos los estados</option>
+          <option *ngFor="let estado of estados" [value]="estado.codigo">{{ estado.etiqueta }}</option>
+        </select>
+        <button type="submit" [disabled]="ocupada">Aplicar filtros</button>
+        <button type="button" [disabled]="ocupada" (click)="limpiarFiltros()">Limpiar filtros</button>
+      </form>
+      <p *ngIf="errorFiltros" class="error" role="alert">{{ errorFiltros }}</p>
       <button type="button" [disabled]="ocupada" (click)="cargarLista()">Actualizar pedidos</button>
-      <p *ngIf="!cargando && !error && pedidos.length === 0">Todavía no tienes pedidos.</p>
+      <p *ngIf="listaCargada && !cargando && !error && pedidos.length === 0">
+        {{ hayFiltrosActivos ? 'No hay pedidos que coincidan con los filtros seleccionados.' : 'Todavía no tienes pedidos.' }}
+      </p>
       <ul *ngIf="!cargando">
         <li *ngFor="let pedido of pedidos">
           <app-resumen-pedido [pedido]="pedido"></app-resumen-pedido>
@@ -22,7 +40,19 @@
     <ng-container *ngIf="detalle as pedido">
       <button type="button" [disabled]="ocupada" (click)="cargarLista()">Volver a mis pedidos</button>
       <app-resumen-pedido [pedido]="pedido"></app-resumen-pedido>
-      <p *ngIf="pedido.addressId !== null">Dirección de envío registrada #{{ pedido.addressId }}</p>
+      <p>Vendedor: {{ pedido.sellerNameSnapshot ?? historicoNoDisponible }}</p>
+      <p>Descuento aplicado: {{ pedido.discountAmount == null ? historicoNoDisponible : (pedido.discountAmount | number:'1.2-2') }}</p>
+      <p>Costo del envío: {{ pedido.shippingCost == null ? historicoNoDisponible : (pedido.shippingCost | number:'1.2-2') }}</p>
+      <p>Estado del pago: {{ pedido.paymentStatus ? etiquetasPago[pedido.paymentStatus] : historicoNoDisponible }}</p>
+      <h3>Dirección de entrega</h3>
+      <ng-container *ngIf="pedido.delivery as direccion; else sinDireccionHistorica">
+        <p>Destinatario: {{ direccion.recipientName ?? historicoNoDisponible }}</p>
+        <p>Dirección: {{ direccion.street ?? historicoNoDisponible }}</p>
+        <p>Ciudad: {{ direccion.city ?? historicoNoDisponible }} · Departamento: {{ direccion.department ?? historicoNoDisponible }}</p>
+        <p>Código postal: {{ direccion.postalCode ?? historicoNoDisponible }}</p>
+        <p>Teléfono: {{ direccion.phone ?? historicoNoDisponible }}</p>
+      </ng-container>
+      <ng-template #sinDireccionHistorica><p>{{ historicoNoDisponible }}</p></ng-template>
       <p *ngIf="pedido.transactionId">Transacción: {{ pedido.transactionId }}</p>
       <h3>Productos</h3>
       <ul>
@@ -34,6 +64,23 @@
             [entregado]="pedido.status === 'DELIVERED'"></app-devolver-linea>
         </li>
       </ul>
+      <section aria-labelledby="titulo-historial-pedido">
+        <h3 id="titulo-historial-pedido">Historial del pedido</h3>
+        <p *ngIf="cargandoHistorial" role="status">Actualizando historial…</p>
+        <p *ngIf="errorHistorial" class="error" role="alert">{{ errorHistorial }}</p>
+        <button *ngIf="errorHistorial" type="button" [disabled]="cargandoHistorial" (click)="actualizarHistorial()">Actualizar historial</button>
+        <p *ngIf="!pedido.history?.length && !cargandoHistorial && !errorHistorial">No hay historial registrado</p>
+        <ol>
+          <li *ngFor="let cambio of pedido.history">
+            <p>Estado anterior: {{ cambio.fromStatus ? etiquetasEstado[cambio.fromStatus] : 'Sin estado anterior registrado' }}</p>
+            <p>Estado nuevo: {{ etiquetasEstado[cambio.toStatus] }}</p>
+            <p *ngIf="cambio.legacy; else fechaHistorial">Estado incorporado desde datos anteriores; fecha del cambio no disponible</p>
+            <ng-template #fechaHistorial>
+              <p>Fecha registrada: {{ cambio.createdAt | date:'dd/MM/yyyy HH:mm:ss' }}</p>
+            </ng-template>
+          </li>
+        </ol>
+      </section>
       <app-seguimiento-logistico *ngIf="conSeguimiento(pedido.status)" tipo="pedido" rol="comprador"
         [id]="pedido.id" (estadoCambio)="estadoActualizado($event)"></app-seguimiento-logistico>
       <p *ngIf="pedido.status === 'CANCELLATION_REQUESTED'">La cancelación de este pedido ya fue solicitada.</p>

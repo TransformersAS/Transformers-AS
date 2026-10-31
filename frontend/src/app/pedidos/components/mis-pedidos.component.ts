@@ -5,7 +5,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Subscription, finalize } from 'rxjs';
 import { AuthService } from '../../core/services/auth.service';
 import { PedidosService } from '../services/pedidos.service';
-import { DetallePedido, EstadoPedido, MotivoCancelacion, Pedido } from '../models/pedido.model';
+import { DetallePedido, EstadoPedido, MotivoCancelacion, Pedido, ETIQUETA_ESTADO_PAGO, ETIQUETA_ESTADO_PEDIDO, FiltrosPedidos } from '../models/pedido.model';
 import { ResumenPedidoComponent } from './resumen-pedido.component';
 import { SeguimientoLogisticoComponent } from '../../seguimiento/components/seguimiento-logistico.component';
 import { ConsultaDevolucionComponent } from '../../seguimiento/components/consulta-devolucion.component';
@@ -24,6 +24,20 @@ export class MisPedidosComponent {
   readonly auth = inject(AuthService);
   private readonly servicio = inject(PedidosService);
   private peticiones = new Subscription();
+  readonly etiquetasEstado = ETIQUETA_ESTADO_PEDIDO;
+  readonly etiquetasPago = ETIQUETA_ESTADO_PAGO;
+  readonly historicoNoDisponible = 'Información histórica no disponible';
+  readonly estados = Object.entries(ETIQUETA_ESTADO_PEDIDO).map(([codigo, etiqueta]) => ({ codigo, etiqueta }));
+  desde = '';
+  hasta = '';
+  estadoFiltro: EstadoPedido | '' = '';
+  filtrosActivos: FiltrosPedidos = {};
+  errorFiltros = '';
+  listaCargada = false;
+  private consultaLista?: Subscription;
+  private consultaHistorial?: Subscription;
+  cargandoHistorial = false;
+  errorHistorial = '';
   pedidos: Pedido[] = [];
   detalle: DetallePedido | null = null;
   cargando = false;
@@ -57,7 +71,14 @@ export class MisPedidosComponent {
   constructor() {
     effect(onCleanup => {
       const cuenta = this.auth.cuenta();
+      this.peticiones.unsubscribe();
       this.peticiones = new Subscription();
+      this.cargando = this.cancelando = this.cargandoHistorial = false;
+      this.errorHistorial = '';
+      this.desde = this.hasta = this.estadoFiltro = '';
+      this.filtrosActivos = {};
+      this.errorFiltros = '';
+      this.listaCargada = false;
       this.pedidos = [];
       this.detalle = null;
       this.error = this.exito = '';
@@ -72,20 +93,71 @@ export class MisPedidosComponent {
 
   cargarLista(): void {
     if (this.ocupada || this.auth.cuenta()?.activeRole !== 'COMPRADOR') return;
+    this.consultaHistorial?.unsubscribe();
+    this.errorHistorial = '';
     this.detalle = null;
     this.confirmar = false;
     this.error = this.exito = '';
+    this.refrescarListado();
+  }
+
+  get hayFiltrosActivos(): boolean {
+    return !!(this.filtrosActivos.from || this.filtrosActivos.to || this.filtrosActivos.status);
+  }
+
+  aplicarFiltros(fechaInvalida = false): void {
+    if (this.ocupada || this.auth.cuenta()?.activeRole !== 'COMPRADOR') return;
+    this.errorFiltros = '';
+    if (fechaInvalida || !this.fechaValida(this.desde) || !this.fechaValida(this.hasta)) {
+      this.errorFiltros = 'Introduce fechas válidas entre los años 1000 y 9999.';
+      return;
+    }
+    if (this.desde && this.hasta && this.desde > this.hasta) {
+      this.errorFiltros = 'La fecha inicial no puede ser posterior a la final.';
+      return;
+    }
+    this.filtrosActivos = {
+      ...(this.desde ? { from: this.desde } : {}),
+      ...(this.hasta ? { to: this.hasta } : {}),
+      ...(this.estadoFiltro ? { status: this.estadoFiltro } : {})
+    };
+    this.cargarLista();
+  }
+
+  limpiarFiltros(): void {
+    if (this.ocupada || this.auth.cuenta()?.activeRole !== 'COMPRADOR') return;
+    this.desde = this.hasta = this.estadoFiltro = '';
+    this.errorFiltros = '';
+    this.filtrosActivos = {};
+    this.cargarLista();
+  }
+
+  private fechaValida(value: string): boolean {
+    if (!value) return true;
+    if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(value) || value.slice(0, 4) < '1000') return false;
+    const date = new Date(value + 'T00:00:00Z');
+    return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+  }
+
+  /** Recarga desde el servidor sin cerrar el detalle ni cambiar los filtros aplicados. */
+  private refrescarListado(): void {
+    this.consultaLista?.unsubscribe();
     this.cargando = true;
-    this.peticiones.add(this.servicio.listarMisPedidos().pipe(
+    this.listaCargada = false;
+    this.pedidos = [];
+    this.consultaLista = this.servicio.listarMisPedidos({ ...this.filtrosActivos }).pipe(
       finalize(() => this.cargando = false)
     ).subscribe({
-      next: pedidos => this.pedidos = pedidos,
+      next: pedidos => { this.pedidos = pedidos; this.listaCargada = true; },
       error: error => this.error = this.mensaje(error)
-    }));
+    });
+    this.peticiones.add(this.consultaLista);
   }
 
   verDetalle(id: number, conservarError = false): void {
     if (this.ocupada || this.auth.cuenta()?.activeRole !== 'COMPRADOR') return;
+    this.consultaHistorial?.unsubscribe();
+    this.errorHistorial = '';
     this.detalle = null;
     this.confirmar = this.conflicto = false;
     if (!conservarError) this.error = this.exito = '';
@@ -111,11 +183,13 @@ export class MisPedidosComponent {
       finalize(() => this.cancelando = false)
     ).subscribe({
       next: resultado => {
-        this.detalle = { ...pedido, status: resultado.status };
+        this.detalle = { ...pedido, status: resultado.status, paymentStatus: resultado.paymentStatus };
         this.pedidos = this.pedidos.map(p => p.id === pedido.id
           ? { ...p, status: resultado.status } : p);
         this.confirmar = false;
         this.exito = 'Pedido cancelado. ' + resultado.refund.message;
+        this.refrescarListado();
+        this.actualizarHistorial();
       },
       error: (error: HttpErrorResponse) => {
         this.confirmar = false;
@@ -138,11 +212,31 @@ export class MisPedidosComponent {
     if (!pedido) return;
     const nuevo = estado as EstadoPedido;
     this.detalle = { ...pedido, status: nuevo };
-    this.pedidos = this.pedidos.map(p => p.id === pedido.id ? { ...p, status: nuevo } : p);
+    this.refrescarListado();
+    this.actualizarHistorial();
+  }
+
+  /** El historial siempre procede del backend; cancelar no crea eventos en el navegador. */
+  actualizarHistorial(): void {
+    const id = this.detalle?.id;
+    if (!id || this.auth.cuenta()?.activeRole !== 'COMPRADOR') return;
+    this.consultaHistorial?.unsubscribe();
+    this.cargandoHistorial = true;
+    this.errorHistorial = '';
+    this.consultaHistorial = this.servicio.obtenerPedido(id).pipe(
+      finalize(() => this.cargandoHistorial = false)
+    ).subscribe({
+      next: detalle => {
+        if (this.detalle?.id === id) this.detalle = { ...this.detalle, history: detalle.history };
+      },
+      error: () => this.errorHistorial = 'No se pudo actualizar el historial. Inténtalo de nuevo.'
+    });
+    this.peticiones.add(this.consultaHistorial);
   }
 
   private mensaje(error: HttpErrorResponse): string {
     switch (error.status) {
+      case 400: return error.error?.message || 'Los filtros del pedido no son válidos.';
       case 401: return 'La sesión ha finalizado. Inicia sesión de nuevo.';
       case 403: return 'No tienes permiso para esta operación. Comprueba tu rol activo.';
       case 404: return 'Pedido no disponible o no encontrado.';

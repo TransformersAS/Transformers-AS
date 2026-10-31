@@ -18,6 +18,11 @@ export const ETIQUETA_ESTADO_PEDIDO: Record<EstadoPedido, string> = {
   CANCELLED: 'Cancelado',
   CANCELLATION_REQUESTED: 'Cancelación solicitada'
 };
+export interface FiltrosPedidos {
+  from?: string;
+  to?: string;
+  status?: EstadoPedido;
+}
 export interface Pedido {
   id: number;
   status: EstadoPedido;
@@ -32,7 +37,35 @@ export interface ItemPedido {
   unitPrice: number;
   subtotal: number;
 }
+export type EstadoPagoPedido = 'APPROVED' | 'REFUND_PENDING' | 'REFUNDED';
+export const ETIQUETA_ESTADO_PAGO: Record<EstadoPagoPedido, string> = {
+  APPROVED: 'Aprobado',
+  REFUND_PENDING: 'Reembolso pendiente',
+  REFUNDED: 'Reembolsado'
+};
+export interface DireccionHistoricaPedido {
+  recipientName: string | null;
+  street: string | null;
+  city: string | null;
+  department: string | null;
+  postalCode: string | null;
+  phone: string | null;
+}
+export interface CambioEstadoPedido {
+  fromStatus: EstadoPedido | null;
+  toStatus: EstadoPedido;
+  /** Fecha de registro; desconocida para entradas incorporadas por migración. */
+  createdAt: string | null;
+  legacy: boolean;
+}
 export interface DetallePedido extends Pedido {
+  history: CambioEstadoPedido[];
+  delivery: DireccionHistoricaPedido | null;
+  paymentStatus: EstadoPagoPedido | null;
+  storeId: number | null;
+  discountAmount: number | null;
+  shippingCost: number | null;
+  sellerNameSnapshot: string | null;
   addressId: number | null;
   transactionId: string | null;
   items: ItemPedido[];
@@ -46,6 +79,6 @@ export interface CancelacionPedido {
 export interface ResultadoCancelacion {
   orderId: number;
   status: 'CANCELLED';
-  paymentStatus: 'APPROVED' | 'REFUND_PENDING' | 'REFUNDED';
+  paymentStatus: EstadoPagoPedido;
   refund: { status: 'NOT_APPLICABLE' | 'COMPLETED' | 'PENDING' | 'FAILED'; message: string };
 }
