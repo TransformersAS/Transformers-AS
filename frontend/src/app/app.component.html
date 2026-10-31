@@ -1,18 +1,8 @@
-<ion-app>
+<ion-app [class.compra-abierta]="mostrarCarrito || mostrarCheckout">
 
   <ion-content [fullscreen]="true">
 
-    <section *ngIf="paymentReturnId" class="payment-return" aria-label="Estado del pago">
-      <h2>Estado de tu pago</h2>
-      <p *ngIf="!autenticada">Inicia sesión con la cuenta que realizó la compra para consultar el resultado.</p>
-      <p *ngIf="hostedCheckout?.status === 'APPROVED'">Pago de pruebas aprobado. Tu pedido es el #{{ hostedCheckout?.orderId }}.</p>
-      <p *ngIf="hostedCheckout?.status === 'PENDING'">Tu pago está pendiente. Confirmaremos el pedido cuando Mercado Pago lo apruebe.</p>
-      <p *ngIf="hostedCheckout?.status === 'REJECTED'">El pago fue rechazado o cancelado. No se confirmó el pedido.</p>
-      <p *ngIf="hostedCheckout?.status === 'REVIEW'">Recibimos una actualización que requiere revisión. No vuelvas a pagar esta compra; contacta a soporte.</p>
-      <p *ngIf="compraError" role="alert">{{ compraError }}</p>
-      <button type="button" (click)="revisarPago()" [disabled]="procesandoCompra || !esComprador">{{ procesandoCompra ? 'Consultando...' : 'Consultar estado del pago' }}</button>
-    </section>
-
+    <app-checkout-status></app-checkout-status>
 
     <!-- ===================================================== -->
     <!-- BARRA SUPERIOR -->
@@ -88,7 +78,7 @@
         </button>
 
 
-        <button *ngIf="esComprador" type="button" (click)="mostrarPedidos = true">Mis pedidos</button>
+        <button *ngIf="esComprador" class="acceso-pedidos" type="button" (click)="mostrarPedidos = true">Mis pedidos</button>
 
         <!-- Cuenta -->
         <button
@@ -1615,3 +1605,6 @@
   </section>
 </div>
 </ion-app>
+
+<button *ngIf="esComprador || esVendedor" type="button" class="acceso-notificaciones" (click)="mostrarNotificaciones = true">Notificaciones</button>
+<app-notificaciones *ngIf="(esComprador || esVendedor) && mostrarNotificaciones" (cerrar)="mostrarNotificaciones = false"></app-notificaciones>

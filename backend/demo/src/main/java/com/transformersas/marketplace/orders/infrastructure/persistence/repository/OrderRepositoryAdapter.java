@@ -18,6 +18,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.transformersas.marketplace.orders.domain.model.BuyerOrderFilters;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -94,6 +95,26 @@ public class OrderRepositoryAdapter implements OrderRepository {
     public List<Order> findByAccountId(Long accountId) {
         if (accountId == null) return List.of();
         return repository.findByAccountIdOrderByCreatedAtDescIdDesc(accountId).stream()
+                .map(OrderMapper::toDomain).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Order> findByAccountId(Long accountId, BuyerOrderFilters filters) {
+        if (accountId == null) return List.of();
+        Specification<OrderEntity> spec = (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            predicates.add(cb.equal(root.get("accountId"), accountId));
+            if (filters.status() != null) predicates.add(cb.equal(root.get("status"), filters.status()));
+            if (filters.createdFrom() != null) {
+                predicates.add(cb.greaterThanOrEqualTo(root.get("createdAt"), filters.createdFrom()));
+            }
+            if (filters.createdThrough() != null) {
+                predicates.add(cb.lessThanOrEqualTo(root.get("createdAt"), filters.createdThrough()));
+            }
+            return cb.and(predicates.toArray(Predicate[]::new));
+        };
+        return repository.findAll(spec, Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id"))).stream()
                 .map(OrderMapper::toDomain).toList();
     }
 

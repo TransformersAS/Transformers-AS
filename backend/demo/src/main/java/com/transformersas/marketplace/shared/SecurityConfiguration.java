@@ -93,6 +93,7 @@ public class SecurityConfiguration {
                         .requestMatchers(HttpMethod.GET, "/api/auth/csrf").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/payments/mercadopago/webhook").permitAll()
+                        .requestMatchers("/api/payments/mercadopago/checkouts", "/api/payments/mercadopago/checkouts/**").hasRole("COMPRADOR")
                         .requestMatchers(HttpMethod.POST, "/api/auth/password-recovery/request",
                                 "/api/auth/password-recovery/confirm").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/email-verification/resend",
@@ -108,8 +109,14 @@ public class SecurityConfiguration {
                         .requestMatchers(HttpMethod.GET, "/api/auth/validation/vendedor").hasRole("VENDEDOR")
                         .requestMatchers(HttpMethod.HEAD, "/api/auth/validation/comprador").hasRole("COMPRADOR")
                         .requestMatchers(HttpMethod.HEAD, "/api/auth/validation/vendedor").hasRole("VENDEDOR")
+                        .requestMatchers(HttpMethod.GET, "/api/notifications").hasRole("COMPRADOR")
+                        .requestMatchers(HttpMethod.HEAD, "/api/notifications").hasRole("COMPRADOR")
+                        .requestMatchers(HttpMethod.GET, "/api/seller/notifications").hasRole("VENDEDOR")
+                        .requestMatchers(HttpMethod.HEAD, "/api/seller/notifications").hasRole("VENDEDOR")
                         .requestMatchers(HttpMethod.GET, "/api/orders", "/api/orders/{id}").hasRole("COMPRADOR")
                         .requestMatchers(HttpMethod.HEAD, "/api/orders", "/api/orders/{id}").hasRole("COMPRADOR")
+                        .requestMatchers(HttpMethod.GET, "/api/orders/{id}/receipt").hasRole("COMPRADOR")
+                        .requestMatchers(HttpMethod.HEAD, "/api/orders/{id}/receipt").hasRole("COMPRADOR")
                         .requestMatchers(HttpMethod.POST, "/api/orders/{id}/cancellation").hasRole("COMPRADOR")
                         // Seguimiento logístico (CU-24/CU-25): el comprador consulta lo suyo; la tienda pasa por
                         // /api/seller/**, donde el rol activo VENDEDOR lo comprueba SessionSellerActorProvider.

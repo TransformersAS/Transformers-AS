@@ -1,6 +1,7 @@
 /** Orquestación de los casos de uso de pedidos. */
 package com.transformersas.marketplace.orders.application.usecase;
 
+import com.transformersas.marketplace.stores.domain.repository.StoreRepository;
 import com.transformersas.marketplace.address.Address;
 import com.transformersas.marketplace.address.AddressRepository;
 import com.transformersas.marketplace.cart.Cart;
@@ -39,6 +40,7 @@ import java.util.stream.Collectors;
 @Service
 public class CreateOrderUseCase {
 
+    private final com.transformersas.marketplace.notifications.application.usecase.OrderNotificationPublisher notices;
     private final OrderRepository orderRepository;
     private final OrderStatusHistoryRepository historyRepository;
     private final CartRepository cartRepository;
@@ -46,6 +48,7 @@ public class CreateOrderUseCase {
     private final AddressRepository addressRepository;
     private final UserAccountRepository accounts;
     private final InteractionService interactionService;
+    private final StoreRepository stores;
 
     public CreateOrderUseCase(
             OrderRepository orderRepository,
@@ -54,7 +57,9 @@ public class CreateOrderUseCase {
             CartItemRepository cartItemRepository,
             AddressRepository addressRepository,
             UserAccountRepository accounts,
-            InteractionService interactionService
+            InteractionService interactionService,
+            StoreRepository stores,
+            com.transformersas.marketplace.notifications.application.usecase.OrderNotificationPublisher notices
     ) {
         this.orderRepository = orderRepository;
         this.historyRepository = historyRepository;
@@ -63,6 +68,15 @@ public class CreateOrderUseCase {
         this.addressRepository = addressRepository;
         this.accounts = accounts;
         this.interactionService = interactionService;
+        this.stores = stores;
+        this.notices = notices;
+    }
+
+    /** Llamadas sin desglose conservan los importes como desconocidos. */
+    @Transactional
+    public OrderConfirmation execute(Long accountId, Long addressId, String shippingMethod,
+                                     String transactionId, BigDecimal total) {
+        return execute(accountId, addressId, shippingMethod, transactionId, total, null, null);
     }
 
     @Transactional
@@ -71,7 +85,9 @@ public class CreateOrderUseCase {
             Long addressId,
             String shippingMethod,
             String transactionId,
-            BigDecimal total
+            BigDecimal total,
+            BigDecimal discountAmount,
+            BigDecimal shippingCost
     ) {
         if (accountId == null || accountId <= 0 || accounts.findById(accountId).isEmpty()) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Se requiere un comprador válido");
@@ -88,6 +104,8 @@ public class CreateOrderUseCase {
 
         Long storeId = resolveStore(cartItems);
         DeliverySnapshot delivery = snapshotOf(accountId, addressId);
+        String sellerName = stores.findById(storeId).orElseThrow(() ->
+                BusinessException.notFound("STORE_NOT_FOUND", "La tienda no existe")).profile().name();
 
         List<OrderItem> orderItems = cartItems.stream()
                 .map(item -> {
@@ -107,9 +125,11 @@ public class CreateOrderUseCase {
 
         // El checkout solo llega aquí con el pago aprobado (D4); el comprador es la cuenta autenticada.
         Order order = new Order(null, accountId, OrderStatus.CONFIRMED, OrderPaymentStatus.APPROVED, total, storeId,
-                addressId, shippingMethod, delivery, transactionId, now, orderItems);
+                addressId, shippingMethod, delivery, transactionId, now, orderItems, discountAmount, shippingCost, sellerName,
+                com.transformersas.marketplace.orders.domain.model.OrderProvenance.captured());
 
         Order saved = orderRepository.save(order);
+        notices.purchased(saved);
 
         historyRepository.append(new OrderStatusHistoryEntry(null, saved.id(), null, OrderStatus.CONFIRMED,
                 ActorType.BUYER, accountId, "Compra confirmada", CorrelationContext.current(), now));

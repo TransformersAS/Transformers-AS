@@ -22,9 +22,13 @@ public final class OrderMapper {
     public static OrderEntity newEntity(Order order) {
         OrderEntity entity = new OrderEntity();
         entity.setAccountId(order.accountId());
+        entity.provenance(order.provenance());
         entity.setStatus(order.status());
         entity.setPaymentStatus(order.paymentStatus());
         entity.setTotal(order.total());
+        entity.setDiscountAmount(order.discountAmount());
+        entity.setShippingCost(order.shippingCost());
+        entity.setSellerNameSnapshot(order.sellerNameSnapshot());
         entity.setStoreId(order.storeId());
         entity.setAddressId(order.addressId());
         entity.setShippingMethod(order.shippingMethod());
@@ -67,6 +71,7 @@ public final class OrderMapper {
 
         return new Order(entity.getId(), entity.getAccountId(), entity.getStatus(), entity.getPaymentStatus(),
                 entity.getTotal(), entity.getStoreId(), entity.getAddressId(), entity.getShippingMethod(),
-                delivery, entity.getTransactionId(), entity.getCreatedAt(), items);
+                delivery, entity.getTransactionId(), entity.getCreatedAt(), items, entity.getDiscountAmount(),
+                entity.getShippingCost(), entity.getSellerNameSnapshot(), entity.provenance());
     }
 }

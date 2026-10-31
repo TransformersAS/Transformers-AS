@@ -1,3 +1,5 @@
+import { CheckoutStatusComponent } from './checkout/components/checkout-status.component';
+import { NotificacionesComponent } from './notificaciones/notificaciones.component';
 import {
   Component,
   inject, effect
@@ -98,7 +100,7 @@ import {
 } from './checkout/models/checkout.model';
 
 import {
-  PaymentResponse, HostedCheckout
+  PaymentResponse
 } from './checkout/models/payment.model';
 
 import {
@@ -115,7 +117,7 @@ import {
   standalone: true,
 
   imports: [
-    IonApp,
+    CheckoutStatusComponent, IonApp,
     IonContent,
     IonIcon,
     AsyncPipe,
@@ -124,7 +126,7 @@ import {
     NgIf,
     FormsModule,
     AccesoComponent,
-    MisPedidosComponent,
+    MisPedidosComponent, NotificacionesComponent,
     ColaSoporteComponent,
     PedidosRecibidosComponent,
     CatalogoAdminComponent,
@@ -335,17 +337,14 @@ export class AppComponent {
   // PAGO
   // =========================================================
 
-  readonly paymentReturnId = new URLSearchParams(window.location.search).get('checkout');
-  private readonly returnedPaymentId = new URLSearchParams(window.location.search).get('payment_id');
-  hostedCheckout: HostedCheckout | null = null;
-  private returnAccountId: number | null = null;
-
   procesandoCompra = false;
 
   compraResultado:
     PaymentResponse | null = null;
 
   compraError = '';
+  private cuentaErrorCompra: number | null = null;
+  private revisionCompra = 0;
 
 
   // =========================================================
@@ -357,6 +356,7 @@ export class AppComponent {
   mostrarModeracion = false;
 
   mostrarPedidos = false;
+  mostrarNotificaciones = false;
 
   /** Panel de pedidos recibidos del vendedor (CU-23); "mostrarPedidos" es el de "Mis pedidos" del comprador. */
   mostrarPedidosRecibidos = false;
@@ -411,16 +411,14 @@ export class AppComponent {
 
     this.auth.restaurar();
 
+    // Solo estado del inicio de compra; el seguimiento de pagos pertenece a CheckoutStatusComponent.
     effect(() => {
-      const account = this.auth.cuenta();
-      const accountId = account?.activeRole === 'COMPRADOR' ? account.accountId : null;
-      if (this.returnAccountId !== accountId) {
-        this.returnAccountId = accountId;
-        this.hostedCheckout = null;
+      const cuenta = this.auth.cuenta();
+      const comprador = cuenta?.activeRole === 'COMPRADOR' ? cuenta.accountId : null;
+      if (comprador !== this.cuentaErrorCompra) {
+        this.cuentaErrorCompra = comprador;
+        this.revisionCompra++;
         this.compraError = '';
-      }
-      if (accountId !== null && this.paymentReturnId && !this.hostedCheckout && !this.procesandoCompra) {
-        this.revisarPago();
       }
     });
 
@@ -672,6 +670,7 @@ buscarProductos(): void {
   // =========================================================
 
   cerrarCheckout(): void {
+    this.revisionCompra++;
 
     this.mostrarCheckout = false;
 
@@ -851,11 +850,16 @@ buscarProductos(): void {
       this.compraError = 'Primero registra la dirección y calcula el total de la compra.';
       return;
     }
+    const cuenta = this.auth.cuenta()?.accountId;
+    const revision = this.revisionCompra;
+    const vigente = () => this.mostrarCheckout && revision === this.revisionCompra
+      && this.auth.cuenta()?.activeRole === 'COMPRADOR' && this.auth.cuenta()?.accountId === cuenta;
     this.procesandoCompra = true;
     this.compraError = '';
     this.payment.startCheckout({ addressId: this.addressId, shippingMethod: this.shippingMethod,
       couponCode: this.couponCode }).pipe(finalize(() => this.procesandoCompra = false)).subscribe({
       next: result => {
+        if (!vigente()) return;
         if (!result.checkoutUrl) { this.compraError = 'No se pudo abrir el checkout de pago.'; return; }
         const target = new URL(result.checkoutUrl);
         if (target.protocol !== 'https:' || target.hostname !== 'sandbox.mercadopago.com.co') {
@@ -865,30 +869,9 @@ buscarProductos(): void {
         window.location.assign(target.href);
       },
       error: (error: HttpErrorResponse) => {
-        this.compraError = error.error?.detail ?? error.error?.message ?? 'No fue posible iniciar el pago.';
+        if (vigente()) this.compraError = error.error?.detail ?? error.error?.message ?? 'No fue posible iniciar el pago.';
       }
     });
   }
 
-  revisarPago(): void {
-    if (!this.paymentReturnId || !this.esComprador || this.procesandoCompra) return;
-    const accountId = this.auth.cuenta()?.accountId;
-    this.procesandoCompra = true;
-    this.compraError = '';
-    const paymentId = this.returnedPaymentId;
-    const result = paymentId && /^[0-9]{1,30}$/.test(paymentId)
-      ? this.payment.refreshCheckout(this.paymentReturnId, paymentId)
-      : this.payment.checkoutStatus(this.paymentReturnId);
-    result.pipe(finalize(() => this.procesandoCompra = false)).subscribe({
-      next: checkout => {
-        if (this.auth.cuenta()?.accountId !== accountId || !this.esComprador) return;
-        this.hostedCheckout = checkout;
-        if (checkout.status === 'APPROVED') this.carrito.refrescar();
-      },
-      error: (error: HttpErrorResponse) => {
-        if (this.auth.cuenta()?.accountId !== accountId || !this.esComprador) return;
-        this.compraError = error.error?.detail ?? error.error?.message ?? 'No se pudo verificar el pago. Vuelve a consultar.';
-      }
-    });
-  }
 }

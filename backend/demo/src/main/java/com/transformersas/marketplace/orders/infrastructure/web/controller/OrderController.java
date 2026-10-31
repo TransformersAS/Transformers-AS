@@ -1,18 +1,25 @@
 package com.transformersas.marketplace.orders.infrastructure.web.controller;
 
+import com.transformersas.marketplace.orders.application.dto.BuyerRefund;
+
 import com.transformersas.marketplace.auth.infrastructure.security.AccountPrincipal;
 import com.transformersas.marketplace.orders.application.usecase.FindOwnOrders;
+import com.transformersas.marketplace.orders.application.usecase.GetBuyerOrderDetailUseCase;
+import com.transformersas.marketplace.orders.application.dto.BuyerOrderDetail;
 import com.transformersas.marketplace.orders.application.usecase.RequestOrderCancellation;
 import com.transformersas.marketplace.orders.infrastructure.web.request.CancelOrderRequest;
 import com.transformersas.marketplace.orders.infrastructure.web.response.CancelOrderResponse;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.PostMapping;
+import com.transformersas.marketplace.orders.domain.model.DeliverySnapshot;
+import com.transformersas.marketplace.orders.domain.model.OrderPaymentStatus;
 import com.transformersas.marketplace.orders.domain.model.Order;
 import com.transformersas.marketplace.orders.domain.model.OrderItem;
 import com.transformersas.marketplace.orders.domain.model.OrderStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -26,10 +33,12 @@ public class OrderController {
     private final FindOwnOrders orders;
 
     private final RequestOrderCancellation cancellation;
+    private final GetBuyerOrderDetailUseCase buyerDetail;
 
-    public OrderController(FindOwnOrders orders, RequestOrderCancellation cancellation) {
+    public OrderController(FindOwnOrders orders, RequestOrderCancellation cancellation, GetBuyerOrderDetailUseCase buyerDetail) {
         this.orders = orders;
         this.cancellation = cancellation;
+        this.buyerDetail = buyerDetail;
     }
 
     @PostMapping("/{id}/cancellation")
@@ -46,20 +55,29 @@ public class OrderController {
     }
 
     public record OrderDetail(Long id, OrderStatus status, BigDecimal total, Long addressId,
-                              String shippingMethod, String transactionId, LocalDateTime createdAt, List<OrderItem> items) {
-        static OrderDetail from(Order order) {
+                              String shippingMethod, String transactionId, LocalDateTime createdAt, List<OrderItem> items,
+                              DeliverySnapshot delivery, OrderPaymentStatus paymentStatus, Long storeId,
+                              BigDecimal discountAmount, BigDecimal shippingCost, String sellerNameSnapshot,
+                              List<BuyerOrderDetail.History> history, List<BuyerRefund> refunds,
+                              com.transformersas.marketplace.orders.domain.model.OrderProvenance provenance) {
+        static OrderDetail from(BuyerOrderDetail detail) {
+            Order order = detail.order();
             return new OrderDetail(order.id(), order.status(), order.total(), order.addressId(), order.shippingMethod(),
-                    order.transactionId(), order.createdAt(), order.items());
+                    order.transactionId(), order.createdAt(), order.items(), order.delivery(), order.paymentStatus(),
+                    order.storeId(), order.discountAmount(), order.shippingCost(), order.sellerNameSnapshot(), detail.history(), detail.refunds(), order.provenance());
         }
     }
 
     @GetMapping
-    public List<OrderSummary> list(@AuthenticationPrincipal AccountPrincipal principal) {
-        return orders.list(principal).stream().map(OrderSummary::from).toList();
+    public List<OrderSummary> list(@AuthenticationPrincipal AccountPrincipal principal,
+                                   @RequestParam(required = false) String from,
+                                   @RequestParam(required = false) String to,
+                                   @RequestParam(required = false) String status) {
+        return orders.list(principal, from, to, status).stream().map(OrderSummary::from).toList();
     }
 
     @GetMapping("/{id}")
     public OrderDetail detail(@PathVariable Long id, @AuthenticationPrincipal AccountPrincipal principal) {
-        return OrderDetail.from(orders.detail(id, principal));
+        return OrderDetail.from(buyerDetail.execute(id, principal));
     }
 }

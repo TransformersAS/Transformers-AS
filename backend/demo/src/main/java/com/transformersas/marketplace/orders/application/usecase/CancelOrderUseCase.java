@@ -107,11 +107,13 @@ public class CancelOrderUseCase {
         // Reposición atómica del stock. Un producto que ya no existe se omite: no debe impedir la cancelación.
         Map<Long, Integer> restored = new LinkedHashMap<>();
         List<Long> skipped = new ArrayList<>();
+        Map<Long, Integer> skippedUnits = new LinkedHashMap<>();
         for (OrderItem item : order.items()) {
             if (restoreStock.execute(item.productId(), item.quantity())) {
                 restored.merge(item.productId(), item.quantity(), Integer::sum);
             } else {
                 skipped.add(item.productId());
+                skippedUnits.merge(item.productId(), item.quantity(), Integer::sum);
             }
         }
 
@@ -129,17 +131,45 @@ public class CancelOrderUseCase {
                 "Cancelado: " + command.reason());
         audit.record(actorType, command.actorId(), "ORDER_CANCELLED", "ORDER", order.id(), AuditOutcome.SUCCESS,
                 Map.of("initiator", command.initiator().name(), "reasonCode", command.reason().name(),
-                        "fromStatus", from.name(), "restoredUnits", restored, "skippedProducts", skipped,
+                        "fromStatus", from.name(), "restoredUnits", restored, "skippedProducts", skipped, "skippedUnits", skippedUnits,
                         "refundRequired", refundRequired));
+        // El resumen de auditoría tiene límite de tamaño. Cada omisión queda además autocontenida y sin truncamiento.
+        skippedUnits.forEach((productId, quantity) -> audit.record(actorType, command.actorId(),
+                "ORDER_STOCK_NOT_RESTORED", "ORDER", order.id(), AuditOutcome.FAILURE,
+                Map.of("productId", productId, "quantity", quantity, "reason", "PRODUCT_NOT_FOUND")));
         String cause = command.initiator() == CancellationInitiator.SELLER
                 ? "El vendedor no pudo cumplir tu pedido #" + order.id() + " y fue cancelado."
                 : "Tu pedido #" + order.id() + " fue cancelado.";
         changes.notifyBuyer(order, "CANCELLED", "Tu pedido fue cancelado",
                 cause + (refundRequired ? " Estamos gestionando tu reembolso." : ""));
         changes.notifyStore(order, "CANCELLED", "Pedido cancelado",
-                "El pedido #" + order.id() + " fue cancelado y sus unidades volvieron al inventario.");
+                stockRestorationMessage(order, restored, skippedUnits));
         log.info("Pedido cancelado orderId={} initiator={} reason={}", order.id(), command.initiator(), command.reason());
         return new Cancelled(order, refundRequired ? refundCommand : null);
+    }
+
+    /** Mensaje funcional acotado; nombres del pedido histórico, sin errores ni identificadores técnicos. */
+    private static String stockRestorationMessage(Order order, Map<Long, Integer> restored, Map<Long, Integer> skipped) {
+        long recovered = restored.values().stream().mapToLong(Integer::longValue).sum();
+        long missing = skipped.values().stream().mapToLong(Integer::longValue).sum();
+        String prefix = "El pedido #" + order.id() + " fue cancelado. ";
+        if (missing == 0) return prefix + "Reposición completa: se recuperaron " + recovered + " unidades en el inventario.";
+        if (recovered == 0) return prefix + "No fue posible recuperar " + missing
+                + " unidades porque los productos correspondientes ya no existen.";
+        Map<Long, String> names = new LinkedHashMap<>();
+        for (OrderItem item : order.items()) {
+            if (restored.containsKey(item.productId()) && !names.containsKey(item.productId())) {
+                String name = item.productName() == null ? "Producto del pedido" : item.productName();
+                StringBuilder bounded = new StringBuilder();
+                name.codePoints().limit(64).forEach(cp -> bounded.appendCodePoint(Character.isISOControl(cp) ? ' ' : cp));
+                if (name.codePointCount(0, name.length()) > 64) bounded.append("…");
+                names.put(item.productId(), bounded + ": " + restored.get(item.productId()));
+            }
+        }
+        String products = String.join("; ", names.values().stream().limit(3).toList());
+        if (names.size() > 3) products += "; y otros productos";
+        return prefix + "Reposición parcial: se recuperaron " + recovered + " unidades (" + products
+                + "). No pudieron reponerse " + missing + " unidades porque faltan los productos correspondientes.";
     }
 
     private Order load(CancelOrderCommand command) {

@@ -23,9 +23,17 @@ class MercadoPagoCheckoutIntegrationTests extends AbstractIntegrationTest {
     private Session buyer;
     private long accountId, address, product;
 
-    @AfterEach void clearAttempts() { jdbc.update("DELETE FROM payment_checkouts"); }
+    @AfterEach void clearAttempts() {
+        jdbc.update("DELETE FROM external_refund_events");
+        jdbc.update("DELETE FROM external_payment_refunds");
+        jdbc.update("DELETE FROM payment_recovery_attempts");
+        jdbc.update("DELETE FROM external_payment_observations");
+        jdbc.update("DELETE FROM payment_checkouts");
+    }
 
-    private JsonNode start() throws Exception {
+    private JsonNode start() throws Exception { return start("STANDARD", ""); }
+
+    private JsonNode start(String method, String coupon) throws Exception {
         buyer = sessionWithRole("mp-buyer@example.test", "COMPRADOR");
         accountId = jdbc.queryForObject("SELECT id FROM user_accounts WHERE email='mp-buyer@example.test'", Long.class);
         address = seedAddress(buyer);
@@ -35,7 +43,7 @@ class MercadoPagoCheckoutIntegrationTests extends AbstractIntegrationTest {
         doReturn(new MercadoPagoClient.Preference("preference", "https://sandbox.mercadopago.com.co/checkout/v1/redirect?pref_id=p"))
                 .when(provider).create(anyString(), any(), anyString());
         return json.readTree(perform(buyer, post("/api/payments/mercadopago/checkouts").contentType("application/json")
-                .content(json.writeValueAsString(Map.of("addressId", address, "shippingMethod", "STANDARD", "couponCode", ""))))
+                .content(json.writeValueAsString(Map.of("addressId", address, "shippingMethod", method, "couponCode", coupon))))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
     }
 
@@ -50,15 +58,63 @@ class MercadoPagoCheckoutIntegrationTests extends AbstractIntegrationTest {
         payment(attempt, "approved");
         jdbc.update("UPDATE addresses SET street='Changed after redirect' WHERE id=?", address);
         jdbc.update("UPDATE products SET price=99999 WHERE id=?", product);
+        jdbc.update("UPDATE stores SET name='Renamed after redirect' WHERE id=1");
         jdbc.update("UPDATE cart_items SET quantity=2 WHERE cart_id=(SELECT id FROM carts WHERE account_id=?)", accountId);
         var first = checkouts.reconcile(accountId, attempt.get("id").asString(), "456");
         checkouts.notification("456");
         assertThat(first.status()).isEqualTo("APPROVED");
+        perform(buyer, get("/api/orders/{id}", first.orderId())).andExpect(status().isOk())
+                .andExpect(jsonPath("$.discountAmount").value(0))
+                .andExpect(jsonPath("$.shippingCost").value(10000))
+                .andExpect(jsonPath("$.sellerNameSnapshot").value("Tienda principal"))
+                .andExpect(jsonPath("$.paymentStatus").value("APPROVED"))
+                .andExpect(jsonPath("$.history.length()").value(1))
+                .andExpect(jsonPath("$.history[0].toStatus").value("CONFIRMED"))
+                .andExpect(jsonPath("$.history[0].createdAt").isNotEmpty())
+                .andExpect(jsonPath("$.history[0].legacy").value(false))
+                .andExpect(jsonPath("$.history[0].actorId").doesNotExist())
+                .andExpect(jsonPath("$.history[0].correlationId").doesNotExist());
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM orders", Integer.class)).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT unit_price FROM order_items", java.math.BigDecimal.class)).isEqualByComparingTo("95000");
         assertThat(jdbc.queryForObject("SELECT delivery_street FROM orders", String.class)).isNotEqualTo("Changed after redirect");
         assertThat(jdbc.queryForObject("SELECT stock FROM products WHERE id=?", Integer.class, product)).isEqualTo(9);
         assertThat(jdbc.queryForObject("SELECT quantity FROM cart_items", Integer.class)).isEqualTo(2);
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({"STANDARD,10000,95500", "EXPRESS,20000,105500"})
+    void discountedCheckoutPersistsOriginalBreakdown(String method, int shipping, int total) throws Exception {
+        var attempt = start(method, "DESC10");
+        assertThat(attempt.get("total").asInt()).isEqualTo(total);
+        jdbc.update("UPDATE stores SET name='Changed while paying' WHERE id=1");
+        payment(attempt, "approved");
+        var result = checkouts.reconcile(accountId, attempt.get("id").asString(), "456");
+        perform(buyer, get("/api/orders/{id}", result.orderId())).andExpect(status().isOk())
+                .andExpect(jsonPath("$.discountAmount").value(9500))
+                .andExpect(jsonPath("$.shippingCost").value(shipping))
+                .andExpect(jsonPath("$.total").value(total))
+                .andExpect(jsonPath("$.sellerNameSnapshot").value("Tienda principal"));
+    }
+
+    @Test void oldPendingCheckoutKeepsMissingHistoryUnknownWhenApproved() throws Exception {
+        var attempt = start();
+        jdbc.update("""
+                UPDATE payment_checkouts SET snapshot_json=JSON_REMOVE(snapshot_json,
+                  '$.discountAmount', '$.shippingCost', '$.sellerNameSnapshot') WHERE id=?
+                """, attempt.get("id").asString());
+        jdbc.update("UPDATE stores SET name='Current name is not history' WHERE id=1");
+        payment(attempt, "approved");
+        var result = checkouts.reconcile(accountId, attempt.get("id").asString(), "456");
+        var view = json.readTree(perform(buyer, get("/api/orders/{id}", result.orderId()))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+        for (String field : java.util.List.of("discountAmount", "shippingCost", "sellerNameSnapshot")) {
+            assertThat(view.has(field)).isTrue();
+            assertThat(view.get(field).isNull()).isTrue();
+        }
+        assertThat(view.get("total").asInt()).isEqualTo(105000);
+        assertThat(view.get("items").get(0).get("unitPrice").asInt()).isEqualTo(95000);
+        assertThat(view.get("delivery").get("street").asString()).isEqualTo("Calle 1 # 2-3");
+        assertThat(jdbc.queryForObject("SELECT stock FROM products WHERE id=?", Integer.class, product)).isEqualTo(9);
     }
 
     @Test void unchangedPurchasedCartIsClearedOnlyAfterApproval() throws Exception {

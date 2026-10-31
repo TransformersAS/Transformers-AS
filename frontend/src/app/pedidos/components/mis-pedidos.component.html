@@ -8,8 +8,26 @@
     <p *ngIf="error" class="error" role="alert">{{ error }}</p>
     <p *ngIf="exito" class="exito" role="status">{{ exito }}</p>
     <ng-container *ngIf="!detalle">
+      <form (ngSubmit)="aplicarFiltros(!fechaInicial.validity.valid || !fechaFinal.validity.valid)">
+        <label for="pedidos-desde">Fecha inicial</label>
+        <input #fechaInicial id="pedidos-desde" name="desde" type="date" min="1000-01-01" max="9999-12-31"
+          [(ngModel)]="desde" [disabled]="ocupada">
+        <label for="pedidos-hasta">Fecha final</label>
+        <input #fechaFinal id="pedidos-hasta" name="hasta" type="date" min="1000-01-01" max="9999-12-31"
+          [(ngModel)]="hasta" [disabled]="ocupada">
+        <label for="pedidos-estado">Estado del pedido</label>
+        <select id="pedidos-estado" name="estadoFiltro" [(ngModel)]="estadoFiltro" [disabled]="ocupada">
+          <option value="">Todos los estados</option>
+          <option *ngFor="let estado of estados" [value]="estado.codigo">{{ estado.etiqueta }}</option>
+        </select>
+        <button type="submit" [disabled]="ocupada">Aplicar filtros</button>
+        <button type="button" [disabled]="ocupada" (click)="limpiarFiltros()">Limpiar filtros</button>
+      </form>
+      <p *ngIf="errorFiltros" class="error" role="alert">{{ errorFiltros }}</p>
       <button type="button" [disabled]="ocupada" (click)="cargarLista()">Actualizar pedidos</button>
-      <p *ngIf="!cargando && !error && pedidos.length === 0">Todavía no tienes pedidos.</p>
+      <p *ngIf="listaCargada && !cargando && !error && pedidos.length === 0">
+        {{ hayFiltrosActivos ? 'No hay pedidos que coincidan con los filtros seleccionados.' : 'Todavía no tienes pedidos.' }}
+      </p>
       <ul *ngIf="!cargando">
         <li *ngFor="let pedido of pedidos">
           <app-resumen-pedido [pedido]="pedido"></app-resumen-pedido>
@@ -22,7 +40,57 @@
     <ng-container *ngIf="detalle as pedido">
       <button type="button" [disabled]="ocupada" (click)="cargarLista()">Volver a mis pedidos</button>
       <app-resumen-pedido [pedido]="pedido"></app-resumen-pedido>
-      <p *ngIf="pedido.addressId !== null">Dirección de envío registrada #{{ pedido.addressId }}</p>
+      <button type="button" [disabled]="ocupada || cargandoComprobante" (click)="verComprobante()">Ver comprobante</button>
+      <button type="button" [disabled]="ocupada || cargandoComprobante" (click)="verComprobante(true)">Descargar comprobante</button>
+      <p *ngIf="cargandoComprobante" role="status">Generando comprobante…</p>
+      <p *ngIf="errorComprobante" class="error" role="alert">{{ errorComprobante }}</p>
+      <section *ngIf="comprobanteUrl" aria-labelledby="titulo-comprobante">
+        <h3 id="titulo-comprobante">Comprobante de compra</h3>
+        <p>Generado al consultar. Este comprobante no constituye una factura fiscal.</p>
+        <iframe [src]="comprobanteUrl" title="PDF del comprobante de compra"></iframe>
+        <p>Si tu navegador no permite visualizar el PDF, utiliza «Descargar comprobante».</p>
+        <button type="button" (click)="cerrarComprobante()">Cerrar comprobante</button>
+      </section>
+      <p>Vendedor: {{ pedido.sellerNameSnapshot ?? historicoNoDisponible }}</p>
+      <p *ngIf="!pedido.provenance || pedido.provenance.sellerSource === 'UNKNOWN'">Asociación del vendedor: procedencia histórica no verificada.</p>
+      <p *ngIf="pedido.provenance?.sellerSource === 'MIGRATED'">Asociación del vendedor incorporada por migración; no capturada originalmente al comprar.</p>
+      <p>Descuento aplicado: {{ pedido.discountAmount == null ? historicoNoDisponible : (pedido.discountAmount | number:'1.2-2') }}</p>
+      <p>Costo del envío: {{ pedido.shippingCost == null ? historicoNoDisponible : (pedido.shippingCost | number:'1.2-2') }}</p>
+      <p>Estado del pago: {{ pedido.paymentStatus ? etiquetasPago[pedido.paymentStatus] : historicoNoDisponible }}</p>
+      <p *ngIf="pedido.provenance?.financialUpdateVerified">Actualización financiera respaldada por una confirmación externa registrada.</p>
+      <ng-container *ngIf="!pedido.provenance?.financialUpdateVerified">
+        <p *ngIf="!pedido.provenance || pedido.provenance.paymentSource === 'UNKNOWN' || pedido.paymentStatus !== pedido.provenance.paymentStatusAtCapture">Estado financiero: procedencia histórica no verificada. El estado registrado no demuestra por sí solo una acreditación externa.</p>
+        <p *ngIf="pedido.provenance?.paymentSource === 'MIGRATED' && pedido.paymentStatus === pedido.provenance?.paymentStatusAtCapture">Estado financiero incorporado por migración; no representa una verificación externa del pago.</p>
+      </ng-container>
+      <section aria-labelledby="titulo-seguimiento-reembolsos">
+        <h3 id="titulo-seguimiento-reembolsos">Seguimiento de devoluciones</h3>
+        <button type="button" [disabled]="ocupada || cargandoHistorial" (click)="actualizarHistorial()">Actualizar devoluciones</button>
+        <p *ngIf="cargandoHistorial" role="status">Actualizando seguimiento…</p>
+        <p *ngIf="errorHistorial" class="error" role="alert">No se pudo actualizar el seguimiento. Inténtalo de nuevo.</p>
+        <p *ngIf="!pedido.refunds?.length">No hay devoluciones registradas para este pedido.</p>
+        <ul>
+          <li *ngFor="let devolucion of pedido.refunds">
+            <p>Motivo: {{ devolucion.reason }}</p>
+            <p *ngIf="devolucion.amount != null">Importe: {{ devolucion.amount | number:'1.2-2' }} <span *ngIf="devolucion.currency">{{ devolucion.currency }}</span></p>
+            <p><strong>{{ devolucion.label }}</strong></p>
+            <p>{{ devolucion.message }}</p>
+            <p *ngIf="devolucion.requestedAt">Solicitud registrada: {{ devolucion.requestedAt | date:'dd/MM/yyyy HH:mm:ss' }}</p>
+            <p *ngIf="devolucion.updatedAt">Última actualización: {{ devolucion.updatedAt | date:'dd/MM/yyyy HH:mm:ss' }}</p>
+            <p *ngIf="devolucion.confirmedAt">Confirmación registrada: {{ devolucion.confirmedAt | date:'dd/MM/yyyy HH:mm:ss' }}</p>
+          </li>
+        </ul>
+      </section>
+      <h3>{{ pedido.provenance?.deliverySource === 'CAPTURED_AT_PURCHASE' ? 'Dirección de entrega utilizada' : 'Dirección de entrega registrada' }}</h3>
+      <p *ngIf="!pedido.provenance || pedido.provenance.deliverySource === 'UNKNOWN'">Dirección de procedencia histórica no verificada; no puede confirmarse que sea la utilizada originalmente al comprar.</p>
+      <p *ngIf="pedido.provenance?.deliverySource === 'MIGRATED'">Dirección incorporada por migración desde los datos disponibles entonces; no capturada originalmente al comprar.</p>
+      <ng-container *ngIf="pedido.delivery as direccion; else sinDireccionHistorica">
+        <p>Destinatario: {{ direccion.recipientName ?? historicoNoDisponible }}</p>
+        <p>Dirección: {{ direccion.street ?? historicoNoDisponible }}</p>
+        <p>Ciudad: {{ direccion.city ?? historicoNoDisponible }} · Departamento: {{ direccion.department ?? historicoNoDisponible }}</p>
+        <p>Código postal: {{ direccion.postalCode ?? historicoNoDisponible }}</p>
+        <p>Teléfono: {{ direccion.phone ?? historicoNoDisponible }}</p>
+      </ng-container>
+      <ng-template #sinDireccionHistorica><p>{{ historicoNoDisponible }}</p></ng-template>
       <p *ngIf="pedido.transactionId">Transacción: {{ pedido.transactionId }}</p>
       <h3>Productos</h3>
       <ul>
@@ -30,17 +98,34 @@
           <strong>{{ item.productName }}</strong> (producto #{{ item.productId }})
           <p>Cantidad: {{ item.quantity }} · Precio unitario: {{ item.unitPrice | number:'1.2-2' }}</p>
           <p>Subtotal: {{ item.subtotal | number:'1.2-2' }}</p>
-          <app-devolver-linea [pedidoId]="pedido.id" [productoId]="item.productId" [posicion]="i"
+          <app-devolver-linea *ngIf="pedido.status === 'DELIVERED'" [pedidoId]="pedido.id" [productoId]="item.productId" [posicion]="i"
             [entregado]="pedido.status === 'DELIVERED'"></app-devolver-linea>
         </li>
       </ul>
+      <section aria-labelledby="titulo-historial-pedido">
+        <h3 id="titulo-historial-pedido">Historial del pedido</h3>
+        <p *ngIf="cargandoHistorial" role="status">Actualizando historial…</p>
+        <p *ngIf="errorHistorial" class="error" role="alert">{{ errorHistorial }}</p>
+        <button *ngIf="errorHistorial" type="button" [disabled]="cargandoHistorial" (click)="actualizarHistorial()">Actualizar historial</button>
+        <p *ngIf="!pedido.history?.length && !cargandoHistorial && !errorHistorial">No hay historial registrado</p>
+        <ol>
+          <li *ngFor="let cambio of pedido.history">
+            <p>Estado anterior: {{ cambio.fromStatus ? etiquetasEstado[cambio.fromStatus] : 'Sin estado anterior registrado' }}</p>
+            <p>Estado nuevo: {{ etiquetasEstado[cambio.toStatus] }}</p>
+            <p *ngIf="cambio.legacy; else fechaHistorial">Estado incorporado desde datos anteriores; fecha del cambio no disponible</p>
+            <ng-template #fechaHistorial>
+              <p>Fecha registrada: {{ cambio.createdAt | date:'dd/MM/yyyy HH:mm:ss' }}</p>
+            </ng-template>
+          </li>
+        </ol>
+      </section>
       <app-seguimiento-logistico *ngIf="conSeguimiento(pedido.status)" tipo="pedido" rol="comprador"
         [id]="pedido.id" (estadoCambio)="estadoActualizado($event)"></app-seguimiento-logistico>
-      <p *ngIf="pedido.status === 'CANCELLATION_REQUESTED'">La cancelación de este pedido ya fue solicitada.</p>
+      <p *ngIf="motivoNoCancelable" role="status">{{ motivoNoCancelable }}</p>
       <button *ngIf="conflicto" type="button" [disabled]="ocupada" (click)="verDetalle(pedido.id)">Actualizar detalle</button>
       <button *ngIf="puedeCancelar && !confirmar && !conflicto" type="button"
         [disabled]="ocupada" (click)="prepararCancelacion()">Cancelar pedido</button>
-      <div *ngIf="confirmar" class="confirmacion">
+      <div *ngIf="confirmar && puedeCancelar" class="confirmacion">
         <label for="motivo-cancelacion">Motivo de cancelación</label>
         <select id="motivo-cancelacion" [(ngModel)]="motivo" [disabled]="ocupada" required>
           <option value="" disabled>Selecciona un motivo</option>
@@ -52,6 +137,12 @@
             required maxlength="1000"></textarea>
           <p *ngIf="!explicacion.trim()">Debes explicar el motivo para continuar.</p>
         </ng-container>
+        <div role="note" aria-label="Consecuencias de cancelar">
+          <p>Si se acepta, la cancelación es definitiva. La devolución del dinero es una operación separada.</p>
+          <p>Cuando corresponda un reembolso, puede quedar pendiente, en verificación, fallido o en revisión.</p>
+          <p>No existe un plazo garantizado de acreditación.</p>
+          <p>Puedes consultar el resultado en «Seguimiento de devoluciones».</p>
+        </div>
         <p>¿Confirmas la cancelación definitiva del pedido #{{ pedido.id }}?</p>
         <button type="button" [disabled]="ocupada || !motivoValido" (click)="cancelarPedido()">Confirmar cancelación</button>
         <button type="button" [disabled]="ocupada" (click)="confirmar = false">Volver</button>

@@ -4,6 +4,7 @@ package com.transformersas.marketplace.orders.infrastructure.persistence.entity;
 import com.transformersas.marketplace.orders.domain.model.OrderPaymentStatus;
 import com.transformersas.marketplace.orders.domain.model.OrderStatus;
 import jakarta.persistence.*;
+import com.transformersas.marketplace.orders.domain.model.OrderProvenance;
 import org.hibernate.annotations.BatchSize;
 
 import java.math.BigDecimal;
@@ -37,6 +38,15 @@ public class OrderEntity {
 
     @Column(nullable = false, precision = 19, scale = 2)
     private BigDecimal total;
+
+    @Column(name = "discount_amount", precision = 19, scale = 2, updatable = false)
+    private BigDecimal discountAmount;
+
+    @Column(name = "shipping_cost", precision = 19, scale = 2, updatable = false)
+    private BigDecimal shippingCost;
+
+    @Column(name = "seller_name_snapshot", length = 255, updatable = false)
+    private String sellerNameSnapshot;
 
     @Column(name = "store_id", nullable = false, updatable = false)
     private Long storeId;
@@ -76,6 +86,23 @@ public class OrderEntity {
     @BatchSize(size = 100)
     private List<OrderItemEntity> items = new ArrayList<>();
 
+    @Enumerated(EnumType.STRING)
+    @Column(name="delivery_source", nullable=false, updatable=false)
+    private OrderProvenance.Source deliverySource = OrderProvenance.Source.UNKNOWN;
+    @Enumerated(EnumType.STRING)
+    @Column(name="seller_source", nullable=false, updatable=false)
+    private OrderProvenance.Source sellerSource = OrderProvenance.Source.UNKNOWN;
+    @Enumerated(EnumType.STRING)
+    @Column(name="payment_source", nullable=false, updatable=false)
+    private OrderProvenance.Source paymentSource = OrderProvenance.Source.UNKNOWN;
+    @Enumerated(EnumType.STRING)
+    @Column(name="payment_status_at_capture", updatable=false)
+    private OrderPaymentStatus paymentStatusAtCapture;
+    public OrderProvenance provenance() { return new OrderProvenance(deliverySource,sellerSource,paymentSource,paymentStatusAtCapture,false); }
+    public void provenance(OrderProvenance value) {
+        deliverySource=value.deliverySource();sellerSource=value.sellerSource();paymentSource=value.paymentSource();paymentStatusAtCapture=value.paymentStatusAtCapture();
+    }
+
     public OrderEntity() {
     }
 
@@ -89,6 +116,15 @@ public class OrderEntity {
 
     public BigDecimal getTotal() { return total; }
     public void setTotal(BigDecimal total) { this.total = total; }
+
+    public BigDecimal getDiscountAmount() { return discountAmount; }
+    public void setDiscountAmount(BigDecimal value) { this.discountAmount = value; }
+
+    public BigDecimal getShippingCost() { return shippingCost; }
+    public void setShippingCost(BigDecimal value) { this.shippingCost = value; }
+
+    public String getSellerNameSnapshot() { return sellerNameSnapshot; }
+    public void setSellerNameSnapshot(String value) { this.sellerNameSnapshot = value; }
 
     public Long getStoreId() { return storeId; }
     public void setStoreId(Long storeId) { this.storeId = storeId; }

@@ -63,6 +63,10 @@ public abstract class AbstractIntegrationTest {
 
     @BeforeEach
     protected void resetDatabase() {
+        jdbc.update("DELETE FROM external_refund_events");
+        jdbc.update("DELETE FROM external_payment_refunds");
+        jdbc.update("DELETE FROM payment_recovery_attempts");
+        jdbc.update("DELETE FROM external_payment_observations");
         jdbc.update("DELETE FROM payment_checkouts");
         TABLES_TO_CLEAR.forEach(table -> jdbc.update("DELETE FROM " + table));
         jdbc.update("DELETE FROM stores WHERE id <> 1");
