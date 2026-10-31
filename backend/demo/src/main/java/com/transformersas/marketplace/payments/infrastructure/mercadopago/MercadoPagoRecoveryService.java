@@ -44,7 +44,7 @@ public class MercadoPagoRecoveryService {
         return transaction.execute(status -> {
             var rows = jdbc.queryForList("""
                     SELECT id,recovery_attempts,recovery_offset FROM payment_checkouts
-                    WHERE ((status IN ('STARTING','PENDING','REJECTED') AND order_id IS NULL)
+                    WHERE (((status IN ('STARTING','PENDING','REJECTED') OR cancelled_at IS NOT NULL) AND order_id IS NULL)
                          OR (status <> 'REVIEW' AND recovery_result IN ('MORE_RESULTS','RETRYABLE_FAILURE')))
                       AND recovery_attempts < ? AND recovery_next_at <= CURRENT_TIMESTAMP(6)
                       AND (recovery_lease_until IS NULL OR recovery_lease_until <= CURRENT_TIMESTAMP(6))

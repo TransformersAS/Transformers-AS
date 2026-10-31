@@ -63,10 +63,10 @@ public class MercadoPagoCheckoutService {
     public record Snapshot(Long storeId, Long addressId, String shippingMethod, String couponCode, DeliverySnapshot delivery,
                            List<OrderItem> items, List<Long> reservationIds, Map<Long, Integer> cartQuantities,
                            BigDecimal discountAmount, BigDecimal shippingCost, String sellerNameSnapshot) { }
-    public record CheckoutStatus(String id, String status, String checkoutUrl, Long orderId, BigDecimal total) { }
+    public record CheckoutStatus(String id, String status, String checkoutUrl, Long orderId, BigDecimal total, LocalDateTime cancelledAt, String financialStatus) { }
     private record Attempt(String id, Long accountId, Snapshot snapshot, BigDecimal total, String status,
-                           String url, String paymentId, Long orderId, LocalDateTime expiresAt) {
-        CheckoutStatus view() { return new CheckoutStatus(id, status, url, orderId, total); }
+                           String url, String paymentId, Long orderId, LocalDateTime expiresAt, LocalDateTime cancelledAt) {
+        CheckoutStatus view() { return new CheckoutStatus(id, cancelledAt == null ? status : "CANCELLED", cancelledAt == null ? url : null, orderId, total, cancelledAt, null); }
     }
 
     @Transactional
@@ -79,7 +79,7 @@ public class MercadoPagoCheckoutService {
         jdbc.queryForList("SELECT id FROM carts WHERE id=? FOR UPDATE", cart.getId());
         var open = jdbc.queryForList("""
                 SELECT id FROM payment_checkouts WHERE account_id=?
-                AND status IN ('PENDING','STARTING','REJECTED') AND expires_at > ?
+                AND cancelled_at IS NULL AND status IN ('PENDING','STARTING','REJECTED') AND expires_at > ?
                 ORDER BY created_at DESC LIMIT 1 FOR UPDATE
                 """, accountId, LocalDateTime.now());
         if (!open.isEmpty()) {
@@ -92,7 +92,7 @@ public class MercadoPagoCheckoutService {
                     && current.stream().allMatch(item -> Objects.equals(previous.snapshot.cartQuantities().get(item.getId()), item.getQuantity()));
             if (!same) throw new ResponseStatusException(CONFLICT,
                     "Existe una compra pendiente con otros datos. Termina ese pago o espera a que venza su reserva antes de iniciar otra compra.");
-            return previous.view();
+            return view(previous);
         }
         var preview = checkout.preview(accountId, new CheckoutPreviewRequest(
                 request.addressId(), request.shippingMethod(), request.couponCode()));
@@ -131,14 +131,59 @@ public class MercadoPagoCheckoutService {
                 UPDATE payment_checkouts SET preference_id=?, checkout_url=?, status='PENDING',
                 updated_at=CURRENT_TIMESTAMP WHERE id=?
                 """, preference.id(), preference.checkoutUrl(), id);
-        return load(id, false).view();
+        return view(load(id, false));
     }
 
     @Transactional(readOnly = true)
     public CheckoutStatus status(Long accountId, String id) {
         Attempt attempt = load(id, false);
         if (!attempt.accountId.equals(accountId)) throw new ResponseStatusException(NOT_FOUND);
-        return attempt.view();
+        return view(attempt);
+    }
+
+    private CheckoutStatus view(Attempt attempt) {
+        var base = attempt.view();
+        return new CheckoutStatus(base.id(), base.status(), base.checkoutUrl(), base.orderId(), base.total(),
+                attempt.cancelledAt, attempt.cancelledAt == null ? null : cancellationFinancialStatus(attempt.id));
+    }
+
+    public record CancellationResult(String id, LocalDateTime cancelledAt, String status,
+                                     String financialStatus, String message) { }
+
+    @Transactional
+    public CancellationResult cancel(Long accountId, String id) {
+        Attempt attempt = load(id, true);
+        if (!attempt.accountId.equals(accountId)) throw new ResponseStatusException(NOT_FOUND);
+        if (attempt.orderId != null) throw new ResponseStatusException(CONFLICT,
+                "Ya existe un pedido para esta compra. Consulta Mis pedidos para solicitar su cancelación si corresponde.");
+        if (attempt.cancelledAt == null) {
+            // Mismo orden que materialize: checkout, productos ordenados, reservas.
+            var snapshot = attempt.snapshot;
+            snapshot.items().stream().map(OrderItem::productId).distinct().sorted().forEach(productId ->
+                    products.findForUpdate(productId, snapshot.storeId()));
+            reservations.releaseReservations(accountId, attempt.snapshot.reservationIds());
+            jdbc.update("UPDATE payment_checkouts SET cancelled_at=CURRENT_TIMESTAMP(6),updated_at=CURRENT_TIMESTAMP(6) WHERE id=? AND cancelled_at IS NULL", id);
+            attempt = load(id, true);
+        }
+        return new CancellationResult(id, attempt.cancelledAt, "CANCELLED", cancellationFinancialStatus(id),
+                "El proceso de compra está cerrado y no generará un pedido. El cierre no confirma la cancelación de un pago externo ni su devolución; cualquier pago requiere verificación y resolución financiera.");
+    }
+
+    private String cancellationFinancialStatus(String id) {
+        var payments = jdbc.queryForList("""
+                SELECT p.approved_seen,p.verified_status,p.resolution_status,r.status AS refund_status,r.externally_confirmed
+                FROM external_payment_observations p LEFT JOIN external_payment_refunds r ON r.payment_id=p.payment_id
+                WHERE p.checkout_id=?
+                """, id);
+        if (payments.isEmpty()) return "REQUIRES_VERIFICATION";
+        if (payments.stream().anyMatch(p -> "PAYMENT_MISMATCH".equals(p.get("resolution_status"))
+                || "FAILED".equals(p.get("refund_status")) || "EXCEPTION".equals(p.get("refund_status"))))
+            return "REQUIRES_REVIEW";
+        if (payments.stream().anyMatch(p -> (Boolean.TRUE.equals(p.get("approved_seen"))
+                || "refunded".equals(p.get("verified_status"))) && !Boolean.TRUE.equals(p.get("externally_confirmed"))))
+            return "PENDING_RESOLUTION";
+        if (payments.stream().allMatch(p -> Boolean.TRUE.equals(p.get("externally_confirmed")))) return "REFUNDED";
+        return "REQUIRES_VERIFICATION";
     }
 
     public CheckoutStatus reconcile(Long accountId, String id, String paymentId) {
@@ -172,12 +217,12 @@ public class MercadoPagoCheckoutService {
                     journal.requireLease(attempt.id, lease);
                     jdbc.update("UPDATE payment_checkouts SET status='REVIEW',updated_at=CURRENT_TIMESTAMP(6) WHERE id=? AND order_id IS NULL", attempt.id);
                     journal.resolution(paymentId, "PAYMENT_MISMATCH", null);
-                    return load(attempt.id, true).view();
+                    return view(load(attempt.id, true));
                 }
                 return materialize(attempt.id, paymentId, payment, lease);
             });
             financial.observeVerified(paymentId, payment);
-            return "refunded".equals(payment.path("status").asString()) ? load(attempt.id, false).view() : result;
+            return "refunded".equals(payment.path("status").asString()) ? view(load(attempt.id, false)) : result;
         } catch (RuntimeException failure) {
             try { journal.localFailure(paymentId, "LOCAL_COMMIT_FAILED"); }
             catch (RuntimeException recordingFailure) { failure.addSuppressed(recordingFailure); }
@@ -188,7 +233,13 @@ public class MercadoPagoCheckoutService {
     private CheckoutStatus materialize(String id, String paymentId, JsonNode payment, String lease) {
         Attempt attempt = load(id, true);
         journal.requireLease(id, lease);
-        if (financial.externallyConfirmed(paymentId)) return attempt.view();
+        if (attempt.cancelledAt != null) {
+            if (financial.externallyConfirmed(paymentId)) return view(attempt);
+            journal.resolution(paymentId, "approved".equals(payment.path("status").asString())
+                    ? "REQUIRES_REVIEW" : "PENDING_PAYMENT", null);
+            return view(attempt);
+        }
+        if (financial.externallyConfirmed(paymentId)) return view(attempt);
         if (attempt.orderId != null) {
             String transaction = jdbc.queryForObject("SELECT transaction_id FROM orders WHERE id=?", String.class, attempt.orderId);
             boolean linked = ("MP-" + paymentId).equals(transaction);
@@ -197,13 +248,13 @@ public class MercadoPagoCheckoutService {
             if (linked && ("refunded".equals(payment.path("status").asString())
                     || "charged_back".equals(payment.path("status").asString()))) state = "FINANCIAL_UPDATE_PENDING";
             journal.resolution(paymentId, state, linked ? attempt.orderId : null);
-            return attempt.view();
+            return view(attempt);
         }
         if ("REVIEW".equals(attempt.status) || "REFUNDED".equals(attempt.status)) {
             if ("approved".equals(payment.path("status").asString()))
                 update(id, "REVIEW", attempt.paymentId, null);
             journal.resolution(paymentId, "REQUIRES_REVIEW", null);
-            return attempt.view();
+            return view(attempt);
         }
         String result = payment.path("status").asString("");
         if ("approved".equals(result)) {
@@ -217,7 +268,7 @@ public class MercadoPagoCheckoutService {
             if (!valid) {
                 update(attempt.id, "REVIEW", paymentId, null);
                 journal.resolution(paymentId, "REQUIRES_REVIEW", null);
-                return load(id, false).view();
+                return view(load(id, false));
             }
             reservations.confirmReservations(attempt.accountId, snapshot.reservationIds());
             LocalDateTime now = LocalDateTime.now();
@@ -242,7 +293,7 @@ public class MercadoPagoCheckoutService {
             journal.resolution(paymentId, ("refunded".equals(result) || "charged_back".equals(result))
                     ? "REQUIRES_REVIEW" : "PENDING_PAYMENT", null);
         }
-        return load(id, false).view();
+        return view(load(id, false));
     }
 
     public void notification(String paymentId) {
@@ -264,7 +315,8 @@ public class MercadoPagoCheckoutService {
                 (r, n) -> new Attempt(r.getString("id"), r.getLong("account_id"),
                         json.readValue(r.getString("snapshot_json"), Snapshot.class), r.getBigDecimal("total"),
                         r.getString("status"), r.getString("checkout_url"), r.getString("payment_id"),
-                        r.getObject("order_id", Long.class), r.getTimestamp("expires_at").toLocalDateTime()), id);
+                        r.getObject("order_id", Long.class), r.getTimestamp("expires_at").toLocalDateTime(),
+                        r.getTimestamp("cancelled_at") == null ? null : r.getTimestamp("cancelled_at").toLocalDateTime()), id);
         if (rows.isEmpty()) throw new ResponseStatusException(NOT_FOUND);
         return rows.getFirst();
     }

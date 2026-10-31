@@ -93,6 +93,7 @@ public class SecurityConfiguration {
                         .requestMatchers(HttpMethod.GET, "/api/auth/csrf").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/payments/mercadopago/webhook").permitAll()
+                        .requestMatchers("/api/payments/mercadopago/checkouts", "/api/payments/mercadopago/checkouts/**").hasRole("COMPRADOR")
                         .requestMatchers(HttpMethod.POST, "/api/auth/password-recovery/request",
                                 "/api/auth/password-recovery/confirm").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/email-verification/resend",

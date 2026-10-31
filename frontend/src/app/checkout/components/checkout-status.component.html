@@ -1,0 +1,28 @@
+<p *ngIf="sessionNotice" role="status">Por seguridad se cerró el seguimiento al cambiar la sesión o el rol. Vuelve a abrir el enlace e inicia sesión con la cuenta compradora correspondiente.</p>
+<section *ngIf="id" class="payment-return" aria-label="Estado del pago">
+  <h2>Estado de tu pago</h2>
+  <p *ngIf="!buyer">Inicia sesión con la cuenta compradora que realizó la compra para consultar el resultado.</p>
+  <ng-container *ngIf="buyer">
+    <p *ngIf="checkout?.status === 'APPROVED'">Pago de pruebas aprobado. Tu pedido es el #{{ checkout?.orderId }}.</p>
+    <p *ngIf="checkout?.status === 'PENDING'">Tu pago está pendiente. Confirmaremos el pedido cuando Mercado Pago lo apruebe.</p>
+    <p *ngIf="checkout?.status === 'REJECTED'">El pago fue rechazado o cancelado. No se confirmó el pedido.</p>
+    <p *ngIf="checkout?.status === 'REVIEW'">Recibimos una actualización que requiere revisión. No vuelvas a pagar esta compra; contacta a soporte.</p>
+    <p *ngIf="checkout?.status === 'REFUNDED'">El pago asociado a esta compra fue devuelto. Consulta Mis pedidos si se generó un pedido.</p>
+    <div *ngIf="checkout?.status === 'CANCELLED'">
+      <h3>Proceso de compra cerrado</h3>
+      <p>Este checkout no generará un pedido. El cierre local no necesariamente detiene un cobro externo.</p>
+      <p *ngIf="checkout?.cancelledAt">Cierre registrado: {{ checkout?.cancelledAt | date:'medium' }}</p>
+      <h3>Estado del dinero</h3><p>{{ financialMessage }}</p>
+      <p>No se garantiza acreditación inmediata, un plazo fijo ni un medio de devolución específico.</p>
+    </div>
+    <p *ngIf="error" role="alert">{{ error }}</p>
+    <button type="button" (click)="load(checkout?.status !== 'CANCELLED')" [disabled]="busy">{{ busy ? 'Procesando...' : 'Consultar estado del pago' }}</button>
+    <button *ngIf="canCancel && !confirming" type="button" (click)="confirming = true" [disabled]="busy">Cancelar proceso de compra</button>
+    <div *ngIf="confirming" role="group" aria-label="Confirmar cierre de compra">
+      <p>El cierre es irreversible e impide crear un pedido desde este intento, pero no necesariamente detiene un cobro externo. La devolución es una operación separada y puede requerir verificación o revisión. No hay un plazo garantizado.</p>
+      <button type="button" (click)="back()" [disabled]="busy">Regresar sin cancelar</button>
+      <button type="button" (click)="cancel()" [disabled]="busy">Confirmar cierre</button>
+    </div>
+    <p *ngIf="checkout?.orderId">Consulta Mis pedidos para ver las opciones vigentes de tu pedido.</p>
+  </ng-container>
+</section>

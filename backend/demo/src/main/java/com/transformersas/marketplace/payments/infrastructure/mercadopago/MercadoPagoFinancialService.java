@@ -54,7 +54,8 @@ public class MercadoPagoFinancialService {
                 SELECT p.payment_id FROM external_payment_observations p
                 JOIN payment_checkouts c ON c.id=p.checkout_id LEFT JOIN orders o ON o.id=c.order_id
                 WHERE NOT EXISTS (SELECT 1 FROM external_payment_refunds r WHERE r.payment_id=p.payment_id)
-                AND ((c.order_id IS NULL AND c.status='REVIEW' AND p.resolution_status='REQUIRES_REVIEW'
+                AND ((c.order_id IS NULL AND ((c.status='REVIEW' AND p.resolution_status='REQUIRES_REVIEW')
+                        OR (c.cancelled_at IS NOT NULL AND p.resolution_status<>'PAYMENT_MISMATCH'))
                         AND (p.approved_seen=TRUE OR p.verified_status='refunded'))
                   OR p.resolution_status='ADDITIONAL_PAYMENT'
                   OR (o.status='CANCELLED' AND o.transaction_id=CONCAT('MP-',p.payment_id)))
@@ -72,7 +73,7 @@ public class MercadoPagoFinancialService {
 
     private Map<String, Object> payment(String id) {
         return jdbc.queryForMap("""
-                SELECT p.*,c.order_id AS linked_order_id,c.status AS checkout_status,c.total AS checkout_total,
+                SELECT p.*,c.order_id AS linked_order_id,c.status AS checkout_status,c.cancelled_at AS checkout_cancelled_at,c.total AS checkout_total,
                   o.status AS order_status,o.total AS order_total,o.transaction_id AS order_transaction
                 FROM external_payment_observations p JOIN payment_checkouts c ON c.id=p.checkout_id
                 LEFT JOIN orders o ON o.id=c.order_id WHERE p.payment_id=?
@@ -82,7 +83,7 @@ public class MercadoPagoFinancialService {
         String checkout = jdbc.queryForObject("SELECT checkout_id FROM external_payment_observations WHERE payment_id=?", String.class, id);
         journal.requireLease(checkout, null);
         return jdbc.queryForMap("""
-                SELECT p.*,c.order_id AS linked_order_id,c.status AS checkout_status,c.total AS checkout_total,
+                SELECT p.*,c.order_id AS linked_order_id,c.status AS checkout_status,c.cancelled_at AS checkout_cancelled_at,c.total AS checkout_total,
                   o.status AS order_status,o.total AS order_total,o.transaction_id AS order_transaction
                 FROM external_payment_observations p JOIN payment_checkouts c ON c.id=p.checkout_id
                 LEFT JOIN orders o ON o.id=c.order_id WHERE p.payment_id=? FOR UPDATE
@@ -121,7 +122,7 @@ public class MercadoPagoFinancialService {
     }
     private String reason(Map<String, Object> row, String id) {
         if ("PAYMENT_MISMATCH".equals(row.get("resolution_status"))) return null;
-        if (row.get("linked_order_id") == null && "REVIEW".equals(row.get("checkout_status"))) return "NO_ORDER";
+        if (row.get("linked_order_id") == null && (row.get("checkout_cancelled_at") != null || "REVIEW".equals(row.get("checkout_status")))) return "NO_ORDER";
         if (row.get("linked_order_id") != null && ("MP-" + id).equals(row.get("order_transaction"))
                 && "CANCELLED".equals(row.get("order_status"))) return "CANCELLED_ORDER";
         if ("ADDITIONAL_PAYMENT".equals(row.get("resolution_status"))) return "ADDITIONAL_PAYMENT";

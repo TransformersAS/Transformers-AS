@@ -73,3 +73,87 @@ for (const state of ['PENDING', 'APPROVED', 'REVIEW', 'REFUNDED']) {
     }
   });
 }
+
+async function closureApi(page: Page, financial = 'REQUIRES_VERIFICATION', failure = 0) {
+  await mockApi(page);
+  let closed = false, calls = 0;
+  await page.route('**/api/payments/mercadopago/checkouts/**', route => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.endsWith('/cancellation')) {
+      calls++;
+      expect(route.request().headers()['x-csrf-token']).toBe('csrf');
+      if (failure) return route.fulfill({status:failure,contentType:'application/json',body:'{}'});
+      closed=true;
+    }
+    return route.fulfill({contentType:'application/json',body:JSON.stringify({id:checkout,status:closed?'CANCELLED':failure===409&&calls?'APPROVED':'PENDING',
+      orderId:failure===409&&calls?99:null,total:105000,checkoutUrl:closed?null:'https://sandbox.mercadopago.com.co/test',
+      cancelledAt:closed?'2026-10-31T10:00:00':null,financialStatus:closed?financial:null})});
+  });
+  return () => calls;
+}
+for (const [financial,message] of [
+  ['REQUIRES_VERIFICATION','Todavía debe verificarse si hubo un cobro.'],
+  ['PENDING_RESOLUTION','Existe una operación financiera cuya resolución sigue pendiente.'],
+  ['REQUIRES_REVIEW','La resolución financiera requiere revisión.'],
+  ['REFUNDED','Devolución confirmada según los registros financieros verificados.']
+]) test(`cierre y recarga conservan seguimiento ${financial}`, async ({page})=>{
+  const calls=await closureApi(page,financial);
+  await page.goto(`/?checkout=${checkout}`);
+  await page.getByRole('button',{name:'Cancelar proceso de compra',exact:true}).click();
+  await expect(page.getByRole('group',{name:'Confirmar cierre de compra'})).toContainText('no necesariamente detiene un cobro externo');
+  await page.getByRole('button',{name:'Regresar sin cancelar',exact:true}).click();expect(calls()).toBe(0);
+  await page.getByRole('button',{name:'Cancelar proceso de compra',exact:true}).click();
+  await page.getByRole('button',{name:'Confirmar cierre',exact:true}).click();
+  const banner=page.getByRole('region',{name:'Estado del pago'});
+  await expect(banner).toContainText('Proceso de compra cerrado');await expect(banner).toContainText(message);
+  await expect(page.getByRole('button',{name:'Cancelar proceso de compra',exact:true})).toHaveCount(0);
+  await expect(banner.locator('a[href*="mercadopago"]')).toHaveCount(0);
+  await page.reload();await expect(banner).toContainText(message);expect(calls()).toBe(1);
+});
+for(const status of [401,403,404,409]) test(`cierre informa error ${status}`,async({page})=>{
+  await closureApi(page,'REQUIRES_VERIFICATION',status);await page.goto(`/?checkout=${checkout}`);
+  await page.getByRole('button',{name:'Cancelar proceso de compra',exact:true}).click();
+  await page.getByRole('button',{name:'Confirmar cierre',exact:true}).click();
+  if(status===401) {
+    await expect(page.getByRole('region',{name:'Estado del pago'})).toHaveCount(0);
+    await expect(page.locator('app-checkout-status').getByRole('status')).toContainText('Vuelve a abrir el enlace');
+    expect(new URL(page.url()).searchParams.has('checkout')).toBe(false);
+  } else await expect(page.getByRole('region',{name:'Estado del pago'}).getByRole('alert')).toBeVisible();
+  if(status===409){await expect(page.getByRole('region',{name:'Estado del pago'})).toContainText('Tu pedido es el #99');}
+});
+
+test('fallo de red no repite cancelación y permite consultar antes de reintentar',async({page})=>{
+  const calls=await closureApi(page);let attempts=0;
+  await page.route('**/api/payments/mercadopago/checkouts/*/cancellation',route=>{
+    attempts++;return attempts===1?route.abort('failed'):route.fallback();
+  });
+  await page.goto(`/?checkout=${checkout}`);
+  await page.getByRole('button',{name:'Cancelar proceso de compra',exact:true}).click();
+  await page.getByRole('button',{name:'Confirmar cierre',exact:true}).click();
+  await expect(page.getByRole('region',{name:'Estado del pago'}).getByRole('alert')).toContainText('Consulta el estado');
+  expect(attempts).toBe(1);
+  await page.getByRole('button',{name:'Consultar estado del pago',exact:true}).click();
+  await page.getByRole('button',{name:'Cancelar proceso de compra',exact:true}).click();
+  await page.getByRole('button',{name:'Confirmar cierre',exact:true}).click();
+  await expect(page.getByText('Proceso de compra cerrado',{exact:true})).toBeVisible();
+  expect(attempts).toBe(2);expect(calls()).toBe(1);
+});
+
+test('logout limpia URL y una respuesta tardía de cancelación no revela datos',async({page})=>{
+  await closureApi(page);
+  let release!:()=>void, entered!:()=>void;
+  const pending=new Promise<void>(resolve=>release=resolve), started=new Promise<void>(resolve=>entered=resolve);
+  await page.route('**/api/payments/mercadopago/checkouts/*/cancellation',async route=>{
+    entered();await pending;
+    await route.fulfill({contentType:'application/json',body:JSON.stringify({id:checkout,status:'CANCELLED',cancelledAt:'2026-10-31T10:00:00',financialStatus:'REFUNDED'})}).catch(()=>{});
+  });
+  await page.goto(`/?checkout=${checkout}`);
+  await page.getByRole('button',{name:'Cancelar proceso de compra',exact:true}).click();
+  await page.getByRole('button',{name:'Confirmar cierre',exact:true}).click();await started;
+  await expect(page.getByRole('button',{name:'Confirmar cierre',exact:true})).toBeDisabled();
+  await page.getByRole('button',{name:'Ver cuenta',exact:true}).click();
+  await page.getByRole('button',{name:'Cerrar sesión',exact:true}).click();
+  await expect(page.getByRole('region',{name:'Estado del pago'})).toHaveCount(0);
+  expect(new URL(page.url()).searchParams.has('checkout')).toBe(false);
+  release();await expect(page.getByText('Proceso de compra cerrado',{exact:true})).toHaveCount(0);
+});

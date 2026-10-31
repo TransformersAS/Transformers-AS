@@ -30,6 +30,11 @@ public class MercadoPagoController {
             @PathVariable String id) {
         return checkouts.status(BuyerAccess.accountId(principal), id);
     }
+    @PostMapping("/checkouts/{id}/cancellation")
+    public MercadoPagoCheckoutService.CancellationResult cancel(@AuthenticationPrincipal AccountPrincipal principal,
+            @PathVariable String id) {
+        return checkouts.cancel(BuyerAccess.accountId(principal), id);
+    }
     public record Refresh(String paymentId) { }
     @PostMapping("/checkouts/{id}/refresh")
     public MercadoPagoCheckoutService.CheckoutStatus refresh(@AuthenticationPrincipal AccountPrincipal principal,

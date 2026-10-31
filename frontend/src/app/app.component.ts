@@ -1,7 +1,8 @@
+import { CheckoutStatusComponent } from './checkout/components/checkout-status.component';
 import { NotificacionesComponent } from './notificaciones/notificaciones.component';
 import {
   Component,
-  inject, effect
+  inject
 } from '@angular/core';
 
 import {
@@ -99,7 +100,7 @@ import {
 } from './checkout/models/checkout.model';
 
 import {
-  PaymentResponse, HostedCheckout
+  PaymentResponse
 } from './checkout/models/payment.model';
 
 import {
@@ -116,7 +117,7 @@ import {
   standalone: true,
 
   imports: [
-    IonApp,
+    CheckoutStatusComponent, IonApp,
     IonContent,
     IonIcon,
     AsyncPipe,
@@ -336,11 +337,6 @@ export class AppComponent {
   // PAGO
   // =========================================================
 
-  readonly paymentReturnId = new URLSearchParams(window.location.search).get('checkout');
-  private readonly returnedPaymentId = new URLSearchParams(window.location.search).get('payment_id');
-  hostedCheckout: HostedCheckout | null = null;
-  private returnAccountId: number | null = null;
-
   procesandoCompra = false;
 
   compraResultado:
@@ -412,19 +408,6 @@ export class AppComponent {
   constructor() {
 
     this.auth.restaurar();
-
-    effect(() => {
-      const account = this.auth.cuenta();
-      const accountId = account?.activeRole === 'COMPRADOR' ? account.accountId : null;
-      if (this.returnAccountId !== accountId) {
-        this.returnAccountId = accountId;
-        this.hostedCheckout = null;
-        this.compraError = '';
-      }
-      if (accountId !== null && this.paymentReturnId && !this.hostedCheckout && !this.procesandoCompra) {
-        this.revisarPago();
-      }
-    });
 
     addIcons({
       bagHandleOutline,
@@ -872,25 +855,4 @@ buscarProductos(): void {
     });
   }
 
-  revisarPago(): void {
-    if (!this.paymentReturnId || !this.esComprador || this.procesandoCompra) return;
-    const accountId = this.auth.cuenta()?.accountId;
-    this.procesandoCompra = true;
-    this.compraError = '';
-    const paymentId = this.returnedPaymentId;
-    const result = paymentId && /^[0-9]{1,30}$/.test(paymentId)
-      ? this.payment.refreshCheckout(this.paymentReturnId, paymentId)
-      : this.payment.checkoutStatus(this.paymentReturnId);
-    result.pipe(finalize(() => this.procesandoCompra = false)).subscribe({
-      next: checkout => {
-        if (this.auth.cuenta()?.accountId !== accountId || !this.esComprador) return;
-        this.hostedCheckout = checkout;
-        if (checkout.status === 'APPROVED') this.carrito.refrescar();
-      },
-      error: (error: HttpErrorResponse) => {
-        if (this.auth.cuenta()?.accountId !== accountId || !this.esComprador) return;
-        this.compraError = error.error?.detail ?? error.error?.message ?? 'No se pudo verificar el pago. Vuelve a consultar.';
-      }
-    });
-  }
 }
