@@ -1616,3 +1616,6 @@
   </section>
 </div>
 </ion-app>
+
+<button *ngIf="esComprador || esVendedor" type="button" class="acceso-notificaciones" (click)="mostrarNotificaciones = true">Notificaciones</button>
+<app-notificaciones *ngIf="(esComprador || esVendedor) && mostrarNotificaciones" (cerrar)="mostrarNotificaciones = false"></app-notificaciones>

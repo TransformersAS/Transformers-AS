@@ -1,3 +1,4 @@
+import { NotificacionesComponent } from './notificaciones/notificaciones.component';
 import {
   Component,
   inject, effect
@@ -124,7 +125,7 @@ import {
     NgIf,
     FormsModule,
     AccesoComponent,
-    MisPedidosComponent,
+    MisPedidosComponent, NotificacionesComponent,
     ColaSoporteComponent,
     PedidosRecibidosComponent,
     CatalogoAdminComponent,
@@ -357,6 +358,7 @@ export class AppComponent {
   mostrarModeracion = false;
 
   mostrarPedidos = false;
+  mostrarNotificaciones = false;
 
   /** Panel de pedidos recibidos del vendedor (CU-23); "mostrarPedidos" es el de "Mis pedidos" del comprador. */
   mostrarPedidosRecibidos = false;

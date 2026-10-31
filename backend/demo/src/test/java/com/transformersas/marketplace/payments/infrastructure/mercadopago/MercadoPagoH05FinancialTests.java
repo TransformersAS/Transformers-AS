@@ -17,6 +17,7 @@ import static org.mockito.Mockito.*;
 import static org.springframework.http.HttpStatus.BAD_GATEWAY;
 
 class MercadoPagoH05FinancialTests extends MercadoPagoH05TestSupport {
+    @Autowired com.transformersas.marketplace.notifications.application.usecase.OrderNotificationPublisher notices;
     @Autowired MercadoPagoFinancialService financial;
     @Autowired MercadoPagoPaymentJournal journal;
     @Autowired PlatformTransactionManager transactions;
@@ -43,7 +44,7 @@ class MercadoPagoH05FinancialTests extends MercadoPagoH05TestSupport {
             return refund;
         });
     }
-    private MercadoPagoFinancialService worker(int max) { return new MercadoPagoFinancialService(jdbc, provider, journal, transactions, max, 10); }
+    private MercadoPagoFinancialService worker(int max) { return new MercadoPagoFinancialService(jdbc, provider, journal, transactions, max, 10, notices); }
     private JsonNode refund(String id, String refundId, java.math.BigDecimal amount, String state) {
         return json.valueToTree(Map.of("id", refundId, "payment_id", id, "amount", amount, "status", state));
     }

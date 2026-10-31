@@ -40,6 +40,7 @@ import java.util.stream.Collectors;
 @Service
 public class CreateOrderUseCase {
 
+    private final com.transformersas.marketplace.notifications.application.usecase.OrderNotificationPublisher notices;
     private final OrderRepository orderRepository;
     private final OrderStatusHistoryRepository historyRepository;
     private final CartRepository cartRepository;
@@ -57,7 +58,8 @@ public class CreateOrderUseCase {
             AddressRepository addressRepository,
             UserAccountRepository accounts,
             InteractionService interactionService,
-            StoreRepository stores
+            StoreRepository stores,
+            com.transformersas.marketplace.notifications.application.usecase.OrderNotificationPublisher notices
     ) {
         this.orderRepository = orderRepository;
         this.historyRepository = historyRepository;
@@ -67,6 +69,7 @@ public class CreateOrderUseCase {
         this.accounts = accounts;
         this.interactionService = interactionService;
         this.stores = stores;
+        this.notices = notices;
     }
 
     /** Llamadas sin desglose conservan los importes como desconocidos. */
@@ -125,6 +128,7 @@ public class CreateOrderUseCase {
                 addressId, shippingMethod, delivery, transactionId, now, orderItems, discountAmount, shippingCost, sellerName);
 
         Order saved = orderRepository.save(order);
+        notices.purchased(saved);
 
         historyRepository.append(new OrderStatusHistoryEntry(null, saved.id(), null, OrderStatus.CONFIRMED,
                 ActorType.BUYER, accountId, "Compra confirmada", CorrelationContext.current(), now));

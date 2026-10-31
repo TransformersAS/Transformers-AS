@@ -14,6 +14,7 @@ import java.util.*;
 @Service
 public class MercadoPagoFinancialService {
     public record Claim(String payment, String token) { }
+    private final com.transformersas.marketplace.notifications.application.usecase.OrderNotificationPublisher notices;
     private final JdbcTemplate jdbc;
     private final MercadoPagoClient provider;
     private final MercadoPagoPaymentJournal journal;
@@ -23,8 +24,8 @@ public class MercadoPagoFinancialService {
 
     public MercadoPagoFinancialService(JdbcTemplate jdbc, MercadoPagoClient provider, MercadoPagoPaymentJournal journal,
             PlatformTransactionManager transactions, @Value("${payments.refunds.max-attempts:8}") int maxAttempts,
-            @Value("${payments.refunds.batch-size:10}") int batchSize) {
-        this.jdbc = jdbc; this.provider = provider; this.journal = journal;
+            @Value("${payments.refunds.batch-size:10}") int batchSize, com.transformersas.marketplace.notifications.application.usecase.OrderNotificationPublisher notices) {
+        this.notices = notices; this.jdbc = jdbc; this.provider = provider; this.journal = journal;
         this.transaction = new TransactionTemplate(transactions);
         this.maxAttempts = Math.clamp(maxAttempts, 1, 20); this.batchSize = Math.clamp(batchSize, 1, 20);
     }
@@ -301,6 +302,7 @@ public class MercadoPagoFinancialService {
                     """, error == null ? "CONFIRMED" : "EXCEPTION", source, refund, error, id);
             journal.resolution(id, error == null ? "REFUNDED" : "FINANCIAL_EXCEPTION",
                     "CANCELLED_ORDER".equals(intent.get("reason")) ? (Long) row.get("linked_order_id") : (Long) row.get("order_id"));
+            notices.financial(id, error == null ? "CONFIRMED" : "CONFIRMED_REVIEW");
             event(id, "CONFIRMATION", error == null ? "CONFIRMED" : "EXCEPTION", refund, error);
             if (error == null) {
                 int unresolved = jdbc.queryForObject("SELECT COUNT(*) FROM external_payment_observations WHERE checkout_id=? AND approved_seen=TRUE AND resolution_status<>'REFUNDED'",
@@ -320,6 +322,7 @@ public class MercadoPagoFinancialService {
             int seconds = (int) Math.min(600, 30L << Math.min(attempt - 1, 5));
             jdbc.update("UPDATE external_payment_refunds SET status=?,last_error=?,lease_token=NULL,lease_until=NULL,next_attempt_at=TIMESTAMPADD(SECOND,?,CURRENT_TIMESTAMP(6)),updated_at=CURRENT_TIMESTAMP(6) WHERE payment_id=?",
                     result, retryable && attempt >= maxAttempts ? "MAX_ATTEMPTS" : error, seconds, claim.payment());
+            if (Set.of("FAILED", "EXCEPTION").contains(result)) notices.financial(claim.payment(), "REVIEW");
             event(claim.payment(), "ATTEMPT_RESULT", result, null, error);
         });
     }

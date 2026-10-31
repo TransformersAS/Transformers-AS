@@ -55,6 +55,24 @@
       <p>Descuento aplicado: {{ pedido.discountAmount == null ? historicoNoDisponible : (pedido.discountAmount | number:'1.2-2') }}</p>
       <p>Costo del envío: {{ pedido.shippingCost == null ? historicoNoDisponible : (pedido.shippingCost | number:'1.2-2') }}</p>
       <p>Estado del pago: {{ pedido.paymentStatus ? etiquetasPago[pedido.paymentStatus] : historicoNoDisponible }}</p>
+      <section aria-labelledby="titulo-seguimiento-reembolsos">
+        <h3 id="titulo-seguimiento-reembolsos">Seguimiento de devoluciones</h3>
+        <button type="button" [disabled]="ocupada || cargandoHistorial" (click)="actualizarHistorial()">Actualizar devoluciones</button>
+        <p *ngIf="cargandoHistorial" role="status">Actualizando seguimiento…</p>
+        <p *ngIf="errorHistorial" class="error" role="alert">No se pudo actualizar el seguimiento. Inténtalo de nuevo.</p>
+        <p *ngIf="!pedido.refunds?.length">No hay devoluciones registradas para este pedido.</p>
+        <ul>
+          <li *ngFor="let devolucion of pedido.refunds">
+            <p>Motivo: {{ devolucion.reason }}</p>
+            <p *ngIf="devolucion.amount != null">Importe: {{ devolucion.amount | number:'1.2-2' }} <span *ngIf="devolucion.currency">{{ devolucion.currency }}</span></p>
+            <p><strong>{{ devolucion.label }}</strong></p>
+            <p>{{ devolucion.message }}</p>
+            <p *ngIf="devolucion.requestedAt">Solicitud registrada: {{ devolucion.requestedAt | date:'dd/MM/yyyy HH:mm:ss' }}</p>
+            <p *ngIf="devolucion.updatedAt">Última actualización: {{ devolucion.updatedAt | date:'dd/MM/yyyy HH:mm:ss' }}</p>
+            <p *ngIf="devolucion.confirmedAt">Confirmación registrada: {{ devolucion.confirmedAt | date:'dd/MM/yyyy HH:mm:ss' }}</p>
+          </li>
+        </ul>
+      </section>
       <h3>Dirección de entrega</h3>
       <ng-container *ngIf="pedido.delivery as direccion; else sinDireccionHistorica">
         <p>Destinatario: {{ direccion.recipientName ?? historicoNoDisponible }}</p>

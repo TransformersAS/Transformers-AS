@@ -58,7 +58,20 @@ export interface CambioEstadoPedido {
   createdAt: string | null;
   legacy: boolean;
 }
+export interface SeguimientoReembolso {
+  reason: string;
+  amount: number | null;
+  currency: string | null;
+  status: 'INTENT' | 'SUBMITTING' | 'UNKNOWN' | 'PENDING' | 'CONFIRMED' | 'FAILED' | 'EXCEPTION'
+    | 'CONFIRMED_REVIEW' | 'SIMULATED' | 'COMPLETED_RECORDED';
+  label: string;
+  message: string;
+  requestedAt: string | null;
+  updatedAt: string | null;
+  confirmedAt: string | null;
+}
 export interface DetallePedido extends Pedido {
+  refunds: SeguimientoReembolso[];
   history: CambioEstadoPedido[];
   delivery: DireccionHistoricaPedido | null;
   paymentStatus: EstadoPagoPedido | null;

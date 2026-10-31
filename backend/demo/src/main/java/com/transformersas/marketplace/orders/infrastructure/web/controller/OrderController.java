@@ -1,5 +1,7 @@
 package com.transformersas.marketplace.orders.infrastructure.web.controller;
 
+import com.transformersas.marketplace.orders.application.dto.BuyerRefund;
+
 import com.transformersas.marketplace.auth.infrastructure.security.AccountPrincipal;
 import com.transformersas.marketplace.orders.application.usecase.FindOwnOrders;
 import com.transformersas.marketplace.orders.application.usecase.GetBuyerOrderDetailUseCase;
@@ -56,12 +58,12 @@ public class OrderController {
                               String shippingMethod, String transactionId, LocalDateTime createdAt, List<OrderItem> items,
                               DeliverySnapshot delivery, OrderPaymentStatus paymentStatus, Long storeId,
                               BigDecimal discountAmount, BigDecimal shippingCost, String sellerNameSnapshot,
-                              List<BuyerOrderDetail.History> history) {
+                              List<BuyerOrderDetail.History> history, List<BuyerRefund> refunds) {
         static OrderDetail from(BuyerOrderDetail detail) {
             Order order = detail.order();
             return new OrderDetail(order.id(), order.status(), order.total(), order.addressId(), order.shippingMethod(),
                     order.transactionId(), order.createdAt(), order.items(), order.delivery(), order.paymentStatus(),
-                    order.storeId(), order.discountAmount(), order.shippingCost(), order.sellerNameSnapshot(), detail.history());
+                    order.storeId(), order.discountAmount(), order.shippingCost(), order.sellerNameSnapshot(), detail.history(), detail.refunds());
         }
     }
 

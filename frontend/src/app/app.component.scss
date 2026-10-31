@@ -2123,3 +2123,5 @@ footer > div {
   color: #173039;
   button { padding: .75rem 1rem; border-radius: 8px; cursor: pointer; }
 }
+
+.acceso-notificaciones { position: fixed; top: 5rem; right: 1rem; z-index: 1000; padding: .6rem 1rem; border-radius: .5rem; background: white; color: #243342; border: 1px solid #8997a6; }

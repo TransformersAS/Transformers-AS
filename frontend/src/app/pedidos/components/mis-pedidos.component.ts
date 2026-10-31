@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Output, effect, inject } from '@angular/core';
+import { Component, EventEmitter, Output, Input, effect, inject } from '@angular/core';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
@@ -21,6 +21,7 @@ import { DevolverLineaComponent } from '../../devoluciones/components/devolver-l
   styleUrl: './mis-pedidos.component.scss'
 })
 export class MisPedidosComponent {
+  @Input() pedidoInicial: number | null = null;
   @Output() cerrar = new EventEmitter<void>();
   readonly auth = inject(AuthService);
   private readonly servicio = inject(PedidosService);
@@ -92,7 +93,10 @@ export class MisPedidosComponent {
       this.detalle = null;
       this.error = this.exito = '';
       this.confirmar = this.conflicto = false;
-      if (cuenta?.activeRole === 'COMPRADOR') this.cargarLista();
+      if (cuenta?.activeRole === 'COMPRADOR') {
+        if (this.pedidoInicial != null) { const id = this.pedidoInicial; this.pedidoInicial = null; this.verDetalle(id); }
+        else this.cargarLista();
+      }
       const pendientes = this.peticiones;
       onCleanup(() => {
         pendientes.unsubscribe();
@@ -245,7 +249,9 @@ export class MisPedidosComponent {
       finalize(() => this.cargandoHistorial = false)
     ).subscribe({
       next: detalle => {
-        if (this.detalle?.id === id) this.detalle = { ...this.detalle, history: detalle.history };
+        if (this.detalle?.id === id) this.detalle = { ...this.detalle, history: detalle.history,
+          paymentStatus: detalle.paymentStatus ?? this.detalle.paymentStatus,
+          refunds: detalle.refunds ?? this.detalle.refunds };
       },
       error: () => this.errorHistorial = 'No se pudo actualizar el historial. Inténtalo de nuevo.'
     });

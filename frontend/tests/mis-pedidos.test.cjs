@@ -55,7 +55,7 @@ function fixture(status = 'CONFIRMED', response, options = {}) {
   };
   const { MisPedidosComponent } = load('pedidos/components/mis-pedidos.component.ts', {
     '@angular/core': {
-      Component: () => target => target, Output: () => () => {}, EventEmitter: class {},
+      Component: () => target => target, Input: () => () => {}, Output: () => () => {}, EventEmitter: class {},
       effect: callback => { effectCallback = callback; callback(fn => { cleanup = fn; }); },
       inject: token => token === AuthService ? { cuenta: () => account }
         : token === DomSanitizer ? { bypassSecurityTrustResourceUrl: url => url } : service
@@ -377,4 +377,20 @@ test('el servicio solicita PDF como blob y comunica el modo de descarga', () => 
   assert.equal(calls[0].options.responseType, 'blob');
   assert.equal(calls[0].options.params.download, 'false');
   assert.equal(calls[1].options.params.download, 'true');
+});
+
+test('actualizar seguimiento recupera pago y devoluciones sin cancelar de nuevo', () => {
+  const refund = { status: 'CONFIRMED_REVIEW', amount: 20 };
+  const { component: c, requests } = fixture('CANCELLED', undefined, { detail: id => rx.of({ id,
+    status: 'CANCELLED', paymentStatus: 'REFUNDED', history: [], refunds: [refund] }) });
+  c.detalle.paymentStatus = 'REFUND_PENDING'; c.actualizarHistorial(); c.exito = '';
+  assert.equal(c.detalle.paymentStatus, 'REFUNDED');
+  assert.equal(c.detalle.refunds[0].status, 'CONFIRMED_REVIEW'); assert.equal(requests.length, 0);
+});
+test('cerrar sesión cancela seguimiento pendiente y elimina datos financieros', () => {
+  const pending = new rx.Subject();
+  const { component: c, changeAccount } = fixture('CANCELLED', undefined, { detail: () => pending });
+  c.actualizarHistorial(); changeAccount(null);
+  pending.next({ id: 7, history: [], paymentStatus: 'REFUNDED', refunds: [{ amount: 999 }] });
+  assert.equal(c.detalle, null);
 });

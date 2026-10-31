@@ -28,6 +28,7 @@ import static org.springframework.http.HttpStatus.*;
 /** Durable snapshot: browser return parameters never approve a payment. */
 @Service
 public class MercadoPagoCheckoutService {
+    private final com.transformersas.marketplace.notifications.application.usecase.OrderNotificationPublisher notices;
     private final JdbcTemplate jdbc;
     private final ObjectMapper json;
     private final MercadoPagoClient provider;
@@ -50,8 +51,8 @@ public class MercadoPagoCheckoutService {
             AddressRepository addresses, InventoryReservationService reservations,
             InventoryReservationRepository reservationRows, ProductRepository products,
             OrderRepository orders, OrderStatusHistoryRepository history, StoreRepository stores,
-            MercadoPagoPaymentJournal journal, PlatformTransactionManager transactions, MercadoPagoFinancialService financial) {
-        this.jdbc = jdbc; this.json = json; this.provider = provider; this.checkout = checkout;
+            MercadoPagoPaymentJournal journal, PlatformTransactionManager transactions, MercadoPagoFinancialService financial, com.transformersas.marketplace.notifications.application.usecase.OrderNotificationPublisher notices) {
+        this.notices = notices; this.jdbc = jdbc; this.json = json; this.provider = provider; this.checkout = checkout;
         this.carts = carts; this.cartItems = cartItems; this.addresses = addresses;
         this.reservations = reservations; this.reservationRows = reservationRows;
         this.products = products; this.orders = orders; this.history = history; this.stores = stores;
@@ -224,6 +225,7 @@ public class MercadoPagoCheckoutService {
                     OrderPaymentStatus.APPROVED, attempt.total, snapshot.storeId(), snapshot.addressId(),
                     snapshot.shippingMethod(), snapshot.delivery(), "MP-" + paymentId, now, snapshot.items(),
                     snapshot.discountAmount(), snapshot.shippingCost(), snapshot.sellerNameSnapshot()));
+            notices.purchased(order);
             history.append(new OrderStatusHistoryEntry(null, order.id(), null, OrderStatus.CONFIRMED,
                     ActorType.SYSTEM, null, "Pago de pruebas verificado con Mercado Pago", CorrelationContext.current(), now));
             // Preserve any items edited/added while the buyer was at the hosted checkout.

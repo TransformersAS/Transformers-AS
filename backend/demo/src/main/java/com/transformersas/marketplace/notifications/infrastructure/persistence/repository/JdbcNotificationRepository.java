@@ -50,6 +50,12 @@ public class JdbcNotificationRepository implements NotificationRepository {
     }
 
     @Override
+    public java.util.List<Notification> findByRecipient(RecipientType type, Long recipientId, int offset, int limit) {
+        return jdbc.sql("SELECT " + COLUMNS + " FROM notifications WHERE recipient_type=? AND recipient_id=? ORDER BY created_at DESC,id DESC LIMIT ? OFFSET ?")
+            .params(type.name(), recipientId, limit, offset).query((rs,row) -> map(rs)).list();
+    }
+
+    @Override
     public Optional<Notification> findById(Long id) {
         return jdbc.sql("SELECT " + COLUMNS + " FROM notifications WHERE id = ?").param(id)
                 .query((rs, row) -> map(rs)).optional();
