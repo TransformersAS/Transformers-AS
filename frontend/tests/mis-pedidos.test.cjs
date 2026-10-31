@@ -8,7 +8,7 @@ const { runInNewContext } = require('node:vm');
 const ts = require('typescript');
 const rx = require('rxjs');
 
-function load(relative, modules) {
+function load(relative, modules, globals = {}) {
   const filename = resolve(__dirname, '../src/app', relative);
   const js = ts.transpileModule(readFileSync(filename, 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, experimentalDecorators: true }
@@ -17,14 +17,16 @@ function load(relative, modules) {
   runInNewContext(js, { exports, require: name => {
     if (!(name in modules)) throw new Error(`Dependencia sin sustituir: ${name}`);
     return modules[name];
-  }});
+  }, ...globals });
   return exports;
 }
 
 function fixture(status = 'CONFIRMED', response, options = {}) {
   class AuthService {}
   class PedidosService {}
+  class DomSanitizer {}
   const requests = [];
+  const pdfs = [], urls = [], revoked = [], downloads = [];
   const lists = [];
   const details = [];
   let account = { accountId: 1, activeRole: 'COMPRADOR' };
@@ -39,6 +41,10 @@ function fixture(status = 'CONFIRMED', response, options = {}) {
       details.push(id);
       return options.detail ? options.detail(id) : rx.of({ id, status, items: [], history: [] });
     },
+    obtenerComprobante: (id, download) => {
+      pdfs.push({ id, download });
+      return options.pdf ? options.pdf() : rx.of({ type: 'application/pdf', size: 100 });
+    },
     cancelarPedido: (id, body) => {
       requests.push({ id, body });
       return (response ?? rx.of({ orderId: id, status: 'CANCELLED', paymentStatus: 'REFUNDED',
@@ -51,19 +57,25 @@ function fixture(status = 'CONFIRMED', response, options = {}) {
     '@angular/core': {
       Component: () => target => target, Output: () => () => {}, EventEmitter: class {},
       effect: callback => { effectCallback = callback; callback(fn => { cleanup = fn; }); },
-      inject: token => token === AuthService ? { cuenta: () => account } : service
+      inject: token => token === AuthService ? { cuenta: () => account }
+        : token === DomSanitizer ? { bypassSecurityTrustResourceUrl: url => url } : service
     },
+    '@angular/platform-browser': { DomSanitizer },
     '@angular/common': {}, '@angular/forms': {}, 'rxjs': rx,
     '../../core/services/auth.service': { AuthService }, '../services/pedidos.service': { PedidosService },
     '../models/pedido.model': load('pedidos/models/pedido.model.ts', {}),
     './resumen-pedido.component': {}, '../../seguimiento/components/seguimiento-logistico.component': {},
     '../../seguimiento/components/consulta-devolucion.component': {},
     '../../seguimiento/models/seguimiento.model': {}, '../../devoluciones/components/devolver-linea.component': {}
+  }, {
+    URL: { createObjectURL: () => { const url = 'blob:test-' + urls.length; urls.push(url); return url; }, revokeObjectURL: url => revoked.push(url) },
+    document: { body: { appendChild: () => {} }, createElement: () => ({ href: '', download: '', click() { downloads.push(this.download); }, remove() {} }) },
+    setTimeout: callback => callback()
   });
   const component = new MisPedidosComponent();
   component.detalle = { id: 7, status, items: [] };
   component.pedidos = [{ id: 7, status }, { id: 8, status: 'CONFIRMED' }];
-  return { component, requests, lists, details, changeAccount: next => {
+  return { component, requests, lists, details, pdfs, urls, revoked, downloads, changeAccount: next => {
     cleanup?.();
     account = next;
     effectCallback(fn => { cleanup = fn; });
@@ -308,4 +320,61 @@ test('cerrar sesión cancela una recarga de historial pendiente', () => {
   changeAccount(null);
   pending.next({ id: 7, history: [{ toStatus: 'CANCELLED' }] }); pending.complete();
   assert.equal(c.detalle, null); assert.equal(c.cargandoHistorial, false);
+});
+
+
+test('visualiza el PDF autorizado y revoca su URL al cerrar o cambiar de cuenta', () => {
+  const { component: c, pdfs, revoked, changeAccount } = fixture();
+  c.verComprobante();
+  assert.equal(pdfs[0].id, 7); assert.equal(pdfs[0].download, false);
+  assert.equal(c.comprobanteUrl, 'blob:test-0'); assert.equal(c.cargandoComprobante, false);
+  c.cerrarComprobante();
+  assert.equal(c.comprobanteUrl, null); assert.equal(revoked[0], 'blob:test-0');
+  c.verComprobante();
+  changeAccount(null);
+  assert.equal(c.comprobanteUrl, null); assert.equal(revoked[1], 'blob:test-1');
+});
+
+test('descarga con nombre claro y libera el recurso temporal', () => {
+  const { component: c, pdfs, downloads, revoked } = fixture();
+  c.verComprobante(true);
+  assert.equal(pdfs[0].download, true);
+  assert.equal(downloads[0], 'comprobante-pedido-7.pdf');
+  assert.equal(revoked[0], 'blob:test-0');
+});
+
+test('PDF vacío o no PDF y errores HTTP se muestran sin abrir documentos', () => {
+  for (const body of [{ type: 'application/json', size: 10 }, { type: 'application/pdf', size: 0 }]) {
+    const { component: c, urls } = fixture('CONFIRMED', undefined, { pdf: () => rx.of(body) });
+    c.verComprobante();
+    assert.match(c.errorComprobante, /PDF válido/); assert.equal(urls.length, 0);
+  }
+  for (const status of [401, 403, 404, 500]) {
+    const { component: c, urls } = fixture('CONFIRMED', undefined, { pdf: () => rx.throwError(() => ({ status })) });
+    c.verComprobante();
+    assert.notEqual(c.errorComprobante, ''); assert.equal(c.cargandoComprobante, false); assert.equal(urls.length, 0);
+  }
+});
+
+test('cerrar sesión cancela una descarga pendiente sin exponer su respuesta', () => {
+  const pending = new rx.Subject();
+  const { component: c, urls, changeAccount } = fixture('CONFIRMED', undefined, { pdf: () => pending });
+  c.verComprobante();
+  changeAccount(null);
+  pending.next({ type: 'application/pdf', size: 100 }); pending.complete();
+  assert.equal(urls.length, 0); assert.equal(c.comprobanteUrl, null); assert.equal(c.cargandoComprobante, false);
+});
+
+test('el servicio solicita PDF como blob y comunica el modo de descarga', () => {
+  const calls = [];
+  const { PedidosService } = load('pedidos/services/pedidos.service.ts', {
+    '@angular/core': { Injectable: () => target => target, inject: () => ({ get: (url, options) => calls.push({ url, options }) }) },
+    '@angular/common/http': {}, '../../core/config/api.config': { API_BASE: '/api' }
+  });
+  const service = new PedidosService();
+  service.obtenerComprobante(7); service.obtenerComprobante(7, true);
+  assert.equal(calls[0].url, '/api/orders/7/receipt');
+  assert.equal(calls[0].options.responseType, 'blob');
+  assert.equal(calls[0].options.params.download, 'false');
+  assert.equal(calls[1].options.params.download, 'true');
 });

@@ -33,6 +33,12 @@
 		<poi.version>5.4.1</poi.version>
 	</properties>
 	<dependencies>
+        <!-- PDF de comprobantes: Apache License 2.0, sin motor HTML ni servicios externos. -->
+        <dependency>
+            <groupId>org.apache.pdfbox</groupId>
+            <artifactId>pdfbox</artifactId>
+            <version>3.0.8</version>
+        </dependency>
         <dependency>
             <groupId>com.icegreen</groupId>
             <artifactId>greenmail</artifactId>

@@ -20,6 +20,12 @@ export class PedidosService {
     return this.http.get<DetallePedido>(`${API_BASE}/orders/${id}`);
   }
 
+  obtenerComprobante(id: number, download = false): Observable<Blob> {
+    return this.http.get(`${API_BASE}/orders/${id}/receipt`, {
+      params: { download: String(download) }, responseType: 'blob'
+    });
+  }
+
   cancelarPedido(id: number, motivo: CancelacionPedido): Observable<ResultadoCancelacion> {
     return this.http.post<ResultadoCancelacion>(`${API_BASE}/orders/${id}/cancellation`, motivo);
   }

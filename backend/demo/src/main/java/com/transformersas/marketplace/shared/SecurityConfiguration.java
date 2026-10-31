@@ -110,6 +110,8 @@ public class SecurityConfiguration {
                         .requestMatchers(HttpMethod.HEAD, "/api/auth/validation/vendedor").hasRole("VENDEDOR")
                         .requestMatchers(HttpMethod.GET, "/api/orders", "/api/orders/{id}").hasRole("COMPRADOR")
                         .requestMatchers(HttpMethod.HEAD, "/api/orders", "/api/orders/{id}").hasRole("COMPRADOR")
+                        .requestMatchers(HttpMethod.GET, "/api/orders/{id}/receipt").hasRole("COMPRADOR")
+                        .requestMatchers(HttpMethod.HEAD, "/api/orders/{id}/receipt").hasRole("COMPRADOR")
                         .requestMatchers(HttpMethod.POST, "/api/orders/{id}/cancellation").hasRole("COMPRADOR")
                         // Seguimiento logístico (CU-24/CU-25): el comprador consulta lo suyo; la tienda pasa por
                         // /api/seller/**, donde el rol activo VENDEDOR lo comprueba SessionSellerActorProvider.

@@ -1,4 +1,5 @@
 import { Component, EventEmitter, Output, effect, inject } from '@angular/core';
+import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
@@ -23,6 +24,13 @@ export class MisPedidosComponent {
   @Output() cerrar = new EventEmitter<void>();
   readonly auth = inject(AuthService);
   private readonly servicio = inject(PedidosService);
+  private readonly sanitizer = inject(DomSanitizer);
+  private consultaComprobante?: Subscription;
+  private urlComprobante: string | null = null;
+  private readonly descargas = new Set<string>();
+  comprobanteUrl: SafeResourceUrl | null = null;
+  cargandoComprobante = false;
+  errorComprobante = '';
   private peticiones = new Subscription();
   readonly etiquetasEstado = ETIQUETA_ESTADO_PEDIDO;
   readonly etiquetasPago = ETIQUETA_ESTADO_PAGO;
@@ -72,6 +80,7 @@ export class MisPedidosComponent {
     effect(onCleanup => {
       const cuenta = this.auth.cuenta();
       this.peticiones.unsubscribe();
+      this.cerrarComprobante();
       this.peticiones = new Subscription();
       this.cargando = this.cancelando = this.cargandoHistorial = false;
       this.errorHistorial = '';
@@ -85,7 +94,12 @@ export class MisPedidosComponent {
       this.confirmar = this.conflicto = false;
       if (cuenta?.activeRole === 'COMPRADOR') this.cargarLista();
       const pendientes = this.peticiones;
-      onCleanup(() => pendientes.unsubscribe());
+      onCleanup(() => {
+        pendientes.unsubscribe();
+        this.cerrarComprobante();
+        this.descargas.forEach(url => URL.revokeObjectURL(url));
+        this.descargas.clear();
+      });
     });
   }
 
@@ -93,6 +107,7 @@ export class MisPedidosComponent {
 
   cargarLista(): void {
     if (this.ocupada || this.auth.cuenta()?.activeRole !== 'COMPRADOR') return;
+    this.cerrarComprobante();
     this.consultaHistorial?.unsubscribe();
     this.errorHistorial = '';
     this.detalle = null;
@@ -156,6 +171,7 @@ export class MisPedidosComponent {
 
   verDetalle(id: number, conservarError = false): void {
     if (this.ocupada || this.auth.cuenta()?.activeRole !== 'COMPRADOR') return;
+    this.cerrarComprobante();
     this.consultaHistorial?.unsubscribe();
     this.errorHistorial = '';
     this.detalle = null;
@@ -174,6 +190,7 @@ export class MisPedidosComponent {
     const pedido = this.detalle;
     if (this.ocupada || !this.confirmar || this.conflicto || !pedido || !this.puedeCancelar || !this.motivoValido
         || this.auth.cuenta()?.activeRole !== 'COMPRADOR') return;
+    this.cerrarComprobante();
     this.cancelando = true;
     this.error = this.exito = '';
     this.peticiones.add(this.servicio.cancelarPedido(pedido.id, {
@@ -210,6 +227,7 @@ export class MisPedidosComponent {
   estadoActualizado(estado: string): void {
     const pedido = this.detalle;
     if (!pedido) return;
+    this.cerrarComprobante();
     const nuevo = estado as EstadoPedido;
     this.detalle = { ...pedido, status: nuevo };
     this.refrescarListado();
@@ -232,6 +250,54 @@ export class MisPedidosComponent {
       error: () => this.errorHistorial = 'No se pudo actualizar el historial. Inténtalo de nuevo.'
     });
     this.peticiones.add(this.consultaHistorial);
+  }
+
+  verComprobante(descargar = false): void {
+    const pedido = this.detalle;
+    if (!pedido || this.ocupada || this.cargandoComprobante || this.auth.cuenta()?.activeRole !== 'COMPRADOR') return;
+    this.cerrarComprobante();
+    this.cargandoComprobante = true;
+    this.consultaComprobante = this.servicio.obtenerComprobante(pedido.id, descargar).pipe(
+      finalize(() => this.cargandoComprobante = false)
+    ).subscribe({
+      next: archivo => {
+        if (this.detalle?.id !== pedido.id) return;
+        if (archivo.type !== 'application/pdf' || archivo.size === 0) {
+          this.errorComprobante = 'No se recibió un PDF válido. Inténtalo de nuevo.';
+          return;
+        }
+        const url = URL.createObjectURL(archivo);
+        if (descargar) {
+          this.descargas.add(url);
+          const enlace = document.createElement('a');
+          enlace.href = url;
+          enlace.download = `comprobante-pedido-${pedido.id}.pdf`;
+          document.body.appendChild(enlace);
+          enlace.click();
+          enlace.remove();
+          setTimeout(() => { URL.revokeObjectURL(url); this.descargas.delete(url); }, 1000);
+        } else {
+          this.urlComprobante = url;
+          // Solo un blob PDF recibido de nuestro endpoint autenticado, nunca una URL del usuario.
+          this.comprobanteUrl = this.sanitizer.bypassSecurityTrustResourceUrl(url);
+        }
+      },
+      error: (error: HttpErrorResponse) => {
+        this.errorComprobante = error.status === 401 ? 'La sesión ha finalizado. Inicia sesión de nuevo.'
+          : error.status === 403 || error.status === 404 ? 'Comprobante no disponible para esta cuenta.'
+          : 'No se pudo obtener el comprobante. Inténtalo de nuevo.';
+      }
+    });
+    this.peticiones.add(this.consultaComprobante);
+  }
+
+  cerrarComprobante(): void {
+    this.consultaComprobante?.unsubscribe();
+    if (this.urlComprobante) URL.revokeObjectURL(this.urlComprobante);
+    this.urlComprobante = null;
+    this.comprobanteUrl = null;
+    this.cargandoComprobante = false;
+    this.errorComprobante = '';
   }
 
   private mensaje(error: HttpErrorResponse): string {

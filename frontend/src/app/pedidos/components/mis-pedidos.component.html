@@ -40,6 +40,17 @@
     <ng-container *ngIf="detalle as pedido">
       <button type="button" [disabled]="ocupada" (click)="cargarLista()">Volver a mis pedidos</button>
       <app-resumen-pedido [pedido]="pedido"></app-resumen-pedido>
+      <button type="button" [disabled]="ocupada || cargandoComprobante" (click)="verComprobante()">Ver comprobante</button>
+      <button type="button" [disabled]="ocupada || cargandoComprobante" (click)="verComprobante(true)">Descargar comprobante</button>
+      <p *ngIf="cargandoComprobante" role="status">Generando comprobante…</p>
+      <p *ngIf="errorComprobante" class="error" role="alert">{{ errorComprobante }}</p>
+      <section *ngIf="comprobanteUrl" aria-labelledby="titulo-comprobante">
+        <h3 id="titulo-comprobante">Comprobante de compra</h3>
+        <p>Generado al consultar. Este comprobante no constituye una factura fiscal.</p>
+        <iframe [src]="comprobanteUrl" title="PDF del comprobante de compra"></iframe>
+        <p>Si tu navegador no permite visualizar el PDF, utiliza «Descargar comprobante».</p>
+        <button type="button" (click)="cerrarComprobante()">Cerrar comprobante</button>
+      </section>
       <p>Vendedor: {{ pedido.sellerNameSnapshot ?? historicoNoDisponible }}</p>
       <p>Descuento aplicado: {{ pedido.discountAmount == null ? historicoNoDisponible : (pedido.discountAmount | number:'1.2-2') }}</p>
       <p>Costo del envío: {{ pedido.shippingCost == null ? historicoNoDisponible : (pedido.shippingCost | number:'1.2-2') }}</p>
