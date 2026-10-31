@@ -89,7 +89,7 @@
           <strong>{{ item.productName }}</strong> (producto #{{ item.productId }})
           <p>Cantidad: {{ item.quantity }} · Precio unitario: {{ item.unitPrice | number:'1.2-2' }}</p>
           <p>Subtotal: {{ item.subtotal | number:'1.2-2' }}</p>
-          <app-devolver-linea [pedidoId]="pedido.id" [productoId]="item.productId" [posicion]="i"
+          <app-devolver-linea *ngIf="pedido.status === 'DELIVERED'" [pedidoId]="pedido.id" [productoId]="item.productId" [posicion]="i"
             [entregado]="pedido.status === 'DELIVERED'"></app-devolver-linea>
         </li>
       </ul>
@@ -112,11 +112,11 @@
       </section>
       <app-seguimiento-logistico *ngIf="conSeguimiento(pedido.status)" tipo="pedido" rol="comprador"
         [id]="pedido.id" (estadoCambio)="estadoActualizado($event)"></app-seguimiento-logistico>
-      <p *ngIf="pedido.status === 'CANCELLATION_REQUESTED'">La cancelación de este pedido ya fue solicitada.</p>
+      <p *ngIf="motivoNoCancelable" role="status">{{ motivoNoCancelable }}</p>
       <button *ngIf="conflicto" type="button" [disabled]="ocupada" (click)="verDetalle(pedido.id)">Actualizar detalle</button>
       <button *ngIf="puedeCancelar && !confirmar && !conflicto" type="button"
         [disabled]="ocupada" (click)="prepararCancelacion()">Cancelar pedido</button>
-      <div *ngIf="confirmar" class="confirmacion">
+      <div *ngIf="confirmar && puedeCancelar" class="confirmacion">
         <label for="motivo-cancelacion">Motivo de cancelación</label>
         <select id="motivo-cancelacion" [(ngModel)]="motivo" [disabled]="ocupada" required>
           <option value="" disabled>Selecciona un motivo</option>
@@ -128,6 +128,12 @@
             required maxlength="1000"></textarea>
           <p *ngIf="!explicacion.trim()">Debes explicar el motivo para continuar.</p>
         </ng-container>
+        <div role="note" aria-label="Consecuencias de cancelar">
+          <p>Si se acepta, la cancelación es definitiva. La devolución del dinero es una operación separada.</p>
+          <p>Cuando corresponda un reembolso, puede quedar pendiente, en verificación, fallido o en revisión.</p>
+          <p>No existe un plazo garantizado de acreditación.</p>
+          <p>Puedes consultar el resultado en «Seguimiento de devoluciones».</p>
+        </div>
         <p>¿Confirmas la cancelación definitiva del pedido #{{ pedido.id }}?</p>
         <button type="button" [disabled]="ocupada || !motivoValido" (click)="cancelarPedido()">Confirmar cancelación</button>
         <button type="button" [disabled]="ocupada" (click)="confirmar = false">Volver</button>

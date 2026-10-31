@@ -394,3 +394,52 @@ test('cerrar sesión cancela seguimiento pendiente y elimina datos financieros',
   pending.next({ id: 7, history: [], paymentStatus: 'REFUNDED', refunds: [{ amount: 999 }] });
   assert.equal(c.detalle, null);
 });
+
+for (const [status, text] of Object.entries({
+  READY_FOR_DISPATCH: 'listo para despacho', PICKED_UP: 'posteriormente consta como entregado',
+  IN_TRANSIT: 'posteriormente consta como entregado', DELIVERY_EXCEPTION: 'posteriormente consta como entregado',
+  DELIVERY_ATTEMPT_FAILED: 'posteriormente consta como entregado', DELIVERED: 'únicamente si cumple',
+  CANCELLED: 'ya está cancelado', RETURNED_TO_SELLER: 'no confirma por sí solo un reembolso',
+  CANCELLATION_REQUESTED: 'Consta una solicitud previa'
+})) {
+  test(`H07 explica ${status} sin permitir cancelación`, () => {
+    const { component: c, requests } = fixture(status);
+    assert.equal(c.puedeCancelar, false); assert.ok(c.motivoNoCancelable.includes(text));
+    c.confirmar = true; c.motivo = 'CHANGED_MIND'; c.cancelarPedido(); assert.equal(requests.length, 0);
+  });
+}
+for (const [code,text] of Object.entries({ ORDER_INVALID_TRANSITION: 'estado actual', ORDER_HAS_SHIPMENT: 'envío creado', ORDER_STATE_CONFLICT: 'cambió de estado' })) {
+  test(`H07 traduce ${code} y recupera detalle sin repetir cancelación`, () => {
+    const { component: c, requests, details } = fixture('CONFIRMED', rx.throwError(() => ({ status: 409, error: { code } })),
+      { detail: id => rx.of({ id, status: 'READY_FOR_DISPATCH', history: [], refunds: [], items: [] }) });
+    c.prepararCancelacion(); c.motivo = 'CHANGED_MIND'; c.cancelarPedido();
+    assert.ok(c.error.includes(text)); assert.equal(c.detalle.status, 'READY_FOR_DISPATCH');
+    assert.equal(c.puedeCancelar, false); assert.equal(c.confirmar, false); assert.equal(requests.length, 1);
+    assert.equal(details.at(-1), 7);
+  });
+}
+test('H07 regreso de la confirmación no envía solicitudes', () => {
+  const { component: c, requests } = fixture(); c.prepararCancelacion(); c.confirmar = false;
+  c.cancelarPedido(); assert.equal(requests.length, 0);
+});
+test('H07 una consulta fallida tras conflicto conserva el bloqueo y permite actualización manual', () => {
+  const { component: c, requests } = fixture('CONFIRMED', rx.throwError(() => ({ status: 409, error: { code: 'ORDER_STATE_CONFLICT' } })),
+    { detail: () => rx.throwError(() => ({ status: 503 })) });
+  c.prepararCancelacion(); c.motivo = 'CHANGED_MIND'; c.cancelarPedido();
+  assert.equal(c.conflicto,true); assert.match(c.error,/No se pudo actualizar/); assert.equal(requests.length,1);
+});
+test('H07 logout cancela la actualización pendiente tras rechazo', () => {
+  const pending = new rx.Subject();
+  const { component: c, changeAccount } = fixture('CONFIRMED', rx.throwError(() => ({ status: 409, error: { code: 'ORDER_STATE_CONFLICT' } })),
+    { detail: () => pending });
+  c.prepararCancelacion(); c.motivo = 'CHANGED_MIND'; c.cancelarPedido(); changeAccount(null);
+  pending.next({id:7,status:'DELIVERED'}); assert.equal(c.detalle,null); assert.equal(pending.observers.length,0);
+});
+
+test('H07 un conflicto actualizado a preparación exige una nueva confirmación antes de intentar de nuevo', () => {
+  const { component: c, requests } = fixture('CONFIRMED', rx.throwError(() => ({ status: 409, error: { code: 'ORDER_STATE_CONFLICT' } })),
+    { detail: id => rx.of({ id, status: 'IN_PREPARATION', items: [], history: [], refunds: [] }) });
+  c.prepararCancelacion(); c.motivo = 'CHANGED_MIND'; c.cancelarPedido();
+  assert.equal(c.detalle.status,'IN_PREPARATION');assert.equal(c.puedeCancelar,true);
+  assert.equal(c.conflicto,false);assert.equal(c.confirmar,false); c.cancelarPedido();assert.equal(requests.length,1);
+});

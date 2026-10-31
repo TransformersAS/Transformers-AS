@@ -66,6 +66,19 @@ export class MisPedidosComponent {
     return this.detalle?.status === 'CONFIRMED' || this.detalle?.status === 'IN_PREPARATION';
   }
 
+  get motivoNoCancelable(): string {
+    switch (this.detalle?.status) {
+      case 'READY_FOR_DISPATCH': return 'El pedido está listo para despacho y ya no admite cancelación.';
+      case 'PICKED_UP': case 'IN_TRANSIT': case 'DELIVERY_EXCEPTION': case 'DELIVERY_ATTEMPT_FAILED':
+        return 'El pedido ya no puede cancelarse. Si posteriormente consta como entregado, podrás comprobar si sus productos admiten devolución.';
+      case 'DELIVERED': return 'El pedido fue entregado y ya no puede cancelarse. Consulta la opción «Devolver» de cada producto, disponible únicamente si cumple las condiciones y el plazo de devolución.';
+      case 'CANCELLED': return 'El pedido ya está cancelado. Si hay una devolución de dinero asociada, consulta «Seguimiento de devoluciones».';
+      case 'RETURNED_TO_SELLER': return 'El pedido figura como retornado al vendedor y no admite cancelación. Este estado no confirma por sí solo un reembolso; consulta el seguimiento financiero si existe.';
+      case 'CANCELLATION_REQUESTED': return 'Consta una solicitud previa de cancelación. Este estado no confirma que el pedido esté cancelado ni que exista un reembolso.';
+      default: return '';
+    }
+  }
+
   get motivoValido(): boolean {
     return this.motivos.some(m => m.codigo === this.motivo)
       && (this.motivo !== 'OTHER' || (this.explicacion.trim().length > 0 && this.explicacion.length <= 1000));
@@ -219,7 +232,34 @@ export class MisPedidosComponent {
           this.detalle = null;
           this.pedidos = this.pedidos.filter(p => p.id !== pedido.id);
         }
-        if (error.status === 409) this.conflicto = true;
+        if (error.status === 409) {
+          this.conflicto = true;
+          const code = error.error?.code;
+          if (['ORDER_INVALID_TRANSITION', 'ORDER_HAS_SHIPMENT', 'ORDER_STATE_CONFLICT'].includes(code)) {
+            this.actualizarTrasRechazo(pedido.id, code);
+          }
+        }
+      }
+    }));
+  }
+
+  /** Reconsulta autorizada; nunca reenvía la cancelación ni borra el motivo del rechazo. */
+  private actualizarTrasRechazo(id: number, code: string): void {
+    this.consultaHistorial?.unsubscribe();
+    this.cargandoHistorial = true;
+    this.peticiones.add(this.consultaHistorial = this.servicio.obtenerPedido(id).pipe(
+      finalize(() => this.cargandoHistorial = false)
+    ).subscribe({
+      next: detalle => {
+        if (this.detalle?.id !== id) return;
+        this.detalle = detalle;
+        this.pedidos = this.pedidos.map(p => p.id === id ? { ...p, status: detalle.status } : p);
+        // El detalle no informa si hay envío: no habilitar de nuevo una operación rechazada por ese motivo.
+        this.conflicto = code !== 'ORDER_STATE_CONFLICT';
+      },
+      error: error => {
+        if (error.status === 404) this.detalle = null;
+        this.error += ' No se pudo actualizar el detalle. Vuelve a consultarlo para ver las opciones vigentes.';
       }
     }));
   }
@@ -234,6 +274,7 @@ export class MisPedidosComponent {
     this.cerrarComprobante();
     const nuevo = estado as EstadoPedido;
     this.detalle = { ...pedido, status: nuevo };
+    if (!this.puedeCancelar) this.confirmar = false;
     this.refrescarListado();
     this.actualizarHistorial();
   }
@@ -312,7 +353,13 @@ export class MisPedidosComponent {
       case 401: return 'La sesión ha finalizado. Inicia sesión de nuevo.';
       case 403: return 'No tienes permiso para esta operación. Comprueba tu rol activo.';
       case 404: return 'Pedido no disponible o no encontrado.';
-      case 409: return 'El pedido ya no está en un estado cancelable. Actualiza el detalle.';
+      case 409:
+        switch (error.error?.code) {
+          case 'ORDER_INVALID_TRANSITION': return 'El estado actual del pedido no admite esta cancelación. Se consultará el detalle actualizado.';
+          case 'ORDER_HAS_SHIPMENT': return 'El pedido ya tiene un envío creado y no puede cancelarse. Se consultará el detalle actualizado.';
+          case 'ORDER_STATE_CONFLICT': return 'El pedido cambió de estado durante la operación. Se consultará el detalle actualizado antes de continuar.';
+        }
+        return 'El pedido ya no está en un estado cancelable. Actualiza el detalle.';
       default: return 'No se pudo completar la operación. Inténtalo de nuevo.';
     }
   }
