@@ -8,6 +8,7 @@ async function mockApi(page: Page, options: { unconfigured?: boolean; state?: st
     const reply = (body: unknown, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
     if (path === '/api/auth/me') return reply({ accountId: 1, email: 'buyer@example.test', roles: ['COMPRADOR'], activeRole: 'COMPRADOR' });
     if (path === '/api/auth/csrf') return reply({ headerName: 'X-CSRF-TOKEN', token: 'csrf' });
+    if (path === '/api/notifications') return reply({ items: [], hasMore: false });
     if (path === '/api/cart') return reply({ cartId: 1, items: [{ id: 1, productId: 2, productName: 'Jean', quantity: 1, unitPrice: 95000, subtotal: 95000 }], total: 95000 });
     if (path === '/api/addresses') return reply({ id: 8 });
     if (path === '/api/checkout/preview') return reply({ subtotal: 95000, discount: 0, shippingCost: 10000, total: 105000, couponValid: false });
@@ -156,4 +157,69 @@ test('logout limpia URL y una respuesta tardía de cancelación no revela datos'
   await expect(page.getByRole('region',{name:'Estado del pago'})).toHaveCount(0);
   expect(new URL(page.url()).searchParams.has('checkout')).toBe(false);
   release();await expect(page.getByText('Proceso de compra cerrado',{exact:true})).toHaveCount(0);
+});
+
+const purchaseNavigation = ['Mis pedidos', 'Mis reclamaciones', 'Mis devoluciones', 'Mis reportes', 'Notificaciones'];
+async function expectPurchaseNavigation(page: Page, visible: boolean) {
+  for (const name of purchaseNavigation) {
+    const button = page.getByRole('button', { name, exact: true, includeHidden: true });
+    await expect(button).toHaveCount(1);
+    if (visible) await expect(button).toBeVisible();
+    else await expect(button).toBeHidden();
+  }
+}
+
+for (const viewport of [null, { width: 390, height: 540 }, { width: 844, height: 390 }]) {
+  test(`compra retira navegación y la restaura al cerrar; viewport=${JSON.stringify(viewport)}`, async ({ page }) => {
+    if (viewport) await page.setViewportSize(viewport);
+    await mockApi(page);
+    await page.goto('/');
+    await expect(page.locator('.welcome-strip')).toContainText('Hola, buyer');
+    await expectPurchaseNavigation(page, true);
+    for (let opening = 0; opening < 2; opening++) {
+      await page.getByRole('button', { name: 'Abrir carrito', exact: true }).click();
+      await expectPurchaseNavigation(page, false);
+      // La navegación oculta tampoco debe recibir foco por tabulación.
+      await page.getByRole('button', { name: 'Cerrar carrito', exact: true }).focus();
+      for (let tab = 0; tab < 12; tab++) {
+        await page.keyboard.press('Tab');
+        expect(await page.evaluate(() => !!document.activeElement?.closest('.boton-pedidos, .acceso-pedidos, .acceso-notificaciones'))).toBe(false);
+      }
+      await page.getByRole('button', { name: 'Cerrar carrito', exact: true }).focus();
+      await page.keyboard.press('Enter');
+      await expectPurchaseNavigation(page, true);
+    }
+    await page.getByRole('button', { name: 'Abrir carrito', exact: true }).click();
+    await page.getByRole('button', { name: 'Continuar compra', exact: true }).focus();
+    await page.keyboard.press('Enter');
+    await expect(page.getByLabel('Finalizar compra', { exact: true })).toBeVisible();
+    await expectPurchaseNavigation(page, false);
+    await page.getByRole('button', { name: 'Cerrar checkout', exact: true }).focus();
+    await page.keyboard.press('Enter');
+    await expectPurchaseNavigation(page, true);
+  });
+}
+
+test('los accesos restaurados abren sus funcionalidades originales', async ({ page }) => {
+  await mockApi(page);
+  await page.goto('/');
+  await expect(page.locator('.welcome-strip')).toContainText('Hola, buyer');
+  await page.getByRole('button', { name: 'Abrir carrito', exact: true }).click();
+  await page.getByRole('button', { name: 'Continuar compra', exact: true }).click();
+  await page.getByRole('button', { name: 'Cerrar checkout', exact: true }).click();
+  await expectPurchaseNavigation(page, true);
+  for (const [name, tag] of [
+    ['Mis pedidos', 'app-mis-pedidos'], ['Mis reclamaciones', 'app-reclamaciones'],
+    ['Mis devoluciones', 'app-mis-devoluciones'], ['Mis reportes', 'app-mis-reportes'],
+    ['Notificaciones', 'app-notificaciones']
+  ]) {
+    await page.getByRole('button', { name, exact: true }).click();
+    const panel = page.locator(tag);
+    await expect(panel).toHaveCount(1);
+    await expect(panel.locator('h2, ion-title').first()).toBeVisible();
+    const close = panel.getByRole('button', { name: /^Cerrar/ });
+    await expect(close).toBeVisible();
+    await close.click();
+    await expect(panel).toHaveCount(0);
+  }
 });

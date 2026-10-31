@@ -2125,3 +2125,12 @@ footer > div {
 }
 
 .acceso-notificaciones { position: fixed; top: 5rem; right: 1rem; z-index: 1000; padding: .6rem 1rem; border-radius: .5rem; background: white; color: #243342; border: 1px solid #8997a6; }
+
+/* La navegación flotante vive fuera del contexto de apilamiento del carrito de Ionic.
+   Durante la compra se retira también del foco y del hit testing, sin cambiar permisos. */
+.compra-abierta .boton-pedidos,
+.compra-abierta .acceso-pedidos,
+.compra-abierta ~ .acceso-notificaciones {
+  visibility: hidden;
+  pointer-events: none;
+}
