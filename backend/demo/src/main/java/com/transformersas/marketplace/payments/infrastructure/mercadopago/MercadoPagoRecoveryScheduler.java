@@ -14,7 +14,7 @@ import java.util.concurrent.TimeUnit;
 
 /** Hilo propio, igual que el poller logístico: la E/S del proveedor no bloquea otros temporizadores. */
 @Component
-@ConditionalOnProperty(name = "payments.recovery.enabled", havingValue = "true", matchIfMissing = true)
+@ConditionalOnProperty(name = "payments.recovery.enabled", havingValue = "true", matchIfMissing = false)
 public class MercadoPagoRecoveryScheduler implements SmartLifecycle {
     private static final Logger log = LoggerFactory.getLogger(MercadoPagoRecoveryScheduler.class);
     private final MercadoPagoRecoveryService recovery;
