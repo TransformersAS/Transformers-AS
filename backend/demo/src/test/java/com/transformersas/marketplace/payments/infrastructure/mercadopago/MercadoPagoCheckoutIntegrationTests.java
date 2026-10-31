@@ -23,7 +23,13 @@ class MercadoPagoCheckoutIntegrationTests extends AbstractIntegrationTest {
     private Session buyer;
     private long accountId, address, product;
 
-    @AfterEach void clearAttempts() { jdbc.update("DELETE FROM payment_checkouts"); }
+    @AfterEach void clearAttempts() {
+        jdbc.update("DELETE FROM external_refund_events");
+        jdbc.update("DELETE FROM external_payment_refunds");
+        jdbc.update("DELETE FROM payment_recovery_attempts");
+        jdbc.update("DELETE FROM external_payment_observations");
+        jdbc.update("DELETE FROM payment_checkouts");
+    }
 
     private JsonNode start() throws Exception { return start("STANDARD", ""); }
 

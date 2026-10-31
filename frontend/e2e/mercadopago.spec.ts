@@ -56,7 +56,7 @@ for (const unconfigured of [true, false]) {
   });
 }
 
-for (const state of ['PENDING', 'APPROVED', 'REVIEW']) {
+for (const state of ['PENDING', 'APPROVED', 'REVIEW', 'REFUNDED']) {
   test(`return ignores browser approval and displays backend state ${state}`, async ({ page }) => {
     await mockApi(page, { state });
     await page.goto(`/?checkout=${checkout}&payment_id=456&status=approved`);
@@ -66,6 +66,8 @@ for (const state of ['PENDING', 'APPROVED', 'REVIEW']) {
       await expect(banner).not.toContainText('Pago de pruebas aprobado');
     } else if (state === 'APPROVED') {
       await expect(banner).toContainText('Tu pedido es el #99');
+    } else if (state === 'REFUNDED') {
+      await expect(banner).toContainText('El pago asociado a esta compra fue devuelto.');
     } else {
       await expect(banner).toContainText('No vuelvas a pagar');
     }

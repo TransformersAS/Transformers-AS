@@ -44,8 +44,11 @@ abstract class MercadoPagoH05TestSupport extends AbstractIntegrationTest {
         // Se ejercita el validador real con live_mode=false; jamás requiere consultar /users/me.
         var verifier = new MercadoPagoClient(RestClient.create(), "test-only", "test-secret", "123",
                 "https://shop.example/", "https://shop.example/api/payments/mercadopago/webhook");
+        when(provider.belongsToCheckout(any(), anyString())).thenAnswer(call ->
+                verifier.belongsToCheckout(call.getArgument(0), call.getArgument(1)));
         when(provider.matches(any(), anyString(), any())).thenAnswer(call ->
                 verifier.matches(call.getArgument(0), call.getArgument(1), call.getArgument(2)));
+        when(provider.searchPayments(anyString(), anyInt())).thenReturn(new MercadoPagoClient.PaymentSearch(java.util.List.of(), false));
         when(provider.webhookSecret()).thenReturn("test-secret");
         when(provider.create(anyString(), any(), anyString())).thenAnswer(call ->
                 new MercadoPagoClient.Preference("pref-" + call.getArgument(0),

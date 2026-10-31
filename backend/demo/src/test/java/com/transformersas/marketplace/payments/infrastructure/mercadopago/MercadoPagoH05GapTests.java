@@ -19,7 +19,8 @@ class MercadoPagoH05GapTests extends MercadoPagoH05TestSupport {
         var references = jdbc.queryForList("""
                 SELECT payment_id FROM payment_checkouts WHERE id=?
                 UNION ALL SELECT SUBSTRING(transaction_id,4) FROM orders WHERE id=?
-                """, String.class, attempt.id(), orderId(attempt.id()));
+                UNION ALL SELECT payment_id FROM external_payment_observations WHERE checkout_id=?
+                """, String.class, attempt.id(), orderId(attempt.id()), attempt.id());
         observed("GAP-second-approved-payment", "verified=456,457; durable references=" + references);
         assertThat(references).as("Ambos pagos aprobados verificados deben conservar trazabilidad, no ignorar el segundo")
                 .contains("456", "457");

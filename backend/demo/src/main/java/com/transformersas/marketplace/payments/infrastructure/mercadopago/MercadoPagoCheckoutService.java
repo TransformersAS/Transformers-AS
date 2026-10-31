@@ -15,6 +15,8 @@ import com.transformersas.marketplace.shared.web.CorrelationContext;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.server.ResponseStatusException;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.JsonNode;
@@ -39,16 +41,21 @@ public class MercadoPagoCheckoutService {
     private final OrderRepository orders;
     private final OrderStatusHistoryRepository history;
     private final StoreRepository stores;
+    private final MercadoPagoPaymentJournal journal;
+    private final MercadoPagoFinancialService financial;
+    private final TransactionTemplate localTransaction;
 
     public MercadoPagoCheckoutService(JdbcTemplate jdbc, ObjectMapper json, MercadoPagoClient provider,
             CheckoutService checkout, CartRepository carts, CartItemRepository cartItems,
             AddressRepository addresses, InventoryReservationService reservations,
             InventoryReservationRepository reservationRows, ProductRepository products,
-            OrderRepository orders, OrderStatusHistoryRepository history, StoreRepository stores) {
+            OrderRepository orders, OrderStatusHistoryRepository history, StoreRepository stores,
+            MercadoPagoPaymentJournal journal, PlatformTransactionManager transactions, MercadoPagoFinancialService financial) {
         this.jdbc = jdbc; this.json = json; this.provider = provider; this.checkout = checkout;
         this.carts = carts; this.cartItems = cartItems; this.addresses = addresses;
         this.reservations = reservations; this.reservationRows = reservationRows;
         this.products = products; this.orders = orders; this.history = history; this.stores = stores;
+        this.journal = journal; this.financial = financial; this.localTransaction = new TransactionTemplate(transactions);
     }
 
     public record Purchase(Long addressId, String shippingMethod, String couponCode) { }
@@ -75,7 +82,7 @@ public class MercadoPagoCheckoutService {
                 ORDER BY created_at DESC LIMIT 1 FOR UPDATE
                 """, accountId, LocalDateTime.now());
         if (!open.isEmpty()) {
-            var previous = load((String) open.getFirst().get("id"), false);
+            var previous = load((String) open.getFirst().get("id"), true);
             var current = cartItems.findByCartId(cart.getId());
             boolean same = Objects.equals(previous.snapshot.addressId(), request.addressId())
                     && Objects.equals(previous.snapshot.shippingMethod(), request.shippingMethod())
@@ -133,14 +140,70 @@ public class MercadoPagoCheckoutService {
         return attempt.view();
     }
 
-    @Transactional
     public CheckoutStatus reconcile(Long accountId, String id, String paymentId) {
-        Attempt attempt = load(id, true);
+        Attempt attempt = load(id, false);
         if (accountId != null && !attempt.accountId.equals(accountId)) throw new ResponseStatusException(NOT_FOUND);
-        JsonNode payment = provider.payment(paymentId);
-        if (!provider.matches(payment, id, attempt.total))
+        return applyVerified(attempt, paymentId, provider.payment(paymentId), null);
+    }
+
+    CheckoutStatus recoverPayment(String id, String paymentId, String lease) {
+        return applyVerified(load(id, false), paymentId, provider.payment(paymentId), lease);
+    }
+
+    private CheckoutStatus applyVerified(Attempt attempt, String paymentId, JsonNode payment, String lease) {
+        boolean matches = provider.matches(payment, attempt.id, attempt.total);
+        if (!paymentId.equals(payment.path("id").asString())
+                || (!matches && !provider.belongsToCheckout(payment, attempt.id)))
             throw new ResponseStatusException(CONFLICT, "El pago no corresponde a esta compra de pruebas");
-        if (attempt.orderId != null || "REVIEW".equals(attempt.status)) return attempt.view();
+        if (!payment.path("transaction_amount").isNumber() || !payment.path("currency_id").asString().matches("[A-Z]{3}"))
+            throw new ResponseStatusException(BAD_GATEWAY, "Datos verificados de pago incompletos");
+        try {
+            if (payment.path("transaction_amount").decimalValue().setScale(2, java.math.RoundingMode.UNNECESSARY).precision() > 19)
+                throw new ArithmeticException("precision");
+        } catch (ArithmeticException invalidAmount) {
+            throw new ResponseStatusException(BAD_GATEWAY, "Importe verificado no representable sin pérdida");
+        }
+        // Commit independiente ANTES de consumir reservas: una falla local no borra el pago observado.
+        journal.record(attempt.id, paymentId, payment, lease);
+        try {
+            CheckoutStatus result = localTransaction.execute(status -> {
+                if (!matches) {
+                    journal.requireLease(attempt.id, lease);
+                    jdbc.update("UPDATE payment_checkouts SET status='REVIEW',updated_at=CURRENT_TIMESTAMP(6) WHERE id=? AND order_id IS NULL", attempt.id);
+                    journal.resolution(paymentId, "PAYMENT_MISMATCH", null);
+                    return load(attempt.id, true).view();
+                }
+                return materialize(attempt.id, paymentId, payment, lease);
+            });
+            financial.observeVerified(paymentId, payment);
+            return "refunded".equals(payment.path("status").asString()) ? load(attempt.id, false).view() : result;
+        } catch (RuntimeException failure) {
+            try { journal.localFailure(paymentId, "LOCAL_COMMIT_FAILED"); }
+            catch (RuntimeException recordingFailure) { failure.addSuppressed(recordingFailure); }
+            throw failure;
+        }
+    }
+
+    private CheckoutStatus materialize(String id, String paymentId, JsonNode payment, String lease) {
+        Attempt attempt = load(id, true);
+        journal.requireLease(id, lease);
+        if (financial.externallyConfirmed(paymentId)) return attempt.view();
+        if (attempt.orderId != null) {
+            String transaction = jdbc.queryForObject("SELECT transaction_id FROM orders WHERE id=?", String.class, attempt.orderId);
+            boolean linked = ("MP-" + paymentId).equals(transaction);
+            String state = linked ? "ORDER_LINKED" : "PENDING_PAYMENT";
+            if (!linked && "approved".equals(payment.path("status").asString())) state = "ADDITIONAL_PAYMENT";
+            if (linked && ("refunded".equals(payment.path("status").asString())
+                    || "charged_back".equals(payment.path("status").asString()))) state = "FINANCIAL_UPDATE_PENDING";
+            journal.resolution(paymentId, state, linked ? attempt.orderId : null);
+            return attempt.view();
+        }
+        if ("REVIEW".equals(attempt.status) || "REFUNDED".equals(attempt.status)) {
+            if ("approved".equals(payment.path("status").asString()))
+                update(id, "REVIEW", attempt.paymentId, null);
+            journal.resolution(paymentId, "REQUIRES_REVIEW", null);
+            return attempt.view();
+        }
         String result = payment.path("status").asString("");
         if ("approved".equals(result)) {
             var snapshot = attempt.snapshot;
@@ -152,6 +215,7 @@ public class MercadoPagoCheckoutService {
                     && r.getProduct().getStock() >= r.getQuantity());
             if (!valid) {
                 update(attempt.id, "REVIEW", paymentId, null);
+                journal.resolution(paymentId, "REQUIRES_REVIEW", null);
                 return load(id, false).view();
             }
             reservations.confirmReservations(attempt.accountId, snapshot.reservationIds());
@@ -166,23 +230,25 @@ public class MercadoPagoCheckoutService {
             snapshot.cartQuantities().forEach((itemId, quantity) -> cartItems.findByIdAndCart_AccountId(itemId,
                     attempt.accountId).filter(item -> item.getQuantity().equals(quantity)).ifPresent(cartItems::delete));
             update(id, "APPROVED", paymentId, order.id());
+            journal.resolution(paymentId, "ORDER_LINKED", order.id());
         } else {
             update(id, switch (result) {
                 case "rejected", "cancelled" -> "REJECTED";
                 case "refunded", "charged_back" -> "REVIEW";
                 default -> "PENDING";
             }, paymentId, null);
+            journal.resolution(paymentId, ("refunded".equals(result) || "charged_back".equals(result))
+                    ? "REQUIRES_REVIEW" : "PENDING_PAYMENT", null);
         }
         return load(id, false).view();
     }
 
-    @Transactional
     public void notification(String paymentId) {
         JsonNode payment = provider.payment(paymentId);
         String reference = payment.path("external_reference").asString("");
         if (!reference.matches("[a-f0-9-]{36}") || jdbc.queryForObject(
                 "SELECT COUNT(*) FROM payment_checkouts WHERE id=?", Integer.class, reference) == 0) return;
-        reconcile(null, reference, paymentId);
+        applyVerified(load(reference, false), paymentId, payment, null);
     }
 
     private void update(String id, String status, String paymentId, Long orderId) {

@@ -23,7 +23,7 @@ public class MercadoPagoRefundGuard implements RefundGateway {
         String transaction = jdbc.queryForObject("SELECT transaction_id FROM orders WHERE id=?", String.class, orderId);
         if (transaction != null && transaction.startsWith("MP-")) {
             throw new RefundRequestFailedException(
-                    "El reembolso de Mercado Pago requiere gestión en el panel del proveedor; no se ejecutó un reembolso simulado", null);
+                    "La devolución de Mercado Pago queda para conciliación automática; no se ejecutó un reembolso simulado", null);
         }
         return legacy.refund(key, orderId, amount);
     }

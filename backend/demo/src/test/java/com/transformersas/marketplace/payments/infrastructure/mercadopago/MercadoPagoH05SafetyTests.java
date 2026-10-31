@@ -154,7 +154,7 @@ class MercadoPagoH05SafetyTests extends MercadoPagoH05TestSupport {
         failNextOrderSave.set(true);
         assertThatThrownBy(() -> checkouts.reconcile(accountId, attempt.id(), "456"))
                 .isInstanceOf(DataAccessResourceFailureException.class);
-        assertThat(checkout(attempt.id())).containsEntry("status", "PENDING").containsEntry("payment_id", null).containsEntry("order_id", null);
+        assertThat(checkout(attempt.id())).containsEntry("status", "PENDING").containsEntry("payment_id", "456").containsEntry("order_id", null);
         assertThat(stock()).isEqualTo(10); assertThat(count("orders")).isZero();
         assertThat(count("order_status_history")).isZero(); assertThat(count("cart_items")).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT status FROM inventory_reservations", String.class)).isEqualTo("ACTIVE");

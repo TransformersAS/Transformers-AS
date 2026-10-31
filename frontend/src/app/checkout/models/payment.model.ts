@@ -8,7 +8,7 @@ export interface PaymentRequest {
 
 export interface HostedCheckout {
   id: string;
-  status: 'STARTING' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'REVIEW';
+  status: 'STARTING' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'REVIEW' | 'REFUNDED';
   checkoutUrl: string | null;
   orderId: number | null;
   total: number;
