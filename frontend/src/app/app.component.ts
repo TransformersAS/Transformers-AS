@@ -2,7 +2,7 @@ import { CheckoutStatusComponent } from './checkout/components/checkout-status.c
 import { NotificacionesComponent } from './notificaciones/notificaciones.component';
 import {
   Component,
-  inject
+  inject, effect
 } from '@angular/core';
 
 import {
@@ -343,6 +343,8 @@ export class AppComponent {
     PaymentResponse | null = null;
 
   compraError = '';
+  private cuentaErrorCompra: number | null = null;
+  private revisionCompra = 0;
 
 
   // =========================================================
@@ -408,6 +410,17 @@ export class AppComponent {
   constructor() {
 
     this.auth.restaurar();
+
+    // Solo estado del inicio de compra; el seguimiento de pagos pertenece a CheckoutStatusComponent.
+    effect(() => {
+      const cuenta = this.auth.cuenta();
+      const comprador = cuenta?.activeRole === 'COMPRADOR' ? cuenta.accountId : null;
+      if (comprador !== this.cuentaErrorCompra) {
+        this.cuentaErrorCompra = comprador;
+        this.revisionCompra++;
+        this.compraError = '';
+      }
+    });
 
     addIcons({
       bagHandleOutline,
@@ -657,6 +670,7 @@ buscarProductos(): void {
   // =========================================================
 
   cerrarCheckout(): void {
+    this.revisionCompra++;
 
     this.mostrarCheckout = false;
 
@@ -836,11 +850,16 @@ buscarProductos(): void {
       this.compraError = 'Primero registra la dirección y calcula el total de la compra.';
       return;
     }
+    const cuenta = this.auth.cuenta()?.accountId;
+    const revision = this.revisionCompra;
+    const vigente = () => this.mostrarCheckout && revision === this.revisionCompra
+      && this.auth.cuenta()?.activeRole === 'COMPRADOR' && this.auth.cuenta()?.accountId === cuenta;
     this.procesandoCompra = true;
     this.compraError = '';
     this.payment.startCheckout({ addressId: this.addressId, shippingMethod: this.shippingMethod,
       couponCode: this.couponCode }).pipe(finalize(() => this.procesandoCompra = false)).subscribe({
       next: result => {
+        if (!vigente()) return;
         if (!result.checkoutUrl) { this.compraError = 'No se pudo abrir el checkout de pago.'; return; }
         const target = new URL(result.checkoutUrl);
         if (target.protocol !== 'https:' || target.hostname !== 'sandbox.mercadopago.com.co') {
@@ -850,7 +869,7 @@ buscarProductos(): void {
         window.location.assign(target.href);
       },
       error: (error: HttpErrorResponse) => {
-        this.compraError = error.error?.detail ?? error.error?.message ?? 'No fue posible iniciar el pago.';
+        if (vigente()) this.compraError = error.error?.detail ?? error.error?.message ?? 'No fue posible iniciar el pago.';
       }
     });
   }
