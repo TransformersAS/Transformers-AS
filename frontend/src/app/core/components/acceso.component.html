@@ -26,6 +26,7 @@
           <li>
             <strong>{{ sesion.current ? 'Esta es tu sesión actual' : 'Otra sesión' }}</strong>
             <dl>
+              <dt>Navegador y sistema</dt><dd>{{ sesion.deviceDescription || 'Dispositivo o navegador no identificado' }}</dd>
               <dt>Identificador</dt><dd class="identificador">{{ sesion.id }}</dd>
               <dt>Creada</dt><dd>{{ sesion.createdAt | date:'dd/MM/yyyy HH:mm:ss' }}</dd>
               <dt>Último acceso</dt><dd>{{ sesion.lastAccessedAt | date:'dd/MM/yyyy HH:mm:ss' }}</dd>
@@ -49,8 +50,8 @@
     @if (vista !== 'solicitar' && vista !== 'confirmar' && vista !== 'verificar') {
       <h3>Iniciar sesión</h3>
       <form (ngSubmit)="enviar()" novalidate>
-        <ion-item><ion-input label="Correo" labelPlacement="stacked" type="email" name="correo" [(ngModel)]="correo" required autocomplete="email" [disabled]="enviando"></ion-input></ion-item>
-        <ion-item><ion-input label="Contraseña" labelPlacement="stacked" type="password" name="clave" [(ngModel)]="clave" required autocomplete="current-password" [disabled]="enviando"></ion-input></ion-item>
+        <ion-item><ion-input label="Correo" labelPlacement="stacked" type="email" name="correo" [(ngModel)]="correo" #correoLogin="ngModel" (ngModelChange)="corregirCampo()" [class.ion-invalid]="!!(correoLogin.touched && !correo.trim())" [class.ion-touched]="!!(correoLogin.touched && !correo.trim())" [errorText]="(correoLogin.touched && !correo.trim()) ? 'Escribe tu correo.' : undefined" required autocomplete="email" [disabled]="enviando"></ion-input></ion-item>
+        <ion-item><ion-input label="Contraseña" labelPlacement="stacked" type="password" name="clave" [(ngModel)]="clave" #claveLogin="ngModel" (ngModelChange)="corregirCampo()" [class.ion-invalid]="!!(claveLogin.touched && !clave)" [class.ion-touched]="!!(claveLogin.touched && !clave)" [errorText]="(claveLogin.touched && !clave) ? 'Escribe tu contraseña.' : undefined" required autocomplete="current-password" [disabled]="enviando"></ion-input></ion-item>
         <ion-item><ion-checkbox name="mantenerSesion" [(ngModel)]="mantenerSesion" [disabled]="enviando">Mantener la sesión iniciada</ion-checkbox></ion-item>
         <ion-button type="submit" expand="block" [disabled]="enviando || !datosValidos()">Iniciar sesión</ion-button>
       </form>
@@ -74,8 +75,7 @@
       @if (vista === 'solicitar') {
         <h3>Solicitar recuperación</h3>
         <form (ngSubmit)="solicitarRecuperacion()" novalidate>
-          <ion-item><ion-input label="Correo de la cuenta" labelPlacement="stacked" type="email" name="correoRecuperacion" [(ngModel)]="correo" required autocomplete="email" [disabled]="enviando"></ion-input></ion-item>
-          @if (correo && !correoValido()) { <p class="ayuda">Escribe un correo válido de hasta 254 caracteres.</p> }
+          <ion-item><ion-input label="Correo de la cuenta" labelPlacement="stacked" type="email" name="correoRecuperacion" [(ngModel)]="correo" #correoRecuperacionControl="ngModel" (ngModelChange)="corregirCampo(); validarControl(correoRecuperacionControl, correo && !correoValido() ? 'Escribe un correo válido de hasta 254 caracteres.' : '')" [class.ion-invalid]="!!(correo && !correoValido())" [class.ion-touched]="!!(correo && !correoValido())" [errorText]="(correo && !correoValido()) ? 'Escribe un correo válido de hasta 254 caracteres.' : undefined" required autocomplete="email" [disabled]="enviando"></ion-input></ion-item>
           <ion-button type="submit" expand="block" [disabled]="enviando || !correoValido()">Solicitar instrucciones</ion-button>
         </form>
         <ion-button expand="block" fill="clear" [disabled]="enviando" (click)="cambiarVista('confirmar')">Ingresar token recibido</ion-button>
@@ -86,16 +86,13 @@
     <h3>{{ vista === 'password' ? 'Cambiar contraseña' : 'Confirmar recuperación' }}</h3>
     <form (ngSubmit)="vista === 'password' ? cambiarContrasena() : confirmarRecuperacion()" novalidate>
       @if (vista === 'password') {
-        <ion-item><ion-input label="Contraseña actual" labelPlacement="stacked" type="password" name="actual" [(ngModel)]="actual" required autocomplete="current-password" [disabled]="enviando"></ion-input></ion-item>
+        <ion-item><ion-input label="Contraseña actual" labelPlacement="stacked" type="password" name="actual" [(ngModel)]="actual" #actualControl="ngModel" (ngModelChange)="corregirCampo('actual', actualControl)" [class.ion-invalid]="!!((actual || nueva || confirmacion) && errorCampo('actual'))" [class.ion-touched]="!!((actual || nueva || confirmacion) && errorCampo('actual'))" [errorText]="((actual || nueva || confirmacion) && errorCampo('actual')) ? errorCampo('actual') : undefined" required autocomplete="current-password" [disabled]="enviando"></ion-input></ion-item>
       } @else {
-        <ion-item><ion-input label="Token de recuperación recibido" labelPlacement="stacked" type="password" name="token" [(ngModel)]="token" required autocomplete="off" [disabled]="enviando"></ion-input></ion-item>
+        <ion-item><ion-input label="Token de recuperación recibido" labelPlacement="stacked" type="password" name="token" [(ngModel)]="token" (ngModelChange)="corregirCampo()" required autocomplete="off" [disabled]="enviando"></ion-input></ion-item>
       }
-      <ion-item><ion-input label="Nueva contraseña" labelPlacement="stacked" type="password" name="nueva" [(ngModel)]="nueva" required autocomplete="new-password" [disabled]="enviando"></ion-input></ion-item>
-      <ion-item><ion-input label="Confirmar nueva contraseña" labelPlacement="stacked" type="password" name="confirmacion" [(ngModel)]="confirmacion" required autocomplete="new-password" [disabled]="enviando"></ion-input></ion-item>
+      <ion-item><ion-input label="Nueva contraseña" labelPlacement="stacked" type="password" name="nueva" [(ngModel)]="nueva" #nuevaControl="ngModel" (ngModelChange)="corregirCampo('nueva', nuevaControl)" [class.ion-invalid]="!!((actual || nueva || confirmacion) && errorCampo('nueva'))" [class.ion-touched]="!!((actual || nueva || confirmacion) && errorCampo('nueva'))" [errorText]="((actual || nueva || confirmacion) && errorCampo('nueva')) ? errorCampo('nueva') : undefined" required autocomplete="new-password" [disabled]="enviando"></ion-input></ion-item>
+      <ion-item><ion-input label="Confirmar nueva contraseña" labelPlacement="stacked" type="password" name="confirmacion" [(ngModel)]="confirmacion" #confirmacionControl="ngModel" (ngModelChange)="corregirCampo('confirmacion', confirmacionControl)" [class.ion-invalid]="!!((actual || nueva || confirmacion) && errorCampo('confirmacion'))" [class.ion-touched]="!!((actual || nueva || confirmacion) && errorCampo('confirmacion'))" [errorText]="((actual || nueva || confirmacion) && errorCampo('confirmacion')) ? errorCampo('confirmacion') : undefined" required autocomplete="new-password" [disabled]="enviando"></ion-input></ion-item>
       <p class="ayuda">Mínimo 12 caracteres y máximo 72 bytes UTF-8. Algunos caracteres, como emojis, ocupan varios bytes.</p>
-      @if ((actual || nueva || confirmacion) && errorContrasena(vista === 'password')) {
-        <p class="ayuda" aria-live="polite">{{ errorContrasena(vista === 'password') }}</p>
-      }
       <ion-button type="submit" expand="block" [disabled]="enviando || !!errorContrasena(vista === 'password') || (vista === 'confirmar' && !token.trim())">{{ vista === 'password' ? 'Guardar nueva contraseña' : 'Recuperar contraseña' }}</ion-button>
     </form>
   }

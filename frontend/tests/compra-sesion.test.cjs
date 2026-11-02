@@ -8,7 +8,7 @@ const rx = require('rxjs');
 function fixture() {
   let account = { accountId: 1, activeRole: 'COMPRADOR' };
   const effects = [], requests = [], redirects = [];
-  const auth = { cuenta: () => account, restaurar() {} };
+  const auth = { cuenta: () => account, sesionFinalizada: () => false, restaurar() {} };
   const payment = { startCheckout: () => { const subject = new rx.Subject(); requests.push(subject); return subject; } };
   const generic = new Proxy({}, { get: () => () => rx.of([]) });
   const tokens = new Map();
@@ -48,4 +48,8 @@ test('cerrar y reabrir checkout invalida el error de la solicitud anterior',()=>
 });
 test('la respuesta vigente conserva el comportamiento de navegación',()=>{
  const f=fixture();f.c.confirmarCompra();f.requests[0].next({checkoutUrl:'https://sandbox.mercadopago.com.co/checkout/v1/redirect?pref_id=actual'});assert.equal(f.redirects.length,1);
+});
+for (const panel of ['mostrarCarrito', 'mostrarCheckout']) test('H09 pérdida de autenticación cierra únicamente el panel visual: '+panel,()=>{
+ const f=fixture(); f.c.mostrarCarrito=false; f.c.mostrarCheckout=false; f.c[panel]=true;
+ f.change(null); assert.equal(f.c[panel],false);
 });

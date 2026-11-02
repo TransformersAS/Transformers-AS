@@ -23,6 +23,9 @@ export class AuthService {
   private readonly http = inject(HttpClient);
   private csrf: TokenCsrf | null = null;
 
+  private readonly _sesionFinalizada = signal(false);
+  readonly sesionFinalizada = this._sesionFinalizada.asReadonly();
+
   private readonly _cuenta = signal<CuentaSesion | null>(null);
   readonly cuenta = this._cuenta.asReadonly();
   readonly autenticada = computed(() => this._cuenta() !== null);
@@ -48,7 +51,10 @@ export class AuthService {
       // El token CSRF cambia al autenticarse: hay que pedir el nuevo.
       switchMap(() => this.refrescarCsrf()),
       switchMap(() => this.http.get<CuentaSesion>(`${API_BASE}/auth/me`)),
-      tap(cuenta => this._cuenta.set(cuenta))
+      tap(cuenta => {
+        this._cuenta.set(cuenta);
+        this._sesionFinalizada.set(false);
+      })
     );
   }
 
@@ -70,7 +76,7 @@ export class AuthService {
   cerrarSesion(): Observable<void> {
     return this.http.post(`${API_BASE}/auth/logout`, {}, { responseType: 'text' }).pipe(
       // Solo olvidar la cuenta cuando el servidor confirma el cierre; los errores llegan a la UI.
-      tap(() => this.olvidar()),
+      tap(() => { this._sesionFinalizada.set(false); this.olvidar(); }),
       map(() => undefined)
     );
   }
@@ -81,7 +87,7 @@ export class AuthService {
       tap(cuenta => this._cuenta.set(cuenta)),
       catchError((error: HttpErrorResponse) => {
         if (error.status === 401) {
-          this.olvidar();
+          this.sesionExpirada();
           return of(null);
         }
         return throwError(() => error);
@@ -101,7 +107,7 @@ export class AuthService {
   revocarSesion(sesion: SesionActiva): Observable<void> {
     return this.http.delete<void>(`${API_BASE}/auth/sessions/${encodeURIComponent(sesion.id)}`).pipe(
       tap(() => {
-        if (sesion.current) this.olvidar();
+        if (sesion.current) { this._sesionFinalizada.set(false); this.olvidar(); }
       })
     );
   }
@@ -131,6 +137,7 @@ export class AuthService {
 
   /** El servidor rechazó la sesión (expiró o se cerró en otro lugar): se olvida sin llamar a la API. */
   sesionExpirada(): void {
+    if (this._cuenta() !== null) this._sesionFinalizada.set(true);
     this.olvidar();
   }
 

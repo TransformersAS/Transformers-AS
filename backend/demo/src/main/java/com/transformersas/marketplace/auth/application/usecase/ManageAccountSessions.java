@@ -1,6 +1,7 @@
 package com.transformersas.marketplace.auth.application.usecase;
 
 import com.transformersas.marketplace.auth.infrastructure.security.AccountPrincipal;
+import com.transformersas.marketplace.auth.infrastructure.security.LoginSessionPolicy;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
@@ -25,16 +26,26 @@ public class ManageAccountSessions {
     }
 
     public record SessionSummary(String id, Instant createdAt, Instant lastAccessedAt,
-                                 Instant expiresAt, boolean current) {}
+                                 Instant expiresAt, boolean current, String deviceDescription) {}
 
     public List<SessionSummary> list(AccountPrincipal account, String currentSessionId) {
         return ownedSessions(account).stream()
+                .filter(session -> !LoginSessionPolicy.isAbsolutelyExpired(
+                        session.getAttribute(LoginSessionPolicy.AUTHENTICATED_AT),
+                        session.getAttribute(LoginSessionPolicy.ABSOLUTE_EXPIRES_AT), Instant.now()))
                 .sorted(Comparator.comparing(Session::getCreationTime).thenComparing(Session::getId))
                 .map(session -> new SessionSummary(publicId(session), session.getCreationTime(),
-                        session.getLastAccessedTime(), session.getMaxInactiveInterval().isNegative() ? null
-                                : session.getLastAccessedTime().plus(session.getMaxInactiveInterval()),
-                        session.getId().equals(currentSessionId)))
+                        session.getLastAccessedTime(), effectiveExpiry(session),
+                        session.getId().equals(currentSessionId),
+                        session.getAttribute(LoginSessionPolicy.DEVICE_DESCRIPTION) instanceof String description
+                                ? description : LoginSessionPolicy.UNKNOWN_DEVICE))
                 .toList();
+    }
+
+    private static Instant effectiveExpiry(Session session) {
+        Instant absolute = session.getAttribute(LoginSessionPolicy.ABSOLUTE_EXPIRES_AT);
+        Instant idle = session.getLastAccessedTime().plus(session.getMaxInactiveInterval());
+        return session.getMaxInactiveInterval().isNegative() || absolute.isBefore(idle) ? absolute : idle;
     }
 
     /** Returns whether the caller must also invalidate the current servlet session. */

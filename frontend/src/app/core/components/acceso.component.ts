@@ -1,13 +1,15 @@
 import { Component, DestroyRef, EventEmitter, Output, inject } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
-import { FormsModule } from '@angular/forms';
+import { FormsModule, NgModel } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { IonButton, IonCheckbox, IonInput, IonItem, IonSelect, IonSelectOption, IonText } from '@ionic/angular/standalone';
 import { Observable, catchError, finalize, of, switchMap, tap } from 'rxjs';
 import { AuthService, Rol } from '../services/auth.service';
 import { SesionActiva } from '../models/auth.model';
 import { PerfilResumenComponent } from '../../cuenta/components/perfil-resumen.component';
+
+type CampoClave = 'actual' | 'nueva' | 'confirmacion';
 
 type Vista = 'cuenta' | 'sesiones' | 'password' | 'solicitar' | 'confirmar' | 'verificar';
 
@@ -33,6 +35,8 @@ export class AccesoComponent {
   token = '';
   correoSinVerificar = false;
   enviando = false;
+  erroresClave: Partial<Record<CampoClave, string>> = {};
+  private controlesClave: Partial<Record<CampoClave, NgModel>> = {};
   error = '';
   exito = '';
   sesiones: SesionActiva[] = [];
@@ -62,14 +66,65 @@ export class AccesoComponent {
     return this.correo.trim().length > 0 && this.clave.length > 0;
   }
 
-  errorContrasena(cambio: boolean): string {
-    if (cambio && !this.actual.trim()) return 'Escribe tu contraseña actual.';
-    if (cambio && new TextEncoder().encode(this.actual).length > 72) return 'La contraseña actual supera 72 bytes UTF-8.';
-    if (!this.nueva.trim() || Array.from(this.nueva).length < 12) return 'La nueva contraseña debe tener al menos 12 caracteres.';
-    if (new TextEncoder().encode(this.nueva).length > 72) return 'La nueva contraseña supera 72 bytes UTF-8; algunos caracteres ocupan varios bytes.';
-    if (!this.confirmacion || this.nueva !== this.confirmacion) return 'Las contraseñas nuevas deben coincidir.';
-    if (cambio && this.nueva === this.actual) return 'La nueva contraseña debe ser diferente de la actual.';
+  errorContrasena(cambio: boolean, campo?: CampoClave): string {
+    if ((!campo || campo === 'actual') && cambio && !this.actual.trim()) return 'Escribe tu contraseña actual.';
+    if ((!campo || campo === 'actual') && cambio && new TextEncoder().encode(this.actual).length > 72) return 'La contraseña actual supera 72 bytes UTF-8.';
+    if ((!campo || campo === 'nueva') && (!this.nueva.trim() || Array.from(this.nueva).length < 12)) return 'La nueva contraseña debe tener al menos 12 caracteres.';
+    if ((!campo || campo === 'nueva') && new TextEncoder().encode(this.nueva).length > 72) return 'La nueva contraseña supera 72 bytes UTF-8; algunos caracteres ocupan varios bytes.';
+    if ((!campo || campo === 'confirmacion') && (!this.confirmacion || this.nueva !== this.confirmacion)) return 'Las contraseñas nuevas deben coincidir.';
+    if ((!campo || campo === 'nueva') && cambio && this.nueva === this.actual) return 'La nueva contraseña debe ser diferente de la actual.';
     return '';
+  }
+
+  errorCampo(campo: CampoClave): string {
+    return this.errorContrasena(this.vista === 'password', campo) || this.erroresClave[campo] || '';
+  }
+
+  corregirCampo(campo?: CampoClave, control?: NgModel): void {
+    if (campo) {
+      delete this.erroresClave[campo];
+      if (control && this.controlesClave[campo] !== control) {
+        this.controlesClave[campo] = control;
+        // Revalidate with the same rules when Ionic re-enables the control after HTTP completion.
+        control.control.addValidators(() => this.errorCampo(campo) ? { cu08: true } : null);
+      }
+      this.actualizarErroresClave();
+    }
+    this.error = '';
+    this.exito = '';
+  }
+
+  validarControl(control: NgModel, mensaje: string): void {
+    const errores = { ...control.control.errors };
+    delete errores['cu08'];
+    if (mensaje) errores['cu08'] = true;
+    control.control.setErrors(Object.keys(errores).length ? errores : null);
+    control.control.markAsTouched();
+  }
+
+  private actualizarErroresClave(): void {
+    for (const campo of Object.keys(this.controlesClave) as CampoClave[]) {
+      this.validarControl(this.controlesClave[campo]!, this.errorCampo(campo));
+    }
+  }
+
+  private errorClaveServidor(e: HttpErrorResponse): boolean {
+    if (this.vista !== 'password' || !this.auth.autenticada()
+        || e.error?.path !== '/api/auth/password' || e.error?.status !== e.status || e.error?.code) return false;
+    const message = e.error.message;
+    if ((e.status === 403 && message === 'Contraseña actual incorrecta')
+        || (e.status === 400 && message === 'Contraseña actual inválida')) {
+      this.erroresClave.actual = message;
+      this.actualizarErroresClave();
+      return true;
+    }
+    if (e.status === 400 && (message === 'La nueva contraseña debe ser diferente'
+        || message === 'La nueva contraseña requiere al menos 12 caracteres y un máximo de 72 bytes UTF-8')) {
+      this.erroresClave.nueva = message;
+      this.actualizarErroresClave();
+      return true;
+    }
+    return false;
   }
 
   enviar(): void {
@@ -179,19 +234,20 @@ export class AccesoComponent {
   cambiarContrasena(): void {
     if (this.enviando) return;
     const validacion = this.errorContrasena(true);
-    if (validacion) { this.error = validacion; return; }
+    if (validacion) return;
     this.ejecutar(this.auth.cambiarContrasena({ currentPassword: this.actual, newPassword: this.nueva }), () => {
       this.limpiarClaves();
       this.sesiones = [];
       this.sesionesCargadas = false;
       this.exito = 'Contraseña actualizada. Esta sesión continúa activa; las demás sesiones de tu cuenta se cerraron.';
-    }, 'No se pudo cambiar la contraseña. Comprueba la contraseña actual y los requisitos de la nueva.');
+    }, 'No se pudo cambiar la contraseña. Comprueba la contraseña actual y los requisitos de la nueva.',
+      e => this.errorClaveServidor(e));
   }
 
   solicitarRecuperacion(): void {
     if (!this.correoValido()) return;
     this.ejecutar(this.auth.solicitarRecuperacion({ email: this.correo.trim() }), () => {
-      this.exito = 'Si la cuenta está activa, recibirás instrucciones para recuperar la contraseña.';
+      this.exito = 'Si la cuenta está activa, intentaremos enviar las instrucciones de recuperación. Si no las recibes, puedes volver a solicitarlas. Utiliza el último código recibido';
     }, 'No se pudo procesar la solicitud de recuperación. Inténtalo de nuevo más tarde.');
   }
 
@@ -199,7 +255,7 @@ export class AccesoComponent {
     if (this.enviando) return;
     const validacion = this.errorContrasena(false);
     if (!this.token.trim() || validacion) {
-      this.error = !this.token.trim() ? 'Escribe el token de recuperación recibido.' : validacion;
+      this.error = !this.token.trim() ? 'Escribe el token de recuperación recibido.' : '';
       return;
     }
     this.ejecutar(this.auth.confirmarRecuperacion({ token: this.token.trim(), newPassword: this.nueva }), () => {
@@ -210,9 +266,11 @@ export class AccesoComponent {
     }, 'No se pudo recuperar la contraseña. Comprueba que el token sea válido, no haya expirado ni se haya utilizado y que la contraseña cumpla los requisitos.');
   }
 
-  private ejecutar<T>(operacion: Observable<T>, alCompletar: (valor: T) => void, mensajeError: string): void {
+  private ejecutar<T>(operacion: Observable<T>, alCompletar: (valor: T) => void, mensajeError: string, errorDeCampo?: (e: HttpErrorResponse) => boolean): void {
     if (this.enviando) return;
     this.enviando = true;
+    this.erroresClave = {};
+    this.actualizarErroresClave();
     this.error = '';
     this.exito = '';
     operacion.pipe(
@@ -221,6 +279,7 @@ export class AccesoComponent {
     ).subscribe({
       next: alCompletar,
       error: (e: HttpErrorResponse) => {
+        if (errorDeCampo?.(e)) return;
         if (e.status === 403 && e.error?.code === 'EMAIL_NOT_VERIFIED') {
           this.correoSinVerificar = true;
           this.error = 'Debes verificar tu correo antes de iniciar sesión. Puedes reenviar el código o ingresar el recibido.';
@@ -234,6 +293,8 @@ export class AccesoComponent {
   }
 
   private limpiarClaves(): void {
+    this.erroresClave = {};
+    this.controlesClave = {};
     this.clave = '';
     this.actual = '';
     this.nueva = '';

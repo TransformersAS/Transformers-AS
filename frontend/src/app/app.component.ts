@@ -224,6 +224,8 @@ export class AppComponent {
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
+  get avisoSesionFinalizada(): boolean { return this.auth.sesionFinalizada(); }
+
   get autenticada(): boolean { return this.auth.autenticada(); }
 
   get preciosInvalidos(): boolean {
@@ -414,6 +416,11 @@ export class AppComponent {
     // Solo estado del inicio de compra; el seguimiento de pagos pertenece a CheckoutStatusComponent.
     effect(() => {
       const cuenta = this.auth.cuenta();
+      if (!cuenta) {
+        this.mostrarCarrito = false;
+        this.mostrarCheckout = false;
+        if (this.auth.sesionFinalizada()) this.mostrarAcceso = false;
+      }
       const comprador = cuenta?.activeRole === 'COMPRADOR' ? cuenta.accountId : null;
       if (comprador !== this.cuentaErrorCompra) {
         this.cuentaErrorCompra = comprador;
