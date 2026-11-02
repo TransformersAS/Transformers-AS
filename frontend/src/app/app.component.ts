@@ -146,6 +146,8 @@ import {
 })
 export class AppComponent {
 
+  mostrarMenuComprador = false;
+
   // =========================================================
   // SERVICIOS
   // =========================================================

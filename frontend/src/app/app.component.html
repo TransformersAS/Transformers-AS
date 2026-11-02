@@ -48,7 +48,8 @@
         <!-- Mensajes -->
         <button
           type="button"
-          aria-label="Abrir mensajes"
+          aria-label="Abrir notificaciones"
+          (click)="(esComprador || esVendedor) ? mostrarNotificaciones = true : mostrarAcceso = true"
         >
 
           <ion-icon
@@ -1482,9 +1483,29 @@
   <app-mi-tienda (cerrar)="mostrarMiTienda = false"></app-mi-tienda>
 </div>
 
-<!-- Reclamaciones de compra (CU-13): comprador, vendedor y soporte -->
+<!-- Accesos del comprador agrupados en un desplegable. -->
+<div class="menu-comprador" *ngIf="esComprador"
+  (keydown.escape)="mostrarMenuComprador = false; botonMenuComprador.focus()">
+  <button #botonMenuComprador type="button" class="menu-comprador-toggle"
+    aria-label="Opciones de mis compras" aria-controls="opciones-comprador"
+    [attr.aria-expanded]="mostrarMenuComprador"
+    (click)="mostrarMenuComprador = !mostrarMenuComprador">
+    <span aria-hidden="true">{{ mostrarMenuComprador ? '×' : '☰' }}</span>
+  </button>
+  <ng-container *ngIf="mostrarMenuComprador">
+    <button type="button" class="menu-comprador-fondo" tabindex="-1"
+      aria-label="Cerrar opciones de mis compras" (click)="mostrarMenuComprador = false"></button>
+    <nav id="opciones-comprador" class="menu-comprador-opciones" aria-label="Mis compras">
+      <button type="button" (click)="mostrarMenuComprador = false; devoluciones.abrirPanelComprador()">Mis devoluciones</button>
+      <button type="button" (click)="mostrarMenuComprador = false; reportes.abrirPanel()">Mis reportes</button>
+      <button type="button" (click)="mostrarMenuComprador = false; mostrarReclamaciones = true">Mis reclamaciones</button>
+    </nav>
+  </ng-container>
+</div>
+
+<!-- Reclamaciones de compra (CU-13): vendedor y soporte; comprador desde el menú -->
 <button
-  *ngIf="(esComprador || esVendedor || esSoporte) && !mostrarReclamaciones"
+  *ngIf="(esVendedor || esSoporte) && !mostrarReclamaciones"
   type="button"
   class="boton-pedidos"
   [class.boton-reclamaciones-soporte]="esSoporte"
@@ -1500,7 +1521,7 @@
 
 <!-- Mis reportes (CU-20): con el rol activo COMPRADOR o VENDEDOR -->
 <button
-  *ngIf="(esComprador || esVendedor) && !reportes.panelAbierto()"
+  *ngIf="esVendedor && !reportes.panelAbierto()"
   type="button"
   class="boton-pedidos boton-reportes"
   [class.boton-reportes-vendedor]="esVendedor"
@@ -1514,14 +1535,6 @@
 </div>
 
 <!-- Mis devoluciones (CU-19): con el rol activo COMPRADOR -->
-<button
-  *ngIf="esComprador && !devoluciones.panelCompradorAbierto()"
-  type="button"
-  class="boton-pedidos boton-devoluciones"
-  (click)="devoluciones.abrirPanelComprador()"
->
-  Mis devoluciones
-</button>
 
 <div class="panel-pedidos" *ngIf="esComprador && devoluciones.panelCompradorAbierto()">
   <app-mis-devoluciones (cerrar)="devoluciones.cerrarPanelComprador()"></app-mis-devoluciones>
@@ -1606,5 +1619,4 @@
 </div>
 </ion-app>
 
-<button *ngIf="esComprador || esVendedor" type="button" class="acceso-notificaciones" (click)="mostrarNotificaciones = true">Notificaciones</button>
 <app-notificaciones *ngIf="(esComprador || esVendedor) && mostrarNotificaciones" (cerrar)="mostrarNotificaciones = false"></app-notificaciones>
