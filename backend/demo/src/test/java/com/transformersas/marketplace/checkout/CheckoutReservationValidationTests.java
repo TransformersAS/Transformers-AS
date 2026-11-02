@@ -46,6 +46,25 @@ class CheckoutReservationValidationTests {
         when(addresses.existsByIdAndAccountId(1L, 1L)).thenReturn(true);
     }
     @Test
+    void configurableDurationIsUsedForNewReservations() {
+        reservations.configureReservationTtl(java.time.Duration.ofSeconds(60));
+        when(repository.save(any())).thenAnswer(call -> call.getArgument(0));
+        reservations.reserveCart(1L);
+        var captured = org.mockito.ArgumentCaptor.forClass(InventoryReservation.class);
+        verify(repository).save(captured.capture());
+        assertThat(captured.getValue().getExpiresAt())
+                .isEqualTo(captured.getValue().getCreatedAt().plusSeconds(60));
+    }
+
+    @Test
+    void invalidReservationDurationIsRejected() {
+        for (var duration : List.of(java.time.Duration.ZERO, java.time.Duration.ofSeconds(-1))) {
+            assertThatIllegalArgumentException().isThrownBy(() -> reservations.configureReservationTtl(duration));
+        }
+        assertThatIllegalArgumentException().isThrownBy(() -> reservations.configureReservationTtl(null));
+    }
+
+    @Test
     void missingProductIsRejectedByBothServices() {
         item.setProduct(null);
         rejectsBoth(400, "ya no existe");

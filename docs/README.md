@@ -11,6 +11,8 @@ Este es el punto de entrada a las guías de Marketplace. Los documentos están a
 
 ## Ejecución y entrega
 
+- [Perfil de demostración de pagos](ejecucion/perfil-pagos-demo.md): acortar el vencimiento de nuevas reservas mediante configuración, sin editar Java.
+
 | Documento | Para qué sirve |
 | --- | --- |
 | [Iniciar la demo en Windows](ejecucion/iniciar-demo-windows.md) | Abrir el ejecutable, usar las cuentas de demostración y cerrar la aplicación. |
