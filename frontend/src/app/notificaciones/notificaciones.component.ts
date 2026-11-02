@@ -20,6 +20,7 @@ import { PedidosRecibidosComponent } from '../panel-vendedor/components/pedidos-
         <h3>{{ aviso.title }}</h3><p>{{ aviso.message }}</p>
         <p>{{ aviso.createdAt | date:'dd/MM/yyyy HH:mm:ss' }}</p>
         <button *ngIf="aviso.orderId" type="button" (click)="pedido = aviso.orderId">Abrir pedido #{{ aviso.orderId }}</button>
+        <button *ngIf="aviso.productId" type="button" (click)="abrirProducto.emit(aviso.productId)">Ver producto</button>
       </li></ul>
       <button *ngIf="hayMas && !error" type="button" (click)="cargar()" [disabled]="cargando">Cargar más</button>
     </section>
@@ -30,9 +31,12 @@ import { PedidosRecibidosComponent } from '../panel-vendedor/components/pedidos-
 })
 export class NotificacionesComponent {
   @Output() cerrar = new EventEmitter<void>();
+  @Output() abrirProducto = new EventEmitter<number>();
   private readonly auth = inject(AuthService);
   private readonly servicio = inject(NotificacionesService);
   private peticion?: Subscription;
+  private refresco?: Subscription;
+  private refrescando = false;
   avisos: Aviso[] = [];
   pedido: number | null = null;
   vendedor = false;
@@ -47,7 +51,17 @@ export class NotificacionesComponent {
       this.pagina = 0; this.error = ''; this.hayMas = false; this.cargando = false;
       this.vendedor = cuenta?.activeRole === 'VENDEDOR';
       if (cuenta?.activeRole === 'COMPRADOR' || this.vendedor) this.cargar();
-      onCleanup(() => this.peticion?.unsubscribe());
+      const refresh = setInterval(() => {
+        if (this.cargando || this.refrescando || (cuenta?.activeRole !== 'COMPRADOR' && !this.vendedor)) return;
+        this.refrescando = true;
+        this.refresco = this.servicio.listar(this.vendedor, 0).pipe(finalize(() => this.refrescando = false)).subscribe({
+          next: page => {
+            const newer = new Map(page.items.map(item => [item.id, item]));
+            this.avisos = [...page.items, ...this.avisos.filter(item => !newer.has(item.id))];
+          }, error: () => { /* Preserve the inbox when an auxiliary refresh fails. */ }
+        });
+      }, 2000);
+      onCleanup(() => { clearInterval(refresh); this.peticion?.unsubscribe(); this.refresco?.unsubscribe(); });
     });
   }
   cargar(): void {

@@ -1,4 +1,6 @@
 import { CheckoutStatusComponent } from './checkout/components/checkout-status.component';
+import { FavoritosService } from './resenas-favoritos/services/favoritos.service';
+import { MisFavoritosComponent } from './resenas-favoritos/components/mis-favoritos.component';
 import { NotificacionesComponent } from './notificaciones/notificaciones.component';
 import {
   Component,
@@ -117,7 +119,7 @@ import {
   standalone: true,
 
   imports: [
-    CheckoutStatusComponent, IonApp,
+    CheckoutStatusComponent, MisFavoritosComponent, IonApp,
     IonContent,
     IonIcon,
     AsyncPipe,
@@ -147,6 +149,26 @@ import {
 export class AppComponent {
 
   mostrarMenuComprador = false;
+  mostrarFavoritos = false;
+  readonly favoritos = inject(FavoritosService);
+
+  guardarFavorito(id: number): void {
+    if (!this.esComprador) { this.mostrarAcceso = true; return; }
+    this.favoritos.toggle(id);
+  }
+
+  abrirProductoGuardado(id: number, comparar = false, enlaceCompartido = false): void {
+    this.errorCatalogo = '';
+    const cuenta = this.auth.cuenta();
+    this.catalogo.obtenerDetalle(id).subscribe({
+      next: producto => {
+        if (!enlaceCompartido && this.auth.cuenta() !== cuenta) return;
+        if (comparar) { this.comparar(producto); this.mostrarFavoritos = false; }
+        else { this.mostrarFavoritos = false; this.mostrarNotificaciones = false; this.abrirDetalle(producto); }
+      },
+      error: () => this.errorCatalogo = 'El producto ya no está disponible o no se pudo consultar.'
+    });
+  }
 
   // =========================================================
   // SERVICIOS
@@ -412,6 +434,9 @@ export class AppComponent {
   constructor() {
 
     this.auth.restaurar();
+    effect(() => { this.auth.cuenta(); this.mostrarFavoritos = false; this.mostrarMenuComprador = false; });
+    const compartido = new URLSearchParams(location.search).get('producto');
+    if (compartido && /^[1-9][0-9]{0,14}$/.test(compartido)) this.abrirProductoGuardado(Number(compartido), false, true);
 
     // Solo estado del inicio de compra; el seguimiento de pagos pertenece a CheckoutStatusComponent.
     effect(() => {

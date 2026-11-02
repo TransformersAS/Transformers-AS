@@ -39,6 +39,8 @@ Este es el punto de entrada a las guías de Marketplace. Los documentos están a
 
 ## Casos de uso
 
+- [CU-04: favoritos y alertas](casos-de-uso/cu-04-favoritos-y-alertas.md): funcionamiento, contratos, configuración, trazabilidad y pruebas de seguimiento de productos.
+
 | Documento | Para qué sirve |
 | --- | --- |
 | [CU-19: devolución de compra](casos-de-uso/cu-19-devolucion-compra.md) | Consultar el flujo de devoluciones, sus contratos y limitaciones. |

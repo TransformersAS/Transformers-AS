@@ -19,7 +19,7 @@ async function fixture(page: Page, role = 'COMPRADOR', fail = false, empty = fal
     if (path === '/api/recommendations') return reply({ userId: 1, strategy: 'test', products: [] });
     return reply([]);
   });
-  await page.goto('/'); await page.getByRole('button', { name: 'Notificaciones', exact: true }).click();
+  await page.goto('/'); await page.getByRole('button', { name: 'Abrir notificaciones', exact: true }).click();
   return { panel: page.getByRole('dialog', { name: 'Notificaciones', exact: true }), paths };
 }
 test('comprador consulta páginas y abre el pedido usando el detalle existente', async ({ page }) => {
