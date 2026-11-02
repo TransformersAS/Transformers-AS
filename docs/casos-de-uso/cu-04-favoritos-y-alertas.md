@@ -145,6 +145,74 @@ ORDER BY created_at DESC;
 Estas consultas son para administrar la base de pruebas. El frontend solo debe
 consultar sus endpoints autorizados; no tiene acceso a los datos de otras cuentas.
 
+## Archivos utilizados en la implementación
+
+Las rutas siguientes son relativas a la raíz del proyecto. Los enlaces abren el
+archivo correspondiente. Se distinguen los archivos incorporados o modificados
+para CU-04 de los componentes existentes que se reutilizan.
+
+### Backend: favoritos y alertas
+
+Directorio: `backend/demo/src/main/java/com/transformersas/marketplace/favorites/`.
+
+| Archivo nuevo | Responsabilidad |
+| --- | --- |
+| [FavoriteController.java](../../backend/demo/src/main/java/com/transformersas/marketplace/favorites/FavoriteController.java) | Expone los endpoints de favoritos y alertas. Obtiene al comprador de la sesión, sin aceptar un identificador de otra cuenta enviado por el cliente. |
+| [FavoriteService.java](../../backend/demo/src/main/java/com/transformersas/marketplace/favorites/FavoriteService.java) | Guarda y retira favoritos, evita duplicados y consulta páginas con el precio, stock y estado actuales. |
+| [ProductAlertService.java](../../backend/demo/src/main/java/com/transformersas/marketplace/favorites/ProductAlertService.java) | Valida, crea y administra condiciones; comprueba propiedad, evalúa su cumplimiento y publica la notificación en la misma transacción. |
+| [ProductAlertScheduler.java](../../backend/demo/src/main/java/com/transformersas/marketplace/favorites/ProductAlertScheduler.java) | Ejecuta el barrido por lotes, conserva un cursor y permite continuar cuando una evaluación falla. |
+| [FollowedProductVisibility.java](../../backend/demo/src/main/java/com/transformersas/marketplace/favorites/FollowedProductVisibility.java) | Reutiliza las reglas de moderación y excluye borradores y publicaciones retiradas del contenido que puede seguirse o mostrarse. |
+
+### Base de datos, seguridad y modelo
+
+| Archivo | Cambio realizado |
+| --- | --- |
+| [V39__favorites_and_product_alerts.sql](../../backend/demo/src/main/resources/db/migration/V39__favorites_and_product_alerts.sql) | Migración nueva: crea `buyer_favorites` y `product_alerts`, sus claves foráneas e índices. |
+| [SecurityConfiguration.java](../../backend/demo/src/main/java/com/transformersas/marketplace/shared/SecurityConfiguration.java) | Exige el rol activo `COMPRADOR` para `/api/favorites` y sus subrutas. Mantiene la protección CSRF existente. |
+| [Product.java](../../backend/demo/src/main/java/com/transformersas/marketplace/product/Product.java) | Añade carga por lotes de imágenes y variantes para reducir consultas al listar favoritos. |
+| [Configuración de pruebas](../../backend/demo/src/test/resources/config/application.properties) | Desactiva el barrido automático de alertas durante las pruebas, que invocan la evaluación de forma controlada. |
+
+### Frontend
+
+| Archivo | Cambio realizado |
+| --- | --- |
+| [favoritos.service.ts](../../frontend/src/app/resenas-favoritos/services/favoritos.service.ts) | Sustituye el servicio provisional en memoria por llamadas HTTP. Mantiene los corazones sincronizados y limpia el estado al cambiar de cuenta. Define los contratos de favoritos y alertas usados por la interfaz. |
+| [mis-favoritos.component.ts](../../frontend/src/app/resenas-favoritos/components/mis-favoritos.component.ts) | Componente nuevo con listado, orden, páginas, acciones sobre productos y formularios para crear y administrar alertas. Incluye su plantilla y estilos. |
+| [app.component.ts](../../frontend/src/app/app.component.ts) | Integra el servicio y el panel, las acciones del corazón, comparación y apertura de enlaces compartidos. |
+| [app.component.html](../../frontend/src/app/app.component.html) | Conecta los corazones, añade el acceso «Mis favoritos y alertas» al menú naranja y monta el panel y sus eventos. |
+| [app.component.scss](../../frontend/src/app/app.component.scss) | Evita que el menú y el acceso a notificaciones interfieran con el carrito y el checkout abiertos. |
+| [notificaciones.service.ts](../../frontend/src/app/notificaciones/notificaciones.service.ts) | Incorpora la referencia opcional `productId` al contrato de la bandeja. |
+| [notificaciones.component.ts](../../frontend/src/app/notificaciones/notificaciones.component.ts) | Añade «Ver producto» a los avisos de alertas y actualiza la bandeja abierta cada dos segundos, cancelando solicitudes al cambiar de cuenta o cerrar el componente. |
+
+### Integración con notificaciones existentes
+
+| Archivo | Uso dentro de CU-04 |
+| --- | --- |
+| [ListOwnNotifications.java](../../backend/demo/src/main/java/com/transformersas/marketplace/notifications/application/usecase/ListOwnNotifications.java) | Modificado para devolver `productId` cuando la referencia del aviso es de tipo `PRODUCT`, conservando `orderId` para pedidos. |
+| [PublishNotificationCommand.java](../../backend/demo/src/main/java/com/transformersas/marketplace/notifications/application/dto/PublishNotificationCommand.java) | Reutilizado para enviar destinatario, contenido, referencia al producto y clave de deduplicación. |
+| [PublishNotificationUseCase.java](../../backend/demo/src/main/java/com/transformersas/marketplace/notifications/application/usecase/PublishNotificationUseCase.java) | Reutilizado para guardar la notificación interna de manera transaccional y evitar eventos repetidos. |
+| [AfterCommitNotificationDispatcher.java](../../backend/demo/src/main/java/com/transformersas/marketplace/notifications/infrastructure/dispatch/AfterCommitNotificationDispatcher.java) | Reutilizado para despachar el aviso externo después del commit y fuera del hilo de la solicitud. |
+| [DispatchExternalNotificationUseCase.java](../../backend/demo/src/main/java/com/transformersas/marketplace/notifications/application/usecase/DispatchExternalNotificationUseCase.java) | Reutilizado para registrar el resultado del proveedor sin eliminar la notificación interna cuando falla. |
+
+### Pruebas y documentación
+
+| Archivo | Qué verifica o documenta |
+| --- | --- |
+| [FavoritesIntegrationTests.java](../../backend/demo/src/test/java/com/transformersas/marketplace/favorites/FavoritesIntegrationTests.java) | Pruebas nuevas de persistencia, aislamiento, permisos, CSRF, condiciones, edición, estados, concurrencia, rollback y fallo del proveedor externo. |
+| [ProductAlertSchedulerTests.java](../../backend/demo/src/test/java/com/transformersas/marketplace/favorites/ProductAlertSchedulerTests.java) | Prueba nueva de continuación ante errores y reinicio del cursor al terminar un lote corto. |
+| [FavoritesConcurrencyTests.java](../../backend/demo/src/test/java/com/transformersas/marketplace/favorites/FavoritesConcurrencyTests.java) | Medición opcional con 100 sesiones y 900 operaciones, activada con `-Dcu04.performance=true`. |
+| [favoritos.spec.ts](../../frontend/e2e/favoritos.spec.ts) | Cinco escenarios nuevos de navegador: enlace compartido, persistencia y retiro, objetivo ya cumplido, disponibilidad y actualización de la bandeja con enlace. |
+| [mercadopago.spec.ts](../../frontend/e2e/mercadopago.spec.ts) | Pruebas actualizadas a los accesos del menú desplegable y del icono de notificaciones; comprueban que no interfieran con la compra. |
+| [notificaciones.spec.ts](../../frontend/e2e/notificaciones.spec.ts) | Pruebas existentes actualizadas para abrir la bandeja desde el icono del encabezado. |
+| [NotificationInboxTests.java](../../backend/demo/src/test/java/com/transformersas/marketplace/notifications/NotificationInboxTests.java) | Suite existente reutilizada como regresión de la bandeja. |
+| [NotificationsHttpIntegrationTests.java](../../backend/demo/src/test/java/com/transformersas/marketplace/notifications/NotificationsHttpIntegrationTests.java) | Suite existente reutilizada para comprobar éxito, rechazo, indisponibilidad y timeout del proveedor HTTP. |
+| [Índice de documentación](../README.md) | Añade el enlace a esta guía del CU-04. |
+| [Este documento](cu-04-favoritos-y-alertas.md) | Describe funcionamiento, decisiones, contratos, archivos, ejecución, trazabilidad y evidencia de pruebas. |
+
+Los componentes provisionales `favoritos-vacios.component.ts` y `resena.model.ts`
+no constituyen la implementación nueva del CU-04. La pantalla funcional está en
+`mis-favoritos.component.ts` y la persistencia la resuelven los servicios del backend.
+
 ## Ejecución y configuración
 
 En esta instalación Docker, reconstruir backend y frontend:
