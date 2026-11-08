@@ -74,6 +74,9 @@ import { ColaSoporteComponent } from './panel-admin-soporte/components/cola-sopo
 import { PedidosRecibidosComponent } from './panel-vendedor/components/pedidos-recibidos.component';
 import { CatalogoAdminComponent } from './panel-admin-catalogo/components/catalogo-admin.component';
 import { InventarioComponent } from './panel-vendedor/components/inventario.component';
+import { AnaliticaVentasComponent } from './analitica/components/analitica-ventas.component';
+import { EstadoTiendaComponent } from './suspensiones/components/estado-tienda.component';
+import { EvaluacionTiendasComponent } from './suspensiones/components/evaluacion-tiendas.component';
 import { MisProductosComponent } from './panel-vendedor/components/mis-productos.component';
 import { MiTiendaComponent } from './panel-vendedor/components/mi-tienda.component';
 import { ReclamacionesComponent } from './reclamaciones-devoluciones/components/reclamaciones.component';
@@ -134,6 +137,9 @@ import {
     CatalogoAdminComponent,
     MisProductosComponent,
     InventarioComponent,
+    AnaliticaVentasComponent,
+    EstadoTiendaComponent,
+    EvaluacionTiendasComponent,
     MiTiendaComponent,
     ReclamacionesComponent,
     RegistroVendedorComponent,
@@ -393,6 +399,12 @@ export class AppComponent {
 
   /** Panel del vendedor para controlar su inventario (CU-15). */
   mostrarInventario = false;
+  /** Analítica de ventas y rentabilidad (CU-26), solo con el rol activo VENDEDOR. */
+  mostrarAnalitica = false;
+  /** Estado de la tienda y aclaraciones de la administración (CU-27), solo con el rol activo VENDEDOR. */
+  mostrarEstadoTienda = false;
+  /** Evaluación y suspensión de tiendas (CU-27), solo con el rol activo ADMIN. */
+  mostrarEvaluacionTiendas = false;
 
   /** "Mi tienda" del vendedor (CU-18). */
   mostrarMiTienda = false;

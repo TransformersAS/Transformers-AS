@@ -6,6 +6,7 @@ import com.transformersas.marketplace.catalog.BrandRepository;
 import com.transformersas.marketplace.catalog.CategoryRepository;
 import com.transformersas.marketplace.product.dto.SellerProductRequest;
 import com.transformersas.marketplace.product.dto.SellerProductResponse;
+import com.transformersas.marketplace.stores.application.usecase.CheckStoreCommercialOperationUseCase;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,6 +18,9 @@ import java.util.List;
 /**
  * Publicar y mantener los productos de una tienda (CU-14). Todos los métodos reciben el id de la tienda del
  * vendedor autenticado y solo trabajan con productos de esa tienda.
+ *
+ * <p>Una tienda suspendida (CU-27) puede consultar, pausar y retirar sus publicaciones, pero no crearlas, editarlas,
+ * publicarlas, reactivarlas ni duplicarlas (A9).
  */
 @Service
 @Transactional
@@ -26,13 +30,16 @@ public class SellerProductService {
     private final CategoryRepository categories;
     private final BrandRepository brands;
     private final AttributeValueRepository attributeValues;
+    private final CheckStoreCommercialOperationUseCase storeOperation;
 
     public SellerProductService(ProductRepository products, CategoryRepository categories, BrandRepository brands,
-                                AttributeValueRepository attributeValues) {
+                                AttributeValueRepository attributeValues,
+                                CheckStoreCommercialOperationUseCase storeOperation) {
         this.products = products;
         this.categories = categories;
         this.brands = brands;
         this.attributeValues = attributeValues;
+        this.storeOperation = storeOperation;
     }
 
     /** Busca por texto (en el nombre o la categoría) y/o por estado; sin filtros devuelve todos, del más nuevo al más antiguo. */
@@ -56,6 +63,7 @@ public class SellerProductService {
 
     /** Todo producto nuevo empieza como borrador. */
     public SellerProductResponse create(Long storeId, SellerProductRequest request) {
+        storeOperation.requireForSeller(storeId);
         Product product = new Product();
         product.setStoreId(storeId);
         product.changeStatus(ProductStatus.DRAFT);
@@ -64,6 +72,7 @@ public class SellerProductService {
     }
 
     public SellerProductResponse update(Long storeId, Long id, SellerProductRequest request) {
+        storeOperation.requireForSeller(storeId);
         Product product = find(storeId, id);
         if (product.getStatus() == ProductStatus.RETIRED) {
             throw conflict("Un producto retirado no se puede editar");
@@ -74,6 +83,7 @@ public class SellerProductService {
 
     /** DRAFT -> ACTIVE. Exige al menos una imagen y una categoría que siga activa. */
     public SellerProductResponse publish(Long storeId, Long id) {
+        storeOperation.requireForSeller(storeId);
         Product product = find(storeId, id);
         if (product.getStatus() != ProductStatus.DRAFT) {
             throw conflict("Solo un borrador se puede publicar");
@@ -98,6 +108,7 @@ public class SellerProductService {
 
     /** PAUSED -> ACTIVE. */
     public SellerProductResponse reactivate(Long storeId, Long id) {
+        storeOperation.requireForSeller(storeId);
         Product product = find(storeId, id);
         if (product.getStatus() != ProductStatus.PAUSED) {
             throw conflict("Solo un producto pausado se puede reactivar");
@@ -119,6 +130,7 @@ public class SellerProductService {
 
     /** Crea un borrador nuevo con los mismos datos, para partir de una publicación parecida. */
     public SellerProductResponse duplicate(Long storeId, Long id) {
+        storeOperation.requireForSeller(storeId);
         Product original = find(storeId, id);
         Product copy = new Product();
         copy.setStoreId(storeId);
@@ -130,6 +142,7 @@ public class SellerProductService {
         copy.setStock(original.getStock());
         copy.setCategory(original.getCategory());
         copy.setBrandId(original.getBrandId());
+        copy.setUnitCost(original.getUnitCost());
         copy.getImageUrls().addAll(original.getImageUrls());
         copy.getAttributeValueIds().addAll(original.getAttributeValueIds());
         original.getVariants().forEach(variant -> copy.getVariants()
@@ -161,6 +174,7 @@ public class SellerProductService {
         product.setStock(request.stock());
         product.setCategory(request.category().strip());
         product.setBrandId(request.brandId());
+        product.setUnitCost(request.unitCost());
 
         product.getImageUrls().clear();
         if (request.imageUrls() != null) {

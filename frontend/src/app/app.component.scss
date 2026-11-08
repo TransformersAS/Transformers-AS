@@ -2088,7 +2088,22 @@ footer > div {
   bottom: 23.5rem;
 }
 
-/* Ventanas bajas (por ejemplo un teléfono en horizontal): la pila de botones flotantes se compacta para que los siete
+/* "Analítica" (CU-26) y "Estado de mi tienda" (CU-27): octavo y noveno nivel de la pila del vendedor, encima de
+   Mis devoluciones (23.5rem). */
+.boton-analitica {
+  bottom: 27.25rem;
+}
+
+.boton-estado-tienda {
+  bottom: 31rem;
+}
+
+/* "Evaluar tiendas" (CU-27): segundo nivel del administrador, encima de "Configurar catálogo" (1rem). */
+.boton-evaluar-tiendas {
+  bottom: 4.75rem;
+}
+
+/* Ventanas bajas (por ejemplo un teléfono en horizontal): la pila de botones flotantes se compacta para que los nueve
    del vendedor quepan sin salirse de la pantalla ni tapar la pantalla completa. */
 @media (max-height: 27rem) {
   .boton-pedidos {
@@ -2121,6 +2136,18 @@ footer > div {
 
   .boton-devoluciones-vendedor {
     bottom: 12.5rem;
+  }
+
+  .boton-analitica {
+    bottom: 14.5rem;
+  }
+
+  .boton-estado-tienda {
+    bottom: 16.5rem;
+  }
+
+  .boton-evaluar-tiendas {
+    bottom: 2.5rem;
   }
 }
 .catalogo-filtros {

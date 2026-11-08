@@ -9,7 +9,8 @@ import java.util.List;
 /** Publicación tal como la ve su vendedor; sirve también como vista previa antes de publicar. */
 public record SellerProductResponse(Long id, String name, String description, BigDecimal price, Integer stock,
                                     String category, Long brandId, ProductStatus status, List<String> imageUrls,
-                                    List<Long> attributeValueIds, List<VariantResponse> variants) {
+                                    List<Long> attributeValueIds, List<VariantResponse> variants,
+                                    BigDecimal unitCost) {
 
     public record VariantResponse(String name, BigDecimal price, Integer stock) {
     }
@@ -21,6 +22,7 @@ public record SellerProductResponse(Long id, String name, String description, Bi
                 product.getAttributeValueIds().stream().sorted().toList(),
                 product.getVariants().stream()
                         .map(variant -> new VariantResponse(variant.getName(), variant.getPrice(), variant.getStock()))
-                        .toList());
+                        .toList(),
+                product.getUnitCost());
     }
 }

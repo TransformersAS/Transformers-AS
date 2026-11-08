@@ -55,7 +55,7 @@ public class OrderController {
     }
 
     public record OrderDetail(Long id, OrderStatus status, BigDecimal total, Long addressId,
-                              String shippingMethod, String transactionId, LocalDateTime createdAt, List<OrderItem> items,
+                              String shippingMethod, String transactionId, LocalDateTime createdAt, List<Item> items,
                               DeliverySnapshot delivery, OrderPaymentStatus paymentStatus, Long storeId,
                               BigDecimal discountAmount, BigDecimal shippingCost, String sellerNameSnapshot,
                               List<BuyerOrderDetail.History> history, List<BuyerRefund> refunds,
@@ -63,8 +63,16 @@ public class OrderController {
         static OrderDetail from(BuyerOrderDetail detail) {
             Order order = detail.order();
             return new OrderDetail(order.id(), order.status(), order.total(), order.addressId(), order.shippingMethod(),
-                    order.transactionId(), order.createdAt(), order.items(), order.delivery(), order.paymentStatus(),
+                    order.transactionId(), order.createdAt(), order.items().stream().map(Item::from).toList(),
+                    order.delivery(), order.paymentStatus(),
                     order.storeId(), order.discountAmount(), order.shippingCost(), order.sellerNameSnapshot(), detail.history(), detail.refunds(), order.provenance());
+        }
+    }
+
+    /** Línea del pedido para su comprador: sin el costo interno del vendedor (CU-26). */
+    public record Item(Long productId, String productName, Integer quantity, BigDecimal unitPrice, BigDecimal subtotal) {
+        static Item from(OrderItem item) {
+            return new Item(item.productId(), item.productName(), item.quantity(), item.unitPrice(), item.subtotal());
         }
     }
 
