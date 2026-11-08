@@ -55,6 +55,7 @@ public class Product {
     // El orden importa: la primera imagen es la principal.
     @ElementCollection
     @CollectionTable(name = "product_images", joinColumns = @JoinColumn(name = "product_id"))
+    @org.hibernate.annotations.BatchSize(size = 50)
     @OrderColumn(name = "position")
     @Column(name = "url", nullable = false, length = 500)
     private List<String> imageUrls = new ArrayList<>();
@@ -66,6 +67,7 @@ public class Product {
 
     @ElementCollection
     @CollectionTable(name = "product_variants", joinColumns = @JoinColumn(name = "product_id"))
+    @org.hibernate.annotations.BatchSize(size = 50)
     @OrderColumn(name = "position")
     private List<ProductVariant> variants = new ArrayList<>();
 

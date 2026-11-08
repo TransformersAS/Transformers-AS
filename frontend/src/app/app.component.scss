@@ -1952,6 +1952,73 @@ footer > div {
 }
 
 /* Pedidos recibidos (solo vendedor) */
+.menu-comprador {
+  position: fixed;
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  left: max(0.75rem, env(safe-area-inset-left));
+  z-index: 810;
+}
+
+.menu-comprador-toggle {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border: 0;
+  border-radius: 50%;
+  background: var(--coral);
+  color: #fff;
+  font-size: 1.4rem;
+  box-shadow: 0 0.25rem 1rem rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+}
+
+.menu-comprador-fondo {
+  position: fixed;
+  inset: 0;
+  border: 0;
+  background: transparent;
+  cursor: default;
+}
+
+.menu-comprador-opciones {
+  position: absolute;
+  bottom: 3.5rem;
+  left: 0;
+  width: min(15rem, calc(100vw - 1.5rem));
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.75rem;
+
+  button {
+    display: block;
+    width: max-content;
+    max-width: 100%;
+    padding: 0.75rem 1.1rem;
+    border: 0;
+    border-radius: 999px;
+    background: var(--ink);
+    color: #fff;
+    text-align: left;
+    font: inherit;
+    font-weight: 700;
+    box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.3);
+    cursor: pointer;
+
+    &:hover, &:focus-visible {
+      background: #2d4a52;
+    }
+  }
+}
+
+.menu-comprador-toggle:focus-visible {
+  outline: 3px solid var(--ink);
+  outline-offset: 3px;
+}
+
 .boton-pedidos {
   position: fixed;
   right: 1rem;
@@ -2124,13 +2191,13 @@ footer > div {
   button { padding: .75rem 1rem; border-radius: 8px; cursor: pointer; }
 }
 
-.acceso-notificaciones { position: fixed; top: 5rem; right: 1rem; z-index: 1000; padding: .6rem 1rem; border-radius: .5rem; background: white; color: #243342; border: 1px solid #8997a6; }
 
 /* La navegación flotante vive fuera del contexto de apilamiento del carrito de Ionic.
    Durante la compra se retira también del foco y del hit testing, sin cambiar permisos. */
 .compra-abierta .boton-pedidos,
-.compra-abierta .acceso-pedidos,
-.compra-abierta ~ .acceso-notificaciones {
+.compra-abierta .menu-comprador,
+.compra-abierta .acceso-avisos,
+.compra-abierta .acceso-pedidos {
   visibility: hidden;
   pointer-events: none;
 }

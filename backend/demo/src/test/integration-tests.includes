@@ -18,6 +18,8 @@ com/transformersas/marketplace/claims/ClaimTests.java
 com/transformersas/marketplace/demo/DemoDataLoaderIntegrationTests.java
 com/transformersas/marketplace/demo/DemoDataWithDemoProfileIntegrationTests.java
 com/transformersas/marketplace/demo/DemoProvisioningIntegrationTests.java
+com/transformersas/marketplace/favorites/FavoritesConcurrencyTests.java
+com/transformersas/marketplace/favorites/FavoritesIntegrationTests.java
 com/transformersas/marketplace/inventory/RestoreStockUseCaseTests.java
 com/transformersas/marketplace/logistics/CreateShipmentUseCaseTests.java
 com/transformersas/marketplace/logistics/LogisticsHttpIntegrationTests.java

@@ -159,7 +159,7 @@ test('logout limpia URL y una respuesta tardía de cancelación no revela datos'
   release();await expect(page.getByText('Proceso de compra cerrado',{exact:true})).toHaveCount(0);
 });
 
-const purchaseNavigation = ['Mis pedidos', 'Mis reclamaciones', 'Mis devoluciones', 'Mis reportes', 'Notificaciones'];
+const purchaseNavigation = ['Mis pedidos', 'Opciones de mis compras', 'Abrir notificaciones'];
 async function expectPurchaseNavigation(page: Page, visible: boolean) {
   for (const name of purchaseNavigation) {
     const button = page.getByRole('button', { name, exact: true, includeHidden: true });
@@ -183,7 +183,7 @@ for (const viewport of [null, { width: 390, height: 540 }, { width: 844, height:
       await page.getByRole('button', { name: 'Cerrar carrito', exact: true }).focus();
       for (let tab = 0; tab < 12; tab++) {
         await page.keyboard.press('Tab');
-        expect(await page.evaluate(() => !!document.activeElement?.closest('.boton-pedidos, .acceso-pedidos, .acceso-notificaciones'))).toBe(false);
+        expect(await page.evaluate(() => !!document.activeElement?.closest('.boton-pedidos, .acceso-pedidos, .menu-comprador, .acceso-avisos'))).toBe(false);
       }
       await page.getByRole('button', { name: 'Cerrar carrito', exact: true }).focus();
       await page.keyboard.press('Enter');
@@ -211,8 +211,10 @@ test('los accesos restaurados abren sus funcionalidades originales', async ({ pa
   for (const [name, tag] of [
     ['Mis pedidos', 'app-mis-pedidos'], ['Mis reclamaciones', 'app-reclamaciones'],
     ['Mis devoluciones', 'app-mis-devoluciones'], ['Mis reportes', 'app-mis-reportes'],
-    ['Notificaciones', 'app-notificaciones']
+    ['Abrir notificaciones', 'app-notificaciones']
   ]) {
+    if (['Mis reclamaciones','Mis devoluciones','Mis reportes'].includes(name))
+      await page.getByRole('button',{name:'Opciones de mis compras',exact:true}).click();
     await page.getByRole('button', { name, exact: true }).click();
     const panel = page.locator(tag);
     await expect(panel).toHaveCount(1);

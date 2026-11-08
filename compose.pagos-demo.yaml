@@ -1,0 +1,6 @@
+# Complemento del compose principal. Reutiliza la base de datos existente.
+services:
+  backend:
+    environment:
+      SPRING_PROFILES_ACTIVE: pagos-demo
+      CHECKOUT_RESERVATION_TTL: ${CHECKOUT_RESERVATION_TTL:-60s}

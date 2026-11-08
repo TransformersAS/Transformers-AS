@@ -15,6 +15,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
+import java.time.Duration;
+import org.springframework.beans.factory.annotation.Value;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -22,7 +24,15 @@ import java.util.List;
 public class InventoryReservationService {
 
     // Duración de una reserva temporal
-    private static final long RESERVATION_MINUTES = 10;
+    private Duration reservationTtl = Duration.ofMinutes(10);
+
+    @Value("${checkout.reservation-ttl:10m}")
+    public void configureReservationTtl(Duration duration) {
+        if (duration == null || duration.isZero() || duration.isNegative()) {
+            throw new IllegalArgumentException("checkout.reservation-ttl debe ser mayor que cero");
+        }
+        reservationTtl = duration;
+    }
 
     private final InventoryReservationRepository reservationRepository;
     private final CartRepository cartRepository;
@@ -206,9 +216,7 @@ public class InventoryReservationService {
 
 
         LocalDateTime expiresAt =
-                now.plusMinutes(
-                        RESERVATION_MINUTES
-                );
+                now.plus(reservationTtl);
 
 
         for (CartItem item : items) {

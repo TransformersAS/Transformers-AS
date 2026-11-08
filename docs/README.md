@@ -11,6 +11,8 @@ Este es el punto de entrada a las guías de Marketplace. Los documentos están a
 
 ## Ejecución y entrega
 
+- [Perfil de demostración de pagos](ejecucion/perfil-pagos-demo.md): acortar el vencimiento de nuevas reservas mediante configuración, sin editar Java.
+
 | Documento | Para qué sirve |
 | --- | --- |
 | [Iniciar la demo en Windows](ejecucion/iniciar-demo-windows.md) | Abrir el ejecutable, usar las cuentas de demostración y cerrar la aplicación. |
@@ -36,6 +38,8 @@ Este es el punto de entrada a las guías de Marketplace. Los documentos están a
 | [Recuperación de contraseña por SMTP](seguridad/recuperacion-contrasena-smtp.md) | Consultar la recuperación de acceso mediante correo electrónico. |
 
 ## Casos de uso
+
+- [CU-04: favoritos y alertas](casos-de-uso/cu-04-favoritos-y-alertas.md): funcionamiento, contratos, configuración, trazabilidad y pruebas de seguimiento de productos.
 
 | Documento | Para qué sirve |
 | --- | --- |

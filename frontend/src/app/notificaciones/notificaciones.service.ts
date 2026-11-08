@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { API_BASE } from '../core/config/api.config';
-export interface Aviso { id: number; title: string; message: string; createdAt: string; orderId: number | null; }
+export interface Aviso { id: number; title: string; message: string; createdAt: string; orderId: number | null; productId?: number | null; }
 export interface PaginaAvisos { items: Aviso[]; hasMore: boolean; }
 @Injectable({ providedIn: 'root' })
 export class NotificacionesService {
