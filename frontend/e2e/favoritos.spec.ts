@@ -24,6 +24,7 @@ async function fixture(page: Page) {
       return reply(alerts);
     }
     if (path==='/api/favorites/alerts/alert-1') {
+      if (method==='PUT') { alerts[0]={...alerts[0],...request.postDataJSON()}; return reply({alreadySatisfied:false}); }
       if (method==='DELETE') alerts=[];
       if (method==='PATCH') alerts[0].status=request.postDataJSON().status;
       return reply(null);
@@ -33,6 +34,7 @@ async function fixture(page: Page) {
     if (path==='/api/notifications') return reply({items:[],hasMore:false});
     return reply([]);
   });
+  return product;
 }
 async function openFavorites(page: Page) {
   await page.getByRole('button',{name:'Opciones de mis compras',exact:true}).click();
@@ -55,11 +57,58 @@ test('favorites persist on reload and alerts can be paused and removed',async({p
   await expect(panel.getByText(/Precio objetivo.*Activa/)).toBeVisible();
   await panel.getByRole('button',{name:'Pausar',exact:true}).click();
   await expect(panel.getByText(/Precio objetivo.*Pausada/)).toBeVisible();
+  await panel.getByRole('button',{name:'Reactivar',exact:true}).click();
+  await expect(panel.getByText(/Precio objetivo.*Activa/)).toBeVisible();
+  await panel.getByLabel('Nuevo precio',{exact:true}).fill('7000');
+  await panel.getByRole('button',{name:'Modificar',exact:true}).click();
+  await expect(panel.getByText(/Precio objetivo.*7[,.]000.*Activa/)).toBeVisible();
   await panel.getByRole('button',{name:'Eliminar alerta',exact:true}).click();
   await expect(panel.getByText('No tienes alertas registradas.')).toBeVisible();
   await panel.getByRole('button',{name:'Retirar de favoritos',exact:true}).click();
   await expect(panel.getByRole('heading',{name:'Libreta seguida',exact:true})).toHaveCount(0);
   await expect(panel.getByText(/Todavía no tienes favoritos/)).toBeVisible();
+});
+
+test('inactive saved publication disables purchase and alert actions',async({page})=>{
+  const product=await fixture(page);await page.goto('/',{waitUntil:'domcontentloaded'});
+  await page.getByRole('button',{name:'Guardar Libreta seguida',exact:true}).click();
+  product.active=false;await openFavorites(page);
+  const panel=page.getByRole('dialog',{name:'Mis favoritos y alertas'});
+  await expect(panel.getByText(/Publicación inactiva/)).toBeVisible();
+  for(const name of ['Ver producto','Agregar al carrito','Comparar','Configurar alerta'])
+    await expect(panel.getByRole('button',{name,exact:true})).toBeDisabled();
+  await expect(panel.getByRole('button',{name:'Retirar de favoritos',exact:true})).toBeEnabled();
+});
+
+test('availability cannot be created when all variants have stock',async({page})=>{
+  const product=await fixture(page);product.variants[0].stock=3;
+  await page.goto('/',{waitUntil:'domcontentloaded'});
+  await page.getByRole('button',{name:'Guardar Libreta seguida',exact:true}).click();await openFavorites(page);
+  const panel=page.getByRole('dialog',{name:'Mis favoritos y alertas'});
+  await panel.getByRole('button',{name:'Configurar alerta'}).click();
+  await panel.getByLabel('Tipo',{exact:true}).selectOption('AVAILABILITY');
+  await expect(panel.getByText('Este producto no tiene variantes agotadas.')).toBeVisible();
+  await expect(panel.getByRole('button',{name:'Crear alerta',exact:true})).toBeDisabled();
+});
+
+test('failed alert creation preserves the form and can be retried',async({page})=>{
+  await fixture(page);let fail=true;
+  await page.route('**/api/favorites/alerts',async route=>{
+    if(route.request().method()==='POST' && fail) {
+      fail=false;return route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({detail:'Servicio temporalmente no disponible'})});
+    }
+    return route.fallback();
+  });
+  await page.goto('/',{waitUntil:'domcontentloaded'});
+  await page.getByRole('button',{name:'Guardar Libreta seguida',exact:true}).click();await openFavorites(page);
+  const panel=page.getByRole('dialog',{name:'Mis favoritos y alertas'});
+  await panel.getByRole('button',{name:'Configurar alerta'}).click();
+  await panel.getByLabel('Precio objetivo',{exact:true}).fill('8000');
+  await panel.getByRole('button',{name:'Crear alerta',exact:true}).click();
+  await expect(panel.getByRole('alert')).toContainText('Servicio temporalmente no disponible');
+  await expect(panel.getByLabel('Precio objetivo',{exact:true})).toHaveValue('8000');
+  await panel.getByRole('button',{name:'Crear alerta',exact:true}).click();
+  await expect(panel.getByText(/Precio objetivo.*Activa/)).toBeVisible();
 });
 test('already satisfied target informs the buyer without an active alert',async({page})=>{
   await fixture(page);await page.goto('/',{waitUntil:'domcontentloaded'});

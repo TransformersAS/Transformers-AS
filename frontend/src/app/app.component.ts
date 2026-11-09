@@ -1,4 +1,5 @@
 import { CheckoutStatusComponent } from './checkout/components/checkout-status.component';
+import { PushService } from './notificaciones/push.service';
 import { FavoritosService } from './resenas-favoritos/services/favoritos.service';
 import { MisFavoritosComponent } from './resenas-favoritos/components/mis-favoritos.component';
 import { NotificacionesComponent } from './notificaciones/notificaciones.component';
@@ -432,9 +433,16 @@ export class AppComponent {
   // =========================================================
 
   constructor() {
+    inject(PushService);
 
     this.auth.restaurar();
-    effect(() => { this.auth.cuenta(); this.mostrarFavoritos = false; this.mostrarMenuComprador = false; });
+    effect(() => {
+      const cuenta=this.auth.cuenta();this.mostrarFavoritos=false;this.mostrarMenuComprador=false;
+      if(cuenta && ['COMPRADOR','VENDEDOR'].includes(cuenta.activeRole || '') && new URLSearchParams(location.search).get('notificaciones')==='1') {
+        this.mostrarNotificaciones=true;
+        const url=new URL(location.href);url.searchParams.delete('notificaciones');history.replaceState(null,'',url);
+      }
+    });
     const compartido = new URLSearchParams(location.search).get('producto');
     if (compartido && /^[1-9][0-9]{0,14}$/.test(compartido)) this.abrirProductoGuardado(Number(compartido), false, true);
 

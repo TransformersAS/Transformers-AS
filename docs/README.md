@@ -11,6 +11,10 @@ Este es el punto de entrada a las guías de Marketplace. Los documentos están a
 
 ## Ejecución y entrega
 
+- [Pruebas automatizadas del CU-04](pruebas/cu04-automatizado.md): ejecutar favoritos, alertas, cola y push con un comando y conservar evidencias.
+
+- [Web Push y RabbitMQ](ejecucion/notificaciones-push-rabbitmq.md): activar el canal push, levantar la cola y demostrar entrega y recuperación.
+
 - [Perfil de demostración de pagos](ejecucion/perfil-pagos-demo.md): acortar el vencimiento de nuevas reservas mediante configuración, sin editar Java.
 
 | Documento | Para qué sirve |

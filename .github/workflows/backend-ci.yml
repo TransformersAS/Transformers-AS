@@ -158,6 +158,9 @@ jobs:
       - name: Run Playwright E2E
         working-directory: frontend
         run: npx playwright test --project=chrome --reporter=html
+      - name: Verify production Web Push browser integration
+        working-directory: frontend
+        run: npx playwright test --config=playwright.push.config.ts --project=chrome --reporter=list
 
       - name: Run real CU-08 browser/backend/MySQL E2E
         run: bash scripts/cu08-real-e2e.sh
@@ -169,6 +172,7 @@ jobs:
           name: playwright-report-${{ github.sha }}
           path: |
             frontend/playwright-report/
+            frontend/test-results/
             frontend/playwright-report-real/
             frontend/test-results-real/
           if-no-files-found: warn

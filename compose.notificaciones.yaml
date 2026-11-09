@@ -1,0 +1,34 @@
+# Load after compose.yaml. Generate the ignored .env.push first.
+services:
+  backend:
+    environment:
+      NOTIFICATIONS_QUEUE_ENABLED: 'true'
+      NOTIFICATIONS_PUSH_ENABLED: 'true'
+      WEB_PUSH_PUBLIC_KEY: ${WEB_PUSH_PUBLIC_KEY:?Generate .env.push with scripts/generar-config-push.mjs}
+      WEB_PUSH_PRIVATE_KEY: ${WEB_PUSH_PRIVATE_KEY:?Generate .env.push with scripts/generar-config-push.mjs}
+      WEB_PUSH_SUBJECT: ${WEB_PUSH_SUBJECT:-mailto:admin@example.com}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USER: ${RABBITMQ_USER:?Missing RABBITMQ_USER}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?Missing RABBITMQ_PASSWORD}
+    depends_on:
+      rabbitmq:
+        condition: service_started
+  rabbitmq:
+    image: rabbitmq:4.3.6-management
+    hostname: marketplace-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:?Missing RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?Missing RABBITMQ_PASSWORD}
+    ports:
+      - '127.0.0.1:${RABBITMQ_HOST_PORT:-5672}:5672'
+      - '127.0.0.1:${RABBITMQ_MANAGEMENT_PORT:-15672}:15672'
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ['CMD', 'rabbitmq-diagnostics', '-q', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+volumes:
+  rabbitmq_data:

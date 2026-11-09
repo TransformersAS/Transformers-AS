@@ -137,4 +137,65 @@ class FavoritesIntegrationTests extends AbstractIntegrationTest {
         assertThat(alerts.list(buyer).getFirst().status()).isEqualTo("ACTIVE");
         alerts.evaluate(id);assertThat(notices()).isEqualTo(1);
     }
+
+    @Test void httpAlertLifecyclePreservesChangesAndDeletion() throws Exception {
+        var session=login("fav@example.test");
+        perform(session,get("/api/favorites/ids")).andExpect(status().isOk()).andExpect(content().json("[]"));
+        var result=perform(session,post("/api/favorites/alerts").contentType("application/json")
+                .content(json.writeValueAsString(price("80")))).andExpect(status().isOk()).andReturn();
+        String id=json.readTree(result.getResponse().getContentAsString()).path("alert").path("id").asText();
+        perform(session,get("/api/favorites/alerts")).andExpect(jsonPath("$[0].id").value(id));
+        perform(session,put("/api/favorites/alerts/"+id).contentType("application/json")
+                .content(json.writeValueAsString(price("75")))).andExpect(status().isOk());
+        perform(session,patch("/api/favorites/alerts/"+id).contentType("application/json")
+                .content("{\"status\":\"PAUSED\"}")).andExpect(status().isOk());
+        assertThat(alerts.list(buyer).getFirst().targetPrice()).isEqualByComparingTo("75");
+        assertThat(alerts.list(buyer).getFirst().status()).isEqualTo("PAUSED");
+        perform(session,delete("/api/favorites/alerts/"+id)).andExpect(status().isOk());
+        perform(session,delete("/api/favorites/"+product)).andExpect(status().isOk());
+        assertThat(alerts.list(buyer)).isEmpty();
+    }
+
+    @Test void missingProductsInvalidPagingAndInvalidLifecycleAreRejected() {
+        assertThatThrownBy(()->favorites.save(buyer,Long.MAX_VALUE)).isInstanceOf(ResponseStatusException.class);
+        for(int page:new int[]{-1,10001})
+            assertThatThrownBy(()->favorites.list(buyer,page)).isInstanceOf(ResponseStatusException.class);
+        String id=createPrice();
+        assertThatThrownBy(()->alerts.edit(buyer,id,null)).isInstanceOf(ResponseStatusException.class);
+        assertThatThrownBy(()->alerts.edit(buyer,id,new ProductAlertService.Input(product,"AVAILABILITY","Talla M",null)))
+                .isInstanceOf(ResponseStatusException.class);
+        assertThatThrownBy(()->alerts.changeStatus(buyer,id,"invalid")).isInstanceOf(ResponseStatusException.class);
+        alerts.evaluate("missing-alert");assertThat(notices()).isZero();
+        alerts.changeStatus(buyer,id,"PAUSED");
+        assertThat(alerts.edit(buyer,id,price("60")).alert().status()).isEqualTo("PAUSED");
+    }
+
+    @Test void duplicateAvailabilityCannotReplaceOrReactivateAnotherCondition() {
+        String first=alerts.create(buyer,availability()).alert().id();
+        jdbc.update("INSERT INTO product_variants(product_id,position,name,price,stock) VALUES (?,1,'Talla S',100,0)",product);
+        String second=alerts.create(buyer,new ProductAlertService.Input(product,"AVAILABILITY","Talla S",null)).alert().id();
+        assertThatThrownBy(()->alerts.edit(buyer,second,availability())).isInstanceOf(ResponseStatusException.class);
+        jdbc.update("UPDATE product_alerts SET status='TRIGGERED' WHERE id=?",second);
+        jdbc.update("UPDATE product_alerts SET variant_name='Talla M' WHERE id=?",second);
+        assertThatThrownBy(()->alerts.changeStatus(buyer,second,"ACTIVE")).isInstanceOf(ResponseStatusException.class);
+        assertThat(alerts.list(buyer).stream().filter(a->a.id().equals(first)).findFirst().orElseThrow().status()).isEqualTo("ACTIVE");
+    }
+
+    @Test void alertLimitDoesNotCreateMoreThanFiveHundredRows() {
+        jdbc.batchUpdate("INSERT INTO product_alerts(id,account_id,product_id,kind,target_price,status) VALUES (?,?,?,'PRICE',80,'TRIGGERED')",
+                java.util.stream.IntStream.range(0,500).mapToObj(i->new Object[]{java.util.UUID.randomUUID().toString(),buyer,product}).toList());
+        assertThatThrownBy(()->alerts.create(buyer,price("80"))).isInstanceOf(ResponseStatusException.class);
+        assertThat(alerts.list(buyer)).hasSize(500);
+    }
+
+    @Test void savedPublicationBecomingPrivateHidesDetailsAndDoesNotTrigger() {
+        favorites.save(buyer,product);String id=createPrice();
+        jdbc.update("UPDATE products SET status='DRAFT',active=false,price=70 WHERE id=?",product);
+        var row=favorites.list(buyer,0).getFirst();
+        assertThat(row.name()).isEqualTo("Publicación no disponible");
+        assertThat(row.price()).isEqualByComparingTo("0");
+        assertThat(row.variants()).isEmpty();assertThat(row.active()).isFalse();
+        assertThat(alerts.list(buyer).getFirst().productName()).isEqualTo("Publicación no disponible");
+        alerts.evaluate(id);assertThat(notices()).isZero();
+    }
 }

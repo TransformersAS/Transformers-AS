@@ -49,6 +49,13 @@ Reordenar variantes conserva el seguimiento por nombre.
 
 ## Evaluación y notificaciones
 
+**Ampliación de Web Push y cola de mensajes:** se incorporó RabbitMQ con outbox
+transaccional, reintentos, cola de fallos y suscripciones Web Push por sesión.
+El complemento `compose.notificaciones.yaml` activa este modo; sin él se conserva
+el despacho anterior descrito abajo. Consultar la [guía de Web Push y RabbitMQ](../ejecucion/notificaciones-push-rabbitmq.md)
+para sus archivos, comandos, garantías y pruebas. La bandeja interna se mantiene
+en ambos modos.
+
 Un barrido configurable procesa lotes de hasta 100 alertas activas. Usa un cursor
 para recorrerlas sin quedarse siempre en el primer lote. Cada evaluación tiene su
 propia transacción, por lo que el error de una alerta no impide evaluar las demás.
@@ -310,3 +317,9 @@ el umbral: P95 de 3324,44 ms. No se cambió el límite de dos segundos para hace
 pasar; se separó la ejecución de rendimiento de las pruebas funcionales. El primer
 experimento había dado 699,07 ms. Esta variación confirma que la evidencia es local
 y que se debe medir de nuevo en el entorno de entrega con carga representativa.
+
+## Verificación automática del CU-04
+
+Ejecutar desde la raíz `node scripts/probar-cu04.mjs`. La
+[guía de pruebas automatizadas](../pruebas/cu04-automatizado.md) detalla cobertura,
+evidencias y límites de la comprobación de Web Push.

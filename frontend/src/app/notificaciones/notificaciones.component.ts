@@ -5,6 +5,7 @@ import { AuthService } from '../core/services/auth.service';
 import { Aviso, NotificacionesService } from './notificaciones.service';
 import { MisPedidosComponent } from '../pedidos/components/mis-pedidos.component';
 import { PedidosRecibidosComponent } from '../panel-vendedor/components/pedidos-recibidos.component';
+import { PushService } from './push.service';
 @Component({
   selector: 'app-notificaciones', standalone: true,
   imports: [CommonModule, MisPedidosComponent, PedidosRecibidosComponent],
@@ -12,6 +13,11 @@ import { PedidosRecibidosComponent } from '../panel-vendedor/components/pedidos-
     <section *ngIf="!pedido" class="bandeja" role="dialog" aria-modal="true" aria-labelledby="titulo-notificaciones">
       <button type="button" (click)="cerrar.emit()" aria-label="Cerrar notificaciones">×</button>
       <h2 id="titulo-notificaciones">Notificaciones</h2>
+      <div *ngIf="push.disponible()">
+        <button type="button" *ngIf="!push.activo()" (click)="push.activar()" [disabled]="push.ocupado()">Activar notificaciones del navegador</button>
+        <button type="button" *ngIf="push.activo()" (click)="push.desactivar()" [disabled]="push.ocupado()">Desactivar notificaciones del navegador</button>
+      </div>
+      <p role="status" *ngIf="push.mensaje()">{{push.mensaje()}}</p>
       <p *ngIf="cargando" role="status">Cargando notificaciones…</p>
       <p *ngIf="error" role="alert">{{ error }}</p>
       <button *ngIf="error" type="button" (click)="cargar()" [disabled]="cargando">Reintentar</button>
@@ -34,6 +40,7 @@ export class NotificacionesComponent {
   @Output() abrirProducto = new EventEmitter<number>();
   private readonly auth = inject(AuthService);
   private readonly servicio = inject(NotificacionesService);
+  readonly push = inject(PushService);
   private peticion?: Subscription;
   private refresco?: Subscription;
   private refrescando = false;
