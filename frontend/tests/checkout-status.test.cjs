@@ -47,3 +47,18 @@ for(const next of [null,{accountId:2,activeRole:'COMPRADOR'},{accountId:1,active
  const {c,reads,change,history}=fixture();change(next);reads[0].s.next(pending);assert.equal(c.checkout,null);assert.equal(c.id,null);assert.equal(history.length,1);
 });
 test('login desde URL recupera mediante autorización backend',()=>{const {c,reads,change}=fixture(null);assert.equal(reads.length,0);change({accountId:1,activeRole:'COMPRADOR'});assert.equal(reads.length,1);reads[0].s.next({...pending,status:'CANCELLED',financialStatus:'REQUIRES_REVIEW'});assert.equal(c.checkout.status,'CANCELLED');});
+
+for (const updated of [
+  {...pending,status:'APPROVED',orderId:7},
+  {...pending,status:'CANCELLED',checkoutUrl:null,financialStatus:'PENDING_RESOLUTION'}
+]) test('actualizar a '+updated.status+' cierra una confirmación que ya no corresponde',()=>{
+  const {c,reads,closes}=fixture();reads[0].s.next(pending);
+  c.confirming=true;c.load();reads[1].s.next(updated);
+  assert.equal(c.confirming,false);assert.equal(c.canCancel,false);
+  assert.equal(c.checkout.status,updated.status);assert.equal(c.checkout.orderId,updated.orderId);
+  c.cancel();assert.equal(closes.length,0);
+  if(updated.status==='CANCELLED'){
+    assert.equal(c.checkout.financialStatus,'PENDING_RESOLUTION');
+    assert.match(c.financialMessage,/pendiente/);assert.doesNotMatch(c.financialMessage,/Devolución confirmada/);
+  }
+});
