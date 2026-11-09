@@ -56,8 +56,7 @@ for (const rememberMe of [false, true]) {
     await page.getByRole('button', { name: 'Ver cuenta', exact: true }).first().click();
     await expect(page.getByRole('dialog', { name: 'Seguridad de tu cuenta' })).toBeVisible();
     await page.getByRole('button', { name: 'Cerrar sesión', exact: true }).click();
-    await expect(page.getByRole('dialog')).toHaveCount(0);
-    await page.getByRole('button', { name: 'Ver cuenta', exact: true }).first().click();
+    await expect(page.getByRole('dialog', { name: 'Acceso a tu cuenta', exact: true })).toBeVisible();
     await expect(checkbox).not.toBeChecked();
     await expect(page.getByRole('button', { name: 'Iniciar sesión', exact: true })).toBeVisible();
   });

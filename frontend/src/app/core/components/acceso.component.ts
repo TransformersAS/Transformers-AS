@@ -138,7 +138,29 @@ export class AccesoComponent {
       this.pendiente = null;
       this.vista = 'cuenta';
       this.exito = cuenta.activeRole ? 'Sesión iniciada.' : 'Sesión iniciada. Selecciona tu rol activo.';
-    }, 'No se pudo iniciar sesión. Comprueba correo y contraseña.');
+    }, 'No se pudo iniciar sesión. Comprueba correo y contraseña.', e => this.errorLoginTemporal(e));
+  }
+
+  private errorLoginTemporal(e: HttpErrorResponse): boolean {
+    if (e.status !== 429) return false;
+    const retry = e.headers.get('Retry-After')?.trim() ?? '';
+    let segundos = /^\d+$/.test(retry) ? Number(retry) : NaN;
+    // Accept an exact HTTP date, not Date.parse's permissive numeric/local formats.
+    if (!Number.isFinite(segundos) && /^(Mon|Tue|Wed|Thu|Fri|Sat|Sun), /.test(retry)) {
+      const fecha = Date.parse(retry);
+      if (Number.isFinite(fecha) && new Date(fecha).toUTCString() === retry) {
+        segundos = Math.ceil((fecha - Date.now()) / 1000);
+      }
+    }
+    this.error = 'El acceso está limitado temporalmente. ';
+    if (Number.isSafeInteger(segundos) && segundos > 0) {
+      this.error += segundos < 60
+        ? `Espera ${segundos} ${segundos === 1 ? 'segundo' : 'segundos'} antes de intentarlo de nuevo.`
+        : `Espera aproximadamente ${Math.ceil(segundos / 60)} ${segundos <= 60 ? 'minuto' : 'minutos'} antes de intentarlo de nuevo.`;
+    } else {
+      this.error += 'Inténtalo de nuevo más tarde.';
+    }
+    return true;
   }
 
   reenviarVerificacion(): void {
@@ -169,9 +191,15 @@ export class AccesoComponent {
   salir(): void {
     this.ejecutar(this.auth.cerrarSesion(), () => {
       this.limpiarClaves();
+      this.correo = '';
+      this.token = '';
+      this.mantenerSesion = false;
+      this.correoSinVerificar = false;
       this.sesiones = [];
+      this.sesionesCargadas = false;
+      this.pendiente = null;
       this.vista = 'cuenta';
-      this.cerrar.emit();
+      this.exito = 'Sesión cerrada. Puedes iniciar sesión de nuevo.';
     }, 'No se pudo confirmar el cierre de sesión. Inténtalo de nuevo.');
   }
 

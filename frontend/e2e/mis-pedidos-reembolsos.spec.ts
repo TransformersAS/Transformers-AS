@@ -1,9 +1,11 @@
 import { test, expect, Page } from '@playwright/test';
 async function fixture(page: Page, initial = true) {
   let cancelled = initial, confirmed = false, cancellations = 0;
-  const order = () => ({ id: 7, status: cancelled ? 'CANCELLED' : 'CONFIRMED', total: 110000,
+  let currentStatus: string | null = null;
+  const order = () => ({ id: 7, status: currentStatus ?? (cancelled ? 'CANCELLED' : 'CONFIRMED'), total: 110000,
     shippingMethod: 'STANDARD', createdAt: '2026-01-01T12:00:00', paymentStatus: confirmed ? 'REFUNDED' : 'REFUND_PENDING',
     sellerNameSnapshot: 'Tienda original', discountAmount: 0, shippingCost: 10000, items: [], history: [],
+    provenance: { financialUpdateVerified: confirmed, paymentSource: 'UNKNOWN' },
     refunds: !cancelled ? [] : [{ reason: 'Cancelación del pedido', amount: 110000, currency: 'COP',
       status: confirmed ? 'CONFIRMED' : 'UNKNOWN', label: confirmed ? 'Devolución confirmada' : 'Verificando devolución',
       message: confirmed ? 'El proveedor confirmó la devolución.' : 'Todavía no hay confirmación de devolución.',
@@ -29,7 +31,8 @@ async function fixture(page: Page, initial = true) {
   };
   await page.goto('/'); await open();
   return { open, region: page.getByRole('region', { name: 'Seguimiento de devoluciones' }),
-    confirm: () => confirmed = true, cancellations: () => cancellations };
+    confirm: () => confirmed = true, changeStatus: (status: string) => currentStatus = status,
+    cancellations: () => cancellations };
 }
 test('recarga recupera el seguimiento y actualizar consulta conciliación sin cancelar', async ({ page }) => {
   const f = await fixture(page);
@@ -42,6 +45,7 @@ test('recarga recupera el seguimiento y actualizar consulta conciliación sin ca
   await expect(f.region).toContainText('Devolución confirmada');
   await expect(f.region).toContainText('Confirmación registrada:');
   await expect(page.getByText('Estado del pago: Reembolsado', { exact: true })).toBeVisible();
+  await expect(page.getByText('Actualización financiera respaldada por una confirmación externa registrada.', { exact: true })).toBeVisible();
   expect(f.cancellations()).toBe(0);
 });
 test('cancelar obtiene seguimiento independiente del mensaje temporal y lo conserva al volver', async ({ page }) => {
@@ -56,4 +60,19 @@ test('cancelar obtiene seguimiento independiente del mensaje temporal y lo conse
   await expect(f.region).toContainText('Verificando devolución');
   await expect(page.getByText('Pedido cancelado. Resultado inicial registrado', { exact: true })).toHaveCount(0);
   expect(f.cancellations()).toBe(1);
+});
+
+test('actualizar el detalle retira una cancelación abierta si el pedido ya fue cancelado desde otra sesión', async ({ page }) => {
+  const f = await fixture(page, false);
+  await page.getByRole('button', { name: 'Cancelar pedido', exact: true }).click();
+  await page.getByLabel('Motivo de cancelación', { exact: true }).selectOption('CHANGED_MIND');
+  f.changeStatus('CANCELLED');
+  await f.region.getByRole('button', { name: 'Actualizar devoluciones' }).click();
+  const panel = page.getByRole('dialog', { name: 'Mis pedidos' });
+  await expect(panel.locator('app-resumen-pedido')).toContainText('Cancelado');
+  await expect(panel.getByRole('button', { name: 'Confirmar cancelación', exact: true })).toHaveCount(0);
+  await expect(panel.getByRole('button', { name: 'Cancelar pedido', exact: true })).toHaveCount(0);
+  expect(f.cancellations()).toBe(0);
+  await panel.getByRole('button', { name: 'Volver a mis pedidos', exact: true }).click();
+  await expect(panel.locator('app-resumen-pedido')).toContainText('Cancelado');
 });

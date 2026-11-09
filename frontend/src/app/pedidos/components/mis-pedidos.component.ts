@@ -290,9 +290,14 @@ export class MisPedidosComponent {
       finalize(() => this.cargandoHistorial = false)
     ).subscribe({
       next: detalle => {
-        if (this.detalle?.id === id) this.detalle = { ...this.detalle, history: detalle.history,
+        if (this.detalle?.id !== id) return;
+        this.detalle = { ...this.detalle, status: detalle.status ?? this.detalle.status, history: detalle.history,
           paymentStatus: detalle.paymentStatus ?? this.detalle.paymentStatus,
-          refunds: detalle.refunds ?? this.detalle.refunds };
+          refunds: detalle.refunds ?? this.detalle.refunds,
+          provenance: detalle.provenance ?? this.detalle.provenance };
+        this.pedidos = this.pedidos.map(pedido => pedido.id === id
+          ? { ...pedido, status: this.detalle!.status } : pedido);
+        if (!this.puedeCancelar) this.confirmar = false;
       },
       error: () => this.errorHistorial = 'No se pudo actualizar el historial. Inténtalo de nuevo.'
     });
