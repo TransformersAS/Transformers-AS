@@ -3,6 +3,7 @@ package com.transformersas.marketplace.orders.application.usecase;
 import com.transformersas.marketplace.auth.infrastructure.security.AccountPrincipal;
 import com.transformersas.marketplace.orders.domain.model.Order;
 import com.transformersas.marketplace.orders.domain.repository.OrderRepository;
+import com.transformersas.marketplace.users.domain.model.Role;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -57,6 +58,9 @@ public class FindOwnOrders {
     private Long accountId(AccountPrincipal principal) {
         if (principal == null || principal.accountId() == null || principal.accountId() <= 0) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Se requiere un comprador autenticado");
+        }
+        if (principal.activeRole() != Role.COMPRADOR) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Se requiere el rol activo COMPRADOR");
         }
         return principal.accountId();
     }
