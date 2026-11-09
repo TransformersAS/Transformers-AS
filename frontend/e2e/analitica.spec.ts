@@ -73,6 +73,7 @@ async function abrirAnalitica(page: Page, analizar: (params: URLSearchParams, ll
     return reply([]);
   });
   await page.goto('/');
+  await page.getByRole('button', { name: 'Opciones de mi negocio', exact: true }).click();
   await page.getByRole('button', { name: 'Analítica', exact: true }).click();
   return { consultas, exportaciones: () => exportaciones };
 }

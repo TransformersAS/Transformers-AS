@@ -1913,23 +1913,9 @@ footer > div {
 .recommendation-button:hover {
   opacity: 0.92;
 }
-/* Moderación de reportes (solo soporte) */
-.boton-moderacion {
-  position: fixed;
-  right: 1rem;
-  bottom: 1rem;
-  z-index: 800;
-  padding: 0.75rem 1.1rem;
-  border: 0;
-  border-radius: 999px;
-  background: var(--ink);
-  color: #fff;
-  font-weight: 700;
-  box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.3);
-  cursor: pointer;
-}
-
-.panel-moderacion {
+/* Paneles a pantalla completa que abre el menú del rol. */
+.panel-moderacion,
+.panel-pedidos {
   position: fixed;
   inset: 0;
   z-index: 900;
@@ -1951,205 +1937,106 @@ footer > div {
   cursor: pointer;
 }
 
-/* Pedidos recibidos (solo vendedor) */
-.menu-comprador {
+/* Menú del rol activo: un solo botón abajo a la izquierda, lejos del carrito (que se abre a la derecha). */
+.menu-rol {
   position: fixed;
   bottom: max(1rem, env(safe-area-inset-bottom));
   left: max(0.75rem, env(safe-area-inset-left));
   z-index: 810;
 }
 
-.menu-comprador-toggle {
+.menu-rol-toggle {
   position: relative;
   z-index: 2;
-  display: grid;
-  place-items: center;
-  width: 2.75rem;
-  height: 2.75rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.75rem;
+  padding: 0 1.1rem 0 0.9rem;
   border: 0;
-  border-radius: 50%;
+  border-radius: 999px;
   background: var(--coral);
   color: #fff;
-  font-size: 1.4rem;
+  font: inherit;
+  font-weight: 700;
   box-shadow: 0 0.25rem 1rem rgba(0, 0, 0, 0.2);
   cursor: pointer;
+
+  &:focus-visible {
+    outline: 3px solid var(--ink);
+    outline-offset: 3px;
+  }
 }
 
-.menu-comprador-fondo {
+.menu-rol-icono {
+  width: 1.1rem;
+  font-size: 1.3rem;
+  line-height: 1;
+  text-align: center;
+}
+
+.menu-rol-fondo {
   position: fixed;
   inset: 0;
   border: 0;
-  background: transparent;
+  background: rgba(24, 49, 57, 0.25);
   cursor: default;
 }
 
-.menu-comprador-opciones {
+.menu-rol-opciones {
   position: absolute;
   bottom: 3.5rem;
   left: 0;
-  width: min(15rem, calc(100vw - 1.5rem));
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.75rem;
-
-  button {
-    display: block;
-    width: max-content;
-    max-width: 100%;
-    padding: 0.75rem 1.1rem;
-    border: 0;
-    border-radius: 999px;
-    background: var(--ink);
-    color: #fff;
-    text-align: left;
-    font: inherit;
-    font-weight: 700;
-    box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.3);
-    cursor: pointer;
-
-    &:hover, &:focus-visible {
-      background: #2d4a52;
-    }
-  }
-}
-
-.menu-comprador-toggle:focus-visible {
-  outline: 3px solid var(--ink);
-  outline-offset: 3px;
-}
-
-.boton-pedidos {
-  position: fixed;
-  right: 1rem;
-  bottom: 1rem;
-  z-index: 800;
-  padding: 0.75rem 1.1rem;
-  border: 0;
-  border-radius: 999px;
-  background: var(--ink);
-  color: #fff;
-  font-weight: 700;
-  box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.3);
-  cursor: pointer;
-}
-
-/* "Mis productos" (vendedor): tercer nivel de la pila, encima de "Mi tienda", para que no se tapen. */
-.boton-productos {
-  bottom: 8.5rem;
-}
-
-/* Reclamaciones (CU-13): el comprador solo tiene este botón; soporte lo pone sobre "Moderación de reportes" y el
-   vendedor en el cuarto nivel de su pila (pedidos, tienda, productos y reclamaciones). */
-.boton-reclamaciones-soporte {
-  bottom: 4.5rem;
-}
-
-.boton-reclamaciones-vendedor {
-  bottom: 12.25rem;
-}
-
-.panel-pedidos {
-  position: fixed;
-  inset: 0;
-  z-index: 900;
-  display: flex;
-  flex-direction: column;
+  z-index: 1;
+  width: min(17rem, calc(100vw - 1.5rem));
+  max-height: calc(100dvh - 6rem);
+  overflow-y: auto;
+  padding: 0.5rem;
+  border-radius: 14px;
   background: #fff;
+  box-shadow: 0 0.75rem 2rem rgba(0, 0, 0, 0.25);
 }
 
-/* "Mi tienda" (CU-18): mismo botón flotante que "Pedidos recibidos", encima de él. */
-.boton-tienda {
-  bottom: 4.75rem;
+.menu-rol-grupo + .menu-rol-grupo {
+  margin-top: 0.25rem;
+  padding-top: 0.25rem;
+  border-top: 1px solid var(--line);
 }
 
-/* "Mis reportes" (CU-20). Comprador: encima de "Mis reclamaciones" (1rem). Vendedor: quinto nivel de la pila, encima de
-   Pedidos recibidos (1rem), Mi tienda (4.75rem), Mis productos (8.5rem) y Reclamaciones (12.25rem). */
-.boton-reportes {
-  bottom: 4.75rem;
+.menu-rol-grupo h2 {
+  margin: 0.5rem 0.75rem 0.25rem;
+  color: #58717a;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
-.boton-reportes-vendedor {
-  bottom: 16rem;
-}
+.menu-rol-grupo button {
+  display: block;
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0.6rem 0.75rem;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
 
-/* "Inventario" (CU-15): sexto nivel de la pila del vendedor, encima de Mis reportes (16rem). */
-.boton-inventario {
-  bottom: 19.75rem;
-}
-
-/* "Mis devoluciones" (CU-19). Comprador: encima de "Mis reportes" (4.75rem). Vendedor: séptimo nivel de la pila, encima de
-   Inventario (19.75rem). */
-.boton-devoluciones {
-  bottom: 8.5rem;
-}
-
-.boton-devoluciones-vendedor {
-  bottom: 23.5rem;
-}
-
-/* "Analítica" (CU-26) y "Estado de mi tienda" (CU-27): octavo y noveno nivel de la pila del vendedor, encima de
-   Mis devoluciones (23.5rem). */
-.boton-analitica {
-  bottom: 27.25rem;
-}
-
-.boton-estado-tienda {
-  bottom: 31rem;
-}
-
-/* "Evaluar tiendas" (CU-27): segundo nivel del administrador, encima de "Configurar catálogo" (1rem). */
-.boton-evaluar-tiendas {
-  bottom: 4.75rem;
-}
-
-/* Ventanas bajas (por ejemplo un teléfono en horizontal): la pila de botones flotantes se compacta para que los nueve
-   del vendedor quepan sin salirse de la pantalla ni tapar la pantalla completa. */
-@media (max-height: 27rem) {
-  .boton-pedidos {
-    bottom: 0.5rem;
-    padding: 0.3rem 0.8rem;
-    font-size: 0.8rem;
+  &:hover,
+  &:focus-visible {
+    background: #eef3f2;
   }
 
-  .boton-tienda,
-  .boton-reportes {
-    bottom: 2.5rem;
-  }
-
-  .boton-productos,
-  .boton-devoluciones {
-    bottom: 4.5rem;
-  }
-
-  .boton-reclamaciones-vendedor {
-    bottom: 6.5rem;
-  }
-
-  .boton-reportes-vendedor {
-    bottom: 8.5rem;
-  }
-
-  .boton-inventario {
-    bottom: 10.5rem;
-  }
-
-  .boton-devoluciones-vendedor {
-    bottom: 12.5rem;
-  }
-
-  .boton-analitica {
-    bottom: 14.5rem;
-  }
-
-  .boton-estado-tienda {
-    bottom: 16.5rem;
-  }
-
-  .boton-evaluar-tiendas {
-    bottom: 2.5rem;
+  &:focus-visible {
+    outline: 2px solid var(--ink);
+    outline-offset: -2px;
   }
 }
+
 .catalogo-filtros {
   display: flex; flex-wrap: wrap; gap: 1rem; align-items: end; margin: 1.5rem 0;
   label { display: grid; gap: .4rem; }
@@ -2221,8 +2108,7 @@ footer > div {
 
 /* La navegación flotante vive fuera del contexto de apilamiento del carrito de Ionic.
    Durante la compra se retira también del foco y del hit testing, sin cambiar permisos. */
-.compra-abierta .boton-pedidos,
-.compra-abierta .menu-comprador,
+.compra-abierta .menu-rol,
 .compra-abierta .acceso-avisos,
 .compra-abierta .acceso-pedidos {
   visibility: hidden;

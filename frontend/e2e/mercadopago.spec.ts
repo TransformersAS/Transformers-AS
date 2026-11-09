@@ -183,7 +183,7 @@ for (const viewport of [null, { width: 390, height: 540 }, { width: 844, height:
       await page.getByRole('button', { name: 'Cerrar carrito', exact: true }).focus();
       for (let tab = 0; tab < 12; tab++) {
         await page.keyboard.press('Tab');
-        expect(await page.evaluate(() => !!document.activeElement?.closest('.boton-pedidos, .acceso-pedidos, .menu-comprador, .acceso-avisos'))).toBe(false);
+        expect(await page.evaluate(() => !!document.activeElement?.closest('.acceso-pedidos, .menu-rol, .acceso-avisos'))).toBe(false);
       }
       await page.getByRole('button', { name: 'Cerrar carrito', exact: true }).focus();
       await page.keyboard.press('Enter');

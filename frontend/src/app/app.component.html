@@ -1397,15 +1397,6 @@
   </ion-content>
 
 <!-- Moderación de reportes (CU-21): solo con el rol activo SOPORTE -->
-<button
-  *ngIf="esSoporte && !mostrarModeracion"
-  type="button"
-  class="boton-moderacion"
-  (click)="mostrarModeracion = true"
->
-  Moderación de reportes
-</button>
-
 <div class="panel-moderacion" *ngIf="esSoporte && mostrarModeracion">
   <button
     type="button"
@@ -1419,165 +1410,74 @@
 </div>
 
 <!-- Pedidos recibidos (CU-23): solo con el rol activo VENDEDOR -->
-<button
-  *ngIf="esVendedor && !mostrarPedidosRecibidos"
-  type="button"
-  class="boton-pedidos"
-  (click)="mostrarPedidosRecibidos = true"
->
-  Pedidos recibidos
-</button>
-
 <div class="panel-pedidos" *ngIf="esVendedor && mostrarPedidosRecibidos">
   <app-pedidos-recibidos (cerrar)="mostrarPedidosRecibidos = false"></app-pedidos-recibidos>
 </div>
 
 <!-- Mis productos (CU-14): solo con el rol activo VENDEDOR -->
-<button
-  *ngIf="esVendedor && !mostrarMisProductos"
-  type="button"
-  class="boton-pedidos boton-productos"
-  (click)="mostrarMisProductos = true"
->
-  Mis productos
-</button>
-
 <div class="panel-pedidos" *ngIf="esVendedor && mostrarMisProductos">
   <app-mis-productos (cerrar)="mostrarMisProductos = false"></app-mis-productos>
 </div>
 
 <!-- Inventario (CU-15): solo con el rol activo VENDEDOR -->
-<button
-  *ngIf="esVendedor && !mostrarInventario"
-  type="button"
-  class="boton-pedidos boton-inventario"
-  (click)="mostrarInventario = true"
->
-  Inventario
-</button>
-
 <div class="panel-pedidos" *ngIf="esVendedor && mostrarInventario">
   <app-inventario (cerrar)="mostrarInventario = false"></app-inventario>
 </div>
 
 <!-- Analítica de ventas y rentabilidad (CU-26): solo con el rol activo VENDEDOR -->
-<button
-  *ngIf="esVendedor && !mostrarAnalitica"
-  type="button"
-  class="boton-pedidos boton-analitica"
-  (click)="mostrarAnalitica = true"
->
-  Analítica
-</button>
-
 <div class="panel-pedidos" *ngIf="esVendedor && mostrarAnalitica">
   <app-analitica-ventas (cerrar)="mostrarAnalitica = false"></app-analitica-ventas>
 </div>
 
 <!-- Estado de mi tienda (CU-27): suspensiones y aclaraciones; solo con el rol activo VENDEDOR -->
-<button
-  *ngIf="esVendedor && !mostrarEstadoTienda"
-  type="button"
-  class="boton-pedidos boton-estado-tienda"
-  (click)="mostrarEstadoTienda = true"
->
-  Estado de mi tienda
-</button>
-
 <div class="panel-pedidos" *ngIf="esVendedor && mostrarEstadoTienda">
   <app-estado-tienda (cerrar)="mostrarEstadoTienda = false"></app-estado-tienda>
 </div>
 
 <!-- Evaluar tiendas (CU-27): solo con el rol activo ADMIN -->
-<button
-  *ngIf="esAdmin && !mostrarEvaluacionTiendas"
-  type="button"
-  class="boton-pedidos boton-evaluar-tiendas"
-  (click)="mostrarEvaluacionTiendas = true"
->
-  Evaluar tiendas
-</button>
-
 <div class="panel-pedidos" *ngIf="esAdmin && mostrarEvaluacionTiendas">
   <app-evaluacion-tiendas (cerrar)="mostrarEvaluacionTiendas = false"></app-evaluacion-tiendas>
 </div>
 
 <!-- Estructura del catálogo (CU-17): solo con el rol activo ADMIN -->
-<button
-  *ngIf="esAdmin && !mostrarCatalogoAdmin"
-  type="button"
-  class="boton-pedidos"
-  (click)="mostrarCatalogoAdmin = true"
->
-  Configurar catálogo
-</button>
-
 <div class="panel-pedidos" *ngIf="esAdmin && mostrarCatalogoAdmin">
   <app-catalogo-admin (cerrar)="mostrarCatalogoAdmin = false"></app-catalogo-admin>
 </div>
 
 <!-- Mi tienda (CU-18): solo con el rol activo VENDEDOR -->
-<button
-  *ngIf="esVendedor && !mostrarMiTienda"
-  type="button"
-  class="boton-pedidos boton-tienda"
-  (click)="mostrarMiTienda = true"
->
-  Mi tienda
-</button>
-
 <div class="panel-pedidos" *ngIf="esVendedor && mostrarMiTienda">
   <app-mi-tienda (cerrar)="mostrarMiTienda = false"></app-mi-tienda>
 </div>
 
-<!-- Accesos del comprador agrupados en un desplegable. -->
-<div class="menu-comprador" *ngIf="esComprador"
-  (keydown.escape)="mostrarMenuComprador = false; botonMenuComprador.focus()">
-  <button #botonMenuComprador type="button" class="menu-comprador-toggle"
-    aria-label="Opciones de mis compras" aria-controls="opciones-comprador"
-    [attr.aria-expanded]="mostrarMenuComprador"
-    (click)="mostrarMenuComprador = !mostrarMenuComprador">
-    <span aria-hidden="true">{{ mostrarMenuComprador ? '×' : '☰' }}</span>
+<!-- Accesos del rol activo en un solo menú abajo a la izquierda (el carrito se abre a la derecha). -->
+<div class="menu-rol" *ngIf="menuRol as menu"
+  (keydown.escape)="mostrarMenu = false; botonMenu.focus()">
+  <button #botonMenu type="button" class="menu-rol-toggle"
+    [attr.aria-label]="'Opciones de ' + menu.titulo.toLowerCase()" aria-controls="opciones-rol"
+    [attr.aria-expanded]="mostrarMenu" (click)="mostrarMenu = !mostrarMenu">
+    <span class="menu-rol-icono" aria-hidden="true">{{ mostrarMenu ? '×' : '☰' }}</span>
+    <span aria-hidden="true">{{ menu.titulo }}</span>
   </button>
-  <ng-container *ngIf="mostrarMenuComprador">
-    <button type="button" class="menu-comprador-fondo" tabindex="-1"
-      aria-label="Cerrar opciones de mis compras" (click)="mostrarMenuComprador = false"></button>
-    <nav id="opciones-comprador" class="menu-comprador-opciones" aria-label="Mis compras">
-      <button type="button" (click)="mostrarMenuComprador = false; devoluciones.abrirPanelComprador()">Mis devoluciones</button>
-      <button type="button" (click)="mostrarMenuComprador = false; reportes.abrirPanel()">Mis reportes</button>
-      <button type="button" (click)="mostrarMenuComprador = false; mostrarReclamaciones = true">Mis reclamaciones</button>
-      <button type="button" (click)="mostrarMenuComprador = false; mostrarFavoritos = true">Mis favoritos y alertas</button>
+  <ng-container *ngIf="mostrarMenu">
+    <button type="button" class="menu-rol-fondo" tabindex="-1"
+      [attr.aria-label]="'Cerrar opciones de ' + menu.titulo.toLowerCase()" (click)="mostrarMenu = false"></button>
+    <nav id="opciones-rol" class="menu-rol-opciones" [attr.aria-label]="menu.titulo">
+      <section *ngFor="let grupo of menu.grupos" class="menu-rol-grupo">
+        <h2 *ngIf="menu.grupos.length > 1">{{ grupo.titulo }}</h2>
+        <button *ngFor="let opcion of grupo.opciones" type="button" (click)="abrirDesdeMenu(opcion.id)">
+          {{ opcion.etiqueta }}
+        </button>
+      </section>
     </nav>
   </ng-container>
 </div>
 
 <!-- Reclamaciones de compra (CU-13): vendedor y soporte; comprador desde el menú -->
-<button
-  *ngIf="(esVendedor || esSoporte) && !mostrarReclamaciones"
-  type="button"
-  class="boton-pedidos"
-  [class.boton-reclamaciones-soporte]="esSoporte"
-  [class.boton-reclamaciones-vendedor]="esVendedor"
-  (click)="mostrarReclamaciones = true"
->
-  {{ esVendedor ? 'Reclamaciones' : esSoporte ? 'Reclamaciones escaladas' : 'Mis reclamaciones' }}
-</button>
-
 <div class="panel-pedidos" *ngIf="(esComprador || esVendedor || esSoporte) && mostrarReclamaciones">
   <app-reclamaciones (cerrar)="mostrarReclamaciones = false"></app-reclamaciones>
 </div>
 
 <!-- Mis reportes (CU-20): con el rol activo COMPRADOR o VENDEDOR -->
-<button
-  *ngIf="esVendedor && !reportes.panelAbierto()"
-  type="button"
-  class="boton-pedidos boton-reportes"
-  [class.boton-reportes-vendedor]="esVendedor"
-  (click)="reportes.abrirPanel()"
->
-  Mis reportes
-</button>
-
 <div class="panel-pedidos" *ngIf="(esComprador || esVendedor) && reportes.panelAbierto()">
   <app-mis-reportes (cerrar)="reportes.cerrarPanel()"></app-mis-reportes>
 </div>
@@ -1589,15 +1489,6 @@
 </div>
 
 <!-- Devoluciones recibidas (CU-19): con el rol activo VENDEDOR -->
-<button
-  *ngIf="esVendedor && !devoluciones.panelVendedorAbierto()"
-  type="button"
-  class="boton-pedidos boton-devoluciones-vendedor"
-  (click)="devoluciones.abrirPanelVendedor()"
->
-  Devoluciones recibidas
-</button>
-
 <div class="panel-pedidos" *ngIf="esVendedor && devoluciones.panelVendedorAbierto()">
   <app-devoluciones-recibidas (cerrar)="devoluciones.cerrarPanelVendedor()"></app-devoluciones-recibidas>
 </div>

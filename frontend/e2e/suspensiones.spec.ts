@@ -49,6 +49,7 @@ test('el vendedor ve su suspensión y responde la aclaración dentro del plazo',
     return null;
   });
 
+  await page.getByRole('button', { name: 'Opciones de mi negocio', exact: true }).click();
   await page.getByRole('button', { name: 'Estado de mi tienda', exact: true }).click();
   const tienda = page.getByRole('region', { name: 'Estado de la tienda' });
   await expect(tienda).toContainText('Suspendida temporalmente');
@@ -103,6 +104,7 @@ test('el administrador revisa antecedentes, ve el resumen y confirma la suspensi
     return null;
   });
 
+  await page.getByRole('button', { name: 'Opciones de administración', exact: true }).click();
   await page.getByRole('button', { name: 'Evaluar tiendas', exact: true }).click();
   const lista = page.getByRole('list', { name: 'Tiendas con antecedentes' });
   await expect(lista).toContainText('Reincidente');
@@ -145,6 +147,7 @@ test('al finalizar avisa si otra restricción impidió reactivar la tienda', asy
     if (ruta === '/api/admin/store-suspensions/5/lift') return { body: { suspensionId: 5, status: 'LIFTED', reactivated: false } };
     return null;
   });
+  await page.getByRole('button', { name: 'Opciones de administración', exact: true }).click();
   await page.getByRole('button', { name: 'Evaluar tiendas', exact: true }).click();
   await page.getByRole('list', { name: 'Tiendas con antecedentes' }).getByRole('button').first().click();
   await page.getByRole('button', { name: 'Finalizar anticipadamente' }).click();
