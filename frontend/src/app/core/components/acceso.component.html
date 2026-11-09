@@ -95,6 +95,9 @@
       <p class="ayuda">Mínimo 12 caracteres y máximo 72 bytes UTF-8. Algunos caracteres, como emojis, ocupan varios bytes.</p>
       <ion-button type="submit" expand="block" [disabled]="enviando || !!errorContrasena(vista === 'password') || (vista === 'confirmar' && !token.trim())">{{ vista === 'password' ? 'Guardar nueva contraseña' : 'Recuperar contraseña' }}</ion-button>
     </form>
+    @if (vista === 'confirmar') {
+      <ion-button expand="block" fill="clear" [disabled]="enviando" (click)="cambiarVista('solicitar')">Solicitar otro token de recuperación</ion-button>
+    }
   }
   @if (enviando) { <p role="status">Procesando…</p> }
   @if (error) { <ion-text color="danger"><p role="alert">{{ error }}</p></ion-text> }

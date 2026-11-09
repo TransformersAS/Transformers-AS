@@ -127,3 +127,40 @@ test('recuperación permite corregir un token rechazado y usar la nueva contrase
   await login(page, email, 'RecoveredPassword!789');
   await expect(page.getByRole('dialog', { name: 'Seguridad de tu cuenta', exact: true })).toBeVisible();
 });
+
+test('un token rechazado permite solicitar otro conservando el correo y descartando los datos anteriores', async ({ page }) => {
+  const { email } = await fixture(page);
+  let solicitudes = 0;
+  page.on('request', request => {
+    if (new URL(request.url()).pathname === '/api/auth/password-recovery/request') solicitudes++;
+  });
+  await page.getByRole('button', { name: 'Olvidé mi contraseña', exact: true }).click();
+  await page.locator('ion-input[name="correoRecuperacion"] input').fill(email);
+  await page.getByRole('button', { name: 'Ingresar token recibido', exact: true }).click();
+  await page.locator('ion-input[name="token"] input').fill('expired-fixture-token');
+  await page.locator('ion-input[name="nueva"] input').fill('RecoveredPassword!789');
+  await page.locator('ion-input[name="confirmacion"] input').fill('RecoveredPassword!789');
+  await page.getByRole('button', { name: 'Recuperar contraseña', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('No se pudo recuperar la contraseña');
+
+  await page.getByRole('button', { name: 'Solicitar otro token de recuperación', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Solicitar recuperación', exact: true })).toBeVisible();
+  await expect(page.locator('ion-input[name="correoRecuperacion"] input')).toHaveValue(email);
+  await expect(page.getByRole('alert')).toHaveCount(0);
+  expect(solicitudes).toBe(0); // Navegar no envía correos automáticamente.
+  await page.getByRole('button', { name: 'Solicitar instrucciones', exact: true }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'intentaremos enviar' })).toBeVisible();
+  expect(solicitudes).toBe(1);
+  await page.getByRole('button', { name: 'Ingresar token recibido', exact: true }).click();
+  for (const campo of ['token', 'nueva', 'confirmacion']) {
+    await expect(page.locator(`ion-input[name="${campo}"] input`)).toHaveValue('');
+  }
+  await expect(page.getByRole('button', { name: 'Recuperar contraseña', exact: true })).toBeDisabled();
+  await page.locator('ion-input[name="token"] input').fill('valid-fixture-token');
+  await page.locator('ion-input[name="nueva"] input').fill('RecoveredPassword!789');
+  await page.locator('ion-input[name="confirmacion"] input').fill('RecoveredPassword!789');
+  await page.getByRole('button', { name: 'Recuperar contraseña', exact: true }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Contraseña recuperada.' })).toBeVisible();
+  await login(page, email, 'RecoveredPassword!789');
+  await expect(page.getByRole('dialog', { name: 'Seguridad de tu cuenta', exact: true })).toBeVisible();
+});
