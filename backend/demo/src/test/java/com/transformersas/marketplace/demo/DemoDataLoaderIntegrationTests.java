@@ -138,6 +138,23 @@ class DemoDataLoaderIntegrationTests {
     }
 
     @Test
+    void theDemoSellerCanAnalyzeSalesAndProfitRightAway() throws Exception {
+        assertThat(count("products WHERE unit_cost IS NULL")).isZero();
+        assertThat(count("order_items WHERE unit_cost IS NULL")).isZero();
+        var seller = login("demo@marketplace.local");
+        mvc.perform(seller.apply(put("/api/auth/active-role").contentType("application/json")
+                .content("{\"role\":\"VENDEDOR\"}"))).andExpect(status().is2xxSuccessful());
+        // Los pedidos de demostración son de los últimos días; el cancelado no cuenta como venta.
+        mvc.perform(seller.apply(get("/api/seller/analytics")
+                        .param("from", java.time.LocalDate.now().minusDays(30).toString())
+                        .param("to", java.time.LocalDate.now().toString())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.current.indicators.orders").value(8))
+                .andExpect(jsonPath("$.current.indicators.costComplete").value(true))
+                .andExpect(jsonPath("$.current.topProducts.length()").value(8));
+    }
+
+    @Test
     void startingAgainNeitherDuplicatesNorChangesAnything() {
         Map<String, Long> before = counts();
         loader.run(new DefaultApplicationArguments());

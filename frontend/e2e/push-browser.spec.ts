@@ -21,16 +21,16 @@ async function openInbox(page:any) {
 test('explicit consent registers and can disable the browser subscription',async({page,request})=>{
   await openInbox(page);
   await page.getByRole('button',{name:'Activar notificaciones del navegador',exact:true}).click();
-  await expect(page.getByRole('dialog',{name:'Notificaciones',exact:true}).getByRole('status')).toContainText('activadas');
+  await expect(page.getByRole('dialog',{name:'Notificaciones',exact:true}).getByRole('status').filter({hasText:'activadas'})).toContainText('activadas');
   expect((await (await request.get('/__test/stats')).json()).registered).toBe(true);
   await page.getByRole('button',{name:'Desactivar notificaciones del navegador',exact:true}).click();
-  await expect(page.getByRole('dialog',{name:'Notificaciones',exact:true}).getByRole('status')).toContainText('desactivadas');
+  await expect(page.getByRole('dialog',{name:'Notificaciones',exact:true}).getByRole('status').filter({hasText:'desactivadas'})).toContainText('desactivadas');
   expect((await (await request.get('/__test/stats')).json()).registered).toBe(false);
 });
 test('denied permission does not register anything on the backend',async({page,request})=>{
   await page.addInitScript(()=>{Notification.requestPermission=async()=> 'denied';});
   await openInbox(page);await page.getByRole('button',{name:'Activar notificaciones del navegador',exact:true}).click();
-  await expect(page.getByRole('dialog',{name:'Notificaciones',exact:true}).getByRole('status')).toContainText('No autorizaste');
+  await expect(page.getByRole('dialog',{name:'Notificaciones',exact:true}).getByRole('status').filter({hasText:'No autorizaste'})).toContainText('No autorizaste');
   expect((await (await request.get('/__test/stats')).json()).subscriptions).toBe(0);
 });
 test('production service worker displays a received Web Push payload',async({page,context})=>{
@@ -40,7 +40,7 @@ test('production service worker displays a received Web Push payload',async({pag
   });
   await cdp.send('ServiceWorker.enable');await openInbox(page);
   await page.getByRole('button',{name:'Activar notificaciones del navegador',exact:true}).click();
-  await expect(page.getByRole('dialog',{name:'Notificaciones',exact:true}).getByRole('status')).toContainText('activadas');
+  await expect(page.getByRole('dialog',{name:'Notificaciones',exact:true}).getByRole('status').filter({hasText:'activadas'})).toContainText('activadas');
   await expect.poll(()=>registrationId).not.toBe('');
   await cdp.send('ServiceWorker.deliverPushMessage',{origin:new URL(page.url()).origin,registrationId,
     data:JSON.stringify({notification:{title:'Marketplace',body:'Tienes una nueva notificación.',tag:'push-browser-test',data:{onActionClick:{default:{operation:'openWindow',url:'/?notificaciones=1'}}}}})});

@@ -6,10 +6,12 @@ import com.transformersas.marketplace.stores.domain.model.StoreImage;
 import com.transformersas.marketplace.stores.domain.model.StoreImageKind;
 import com.transformersas.marketplace.stores.domain.model.StoreImageSummary;
 import com.transformersas.marketplace.stores.domain.model.StoreProfile;
+import com.transformersas.marketplace.stores.domain.model.StoreStatus;
 
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 public interface StoreRepository {
 
@@ -62,4 +64,14 @@ public interface StoreRepository {
      * ya tiene dueña o la cuenta ya es dueña de otra tienda.
      */
     boolean assignOwner(Long storeId, Long accountId);
+
+    /**
+     * Cambia el estado operativo y su motivo solo si la tienda sigue en {@code expected} (compare-and-set). Devuelve
+     * false, sin cambios, si otro proceso lo cambió antes o la tienda no existe. No toca la versión de edición: el
+     * estado no forma parte de la configuración que edita el vendedor.
+     */
+    boolean changeStatus(Long storeId, StoreStatus expected, StoreStatus target, String reason);
+
+    /** Ids de las tiendas que no pueden operar comercialmente (RESTRICTED o SUSPENDED). */
+    Set<Long> findNonActiveIds();
 }

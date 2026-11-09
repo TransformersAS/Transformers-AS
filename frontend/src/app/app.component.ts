@@ -75,6 +75,9 @@ import { ColaSoporteComponent } from './panel-admin-soporte/components/cola-sopo
 import { PedidosRecibidosComponent } from './panel-vendedor/components/pedidos-recibidos.component';
 import { CatalogoAdminComponent } from './panel-admin-catalogo/components/catalogo-admin.component';
 import { InventarioComponent } from './panel-vendedor/components/inventario.component';
+import { AnaliticaVentasComponent } from './analitica/components/analitica-ventas.component';
+import { EstadoTiendaComponent } from './suspensiones/components/estado-tienda.component';
+import { EvaluacionTiendasComponent } from './suspensiones/components/evaluacion-tiendas.component';
 import { MisProductosComponent } from './panel-vendedor/components/mis-productos.component';
 import { MiTiendaComponent } from './panel-vendedor/components/mi-tienda.component';
 import { ReclamacionesComponent } from './reclamaciones-devoluciones/components/reclamaciones.component';
@@ -114,6 +117,67 @@ import {
   InteractionService
 } from './recomendaciones/services/interaction.service';
 
+type OpcionMenu =
+  | 'pedidos-recibidos' | 'devoluciones-recibidas' | 'reclamaciones' | 'mis-productos' | 'inventario' | 'mi-tienda'
+  | 'estado-tienda' | 'analitica' | 'mis-reportes' | 'mis-devoluciones' | 'favoritos' | 'moderacion'
+  | 'evaluar-tiendas' | 'catalogo-admin';
+
+interface MenuRol {
+  /** Texto visible del botón; el nombre accesible es «Opciones de …». */
+  titulo: string;
+  grupos: { titulo: string; opciones: { id: OpcionMenu; etiqueta: string }[] }[];
+}
+
+/**
+ * Accesos de cada rol, agrupados por tarea. Mis pedidos, notificaciones y carrito siguen en la cabecera.
+ * El backend valida los permisos por su cuenta: esto solo decide qué se muestra.
+ */
+const MENUS_POR_ROL: Record<string, MenuRol> = {
+  COMPRADOR: {
+    titulo: 'Mis compras',
+    grupos: [{ titulo: 'Después de comprar', opciones: [
+      { id: 'mis-devoluciones', etiqueta: 'Mis devoluciones' },
+      { id: 'reclamaciones', etiqueta: 'Mis reclamaciones' },
+      { id: 'mis-reportes', etiqueta: 'Mis reportes' },
+      { id: 'favoritos', etiqueta: 'Mis favoritos y alertas' }
+    ] }]
+  },
+  VENDEDOR: {
+    titulo: 'Mi negocio',
+    grupos: [
+      { titulo: 'Ventas', opciones: [
+        { id: 'pedidos-recibidos', etiqueta: 'Pedidos recibidos' },
+        { id: 'devoluciones-recibidas', etiqueta: 'Devoluciones recibidas' },
+        { id: 'reclamaciones', etiqueta: 'Reclamaciones' },
+        { id: 'analitica', etiqueta: 'Analítica' }
+      ] },
+      { titulo: 'Catálogo', opciones: [
+        { id: 'mis-productos', etiqueta: 'Mis productos' },
+        { id: 'inventario', etiqueta: 'Inventario' }
+      ] },
+      { titulo: 'Tienda', opciones: [
+        { id: 'mi-tienda', etiqueta: 'Mi tienda' },
+        { id: 'estado-tienda', etiqueta: 'Estado de mi tienda' },
+        { id: 'mis-reportes', etiqueta: 'Mis reportes' }
+      ] }
+    ]
+  },
+  SOPORTE: {
+    titulo: 'Soporte',
+    grupos: [{ titulo: 'Atención', opciones: [
+      { id: 'moderacion', etiqueta: 'Moderación de reportes' },
+      { id: 'reclamaciones', etiqueta: 'Reclamaciones escaladas' }
+    ] }]
+  },
+  ADMIN: {
+    titulo: 'Administración',
+    grupos: [{ titulo: 'Plataforma', opciones: [
+      { id: 'evaluar-tiendas', etiqueta: 'Evaluar tiendas' },
+      { id: 'catalogo-admin', etiqueta: 'Configurar catálogo' }
+    ] }]
+  }
+};
+
 @Component({
   selector: 'app-root',
 
@@ -135,6 +199,9 @@ import {
     CatalogoAdminComponent,
     MisProductosComponent,
     InventarioComponent,
+    AnaliticaVentasComponent,
+    EstadoTiendaComponent,
+    EvaluacionTiendasComponent,
     MiTiendaComponent,
     ReclamacionesComponent,
     RegistroVendedorComponent,
@@ -149,7 +216,8 @@ import {
 })
 export class AppComponent {
 
-  mostrarMenuComprador = false;
+  /** Menú de accesos del rol activo (botón fijo abajo a la izquierda). */
+  mostrarMenu = false;
   mostrarFavoritos = false;
   readonly favoritos = inject(FavoritosService);
 
@@ -394,6 +462,12 @@ export class AppComponent {
 
   /** Panel del vendedor para controlar su inventario (CU-15). */
   mostrarInventario = false;
+  /** Analítica de ventas y rentabilidad (CU-26), solo con el rol activo VENDEDOR. */
+  mostrarAnalitica = false;
+  /** Estado de la tienda y aclaraciones de la administración (CU-27), solo con el rol activo VENDEDOR. */
+  mostrarEstadoTienda = false;
+  /** Evaluación y suspensión de tiendas (CU-27), solo con el rol activo ADMIN. */
+  mostrarEvaluacionTiendas = false;
 
   /** "Mi tienda" del vendedor (CU-18). */
   mostrarMiTienda = false;
@@ -427,6 +501,32 @@ export class AppComponent {
     return this.auth.cuenta()?.activeRole === 'ADMIN';
   }
 
+  /** Menú del rol activo; null si no hay sesión o el rol no tiene accesos propios. */
+  get menuRol(): MenuRol | null {
+    const rol = this.auth.cuenta()?.activeRole;
+    return rol ? MENUS_POR_ROL[rol] ?? null : null;
+  }
+
+  abrirDesdeMenu(opcion: OpcionMenu): void {
+    this.mostrarMenu = false;
+    switch (opcion) {
+      case 'pedidos-recibidos': this.mostrarPedidosRecibidos = true; break;
+      case 'devoluciones-recibidas': this.devoluciones.abrirPanelVendedor(); break;
+      case 'reclamaciones': this.mostrarReclamaciones = true; break;
+      case 'mis-productos': this.mostrarMisProductos = true; break;
+      case 'inventario': this.mostrarInventario = true; break;
+      case 'mi-tienda': this.mostrarMiTienda = true; break;
+      case 'estado-tienda': this.mostrarEstadoTienda = true; break;
+      case 'analitica': this.mostrarAnalitica = true; break;
+      case 'mis-reportes': this.reportes.abrirPanel(); break;
+      case 'mis-devoluciones': this.devoluciones.abrirPanelComprador(); break;
+      case 'favoritos': this.mostrarFavoritos = true; break;
+      case 'moderacion': this.mostrarModeracion = true; break;
+      case 'evaluar-tiendas': this.mostrarEvaluacionTiendas = true; break;
+      case 'catalogo-admin': this.mostrarCatalogoAdmin = true; break;
+    }
+  }
+
 
   // =========================================================
   // CONSTRUCTOR
@@ -437,7 +537,7 @@ export class AppComponent {
 
     this.auth.restaurar();
     effect(() => {
-      const cuenta=this.auth.cuenta();this.mostrarFavoritos=false;this.mostrarMenuComprador=false;
+      const cuenta=this.auth.cuenta();this.mostrarFavoritos=false;this.mostrarMenu=false;
       if(cuenta && ['COMPRADOR','VENDEDOR'].includes(cuenta.activeRole || '') && new URLSearchParams(location.search).get('notificaciones')==='1') {
         this.mostrarNotificaciones=true;
         const url=new URL(location.href);url.searchParams.delete('notificaciones');history.replaceState(null,'',url);

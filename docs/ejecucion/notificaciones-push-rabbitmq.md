@@ -188,7 +188,7 @@ automáticamente por esa acción administrativa.
 
 | Archivo | Función |
 | --- | --- |
-| [V40__notification_outbox_and_web_push.sql](../../backend/demo/src/main/resources/db/migration/V40__notification_outbox_and_web_push.sql) | Tablas de trabajos, suscripciones y entregas por dispositivo. |
+| [V42__notification_outbox_and_web_push.sql](../../backend/demo/src/main/resources/db/migration/V42__notification_outbox_and_web_push.sql) | Tablas de trabajos, suscripciones y entregas por dispositivo. |
 | [JdbcNotificationRepository.java](../../backend/demo/src/main/java/com/transformersas/marketplace/notifications/infrastructure/persistence/repository/JdbcNotificationRepository.java) | Registra la outbox dentro de la transacción del aviso. |
 | [NotificationQueueConfiguration.java](../../backend/demo/src/main/java/com/transformersas/marketplace/notifications/infrastructure/queue/NotificationQueueConfiguration.java) | Cola durable y ruta de fallos. |
 | [NotificationOutboxPublisher.java](../../backend/demo/src/main/java/com/transformersas/marketplace/notifications/infrastructure/queue/NotificationOutboxPublisher.java) | Publicación recuperable con confirmación del broker. |
@@ -253,3 +253,21 @@ con el navegador del usuario; no se presenta como una entrega externa verificada
 - [Spring AMQP: publicación y confirmaciones](https://docs.spring.io/spring-amqp/reference/amqp/template.html).
 - [RabbitMQ: publicación fiable](https://www.rabbitmq.com/tutorials/tutorial-seven-java).
 - [Biblioteca Web Push para Java](https://github.com/web-push-libs/webpush-java).
+
+## Actualizaci?n tras integrar main
+
+La migraci?n de push usa V42: main ya contiene V40 (coste de producto) y V41
+(suspensiones). En bases nuevas se aplican las tres sin duplicar versiones.
+Si una base local ya aplic? `V40__notification_outbox_and_web_push.sql`, no debe
+iniciarse como si fuera una instalaci?n nueva: su historial Flyway necesita
+reconciliaci?n espec?fica antes del arranque. No ejecutar `repair` a ciegas ni
+borrar vol?menes para resolverlo. Comprobar primero el historial, sin modificarlo:
+
+```sql
+SELECT installed_rank, version, description, script, checksum, success
+FROM flyway_schema_history
+WHERE version IN ('40', '41', '42')
+ORDER BY installed_rank;
+```
+
+El cambio de nombre no modifica autom?ticamente el historial de bases existentes.

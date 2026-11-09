@@ -108,9 +108,11 @@ public class MercadoPagoCheckoutService {
         var held = reservations.reserveCart(accountId);
         var address = addresses.findByIdAndAccountId(request.addressId(), accountId)
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Dirección no encontrada"));
+        // El costo se copia al iniciar el pago: es el vigente cuando el comprador decidió comprar (CU-26).
         var lines = items.stream().map(item -> new OrderItem(item.getProduct().getId(),
                 item.getProduct().getName(), item.getQuantity(), item.getProduct().getPrice(),
-                item.getProduct().getPrice().multiply(BigDecimal.valueOf(item.getQuantity())))).toList();
+                item.getProduct().getPrice().multiply(BigDecimal.valueOf(item.getQuantity())),
+                item.getProduct().getUnitCost())).toList();
         Map<Long, Integer> quantities = new HashMap<>();
         items.forEach(item -> quantities.put(item.getId(), item.getQuantity()));
         String sellerName = stores.findById(storeId).orElseThrow(() ->

@@ -59,7 +59,28 @@ public class OrderItemEntity {
     private BigDecimal subtotal;
 
 
+    /** Costo unitario interno copiado al comprar (CU-26); nulo si no se conocía. */
+    @Column(
+            name = "unit_cost",
+            precision = 19,
+            scale = 2
+    )
+    private BigDecimal unitCost;
+
+
     public OrderItemEntity() {
+    }
+
+
+    public BigDecimal getUnitCost() {
+        return unitCost;
+    }
+
+
+    public void setUnitCost(
+            BigDecimal unitCost
+    ) {
+        this.unitCost = unitCost;
     }
 
 

@@ -51,6 +51,8 @@ interface Formulario {
   nombre: string;
   descripcion: string;
   precio: number | null;
+  /** Costo unitario interno, opcional (CU-26). */
+  costo: number | null;
   inventario: number | null;
   categoria: string;
   marcaId: number | null;
@@ -101,6 +103,10 @@ interface Formulario {
           </ion-item>
           <ion-item>
             <ion-input label="Precio (COP)" labelPlacement="stacked" type="number" min="0" name="precio" [(ngModel)]="formulario.precio"></ion-input>
+          </ion-item>
+          <ion-item>
+            <ion-input label="Costo unitario (COP, opcional)" labelPlacement="stacked" type="number" min="0" name="costo"
+              [(ngModel)]="formulario.costo" helperText="Interno: no lo ve el comprador. Sin él la analítica no calcula la ganancia de este producto."></ion-input>
           </ion-item>
           <ion-item>
             <ion-input label="Inventario (unidades)" labelPlacement="stacked" type="number" min="0" name="inventario" [(ngModel)]="formulario.inventario"></ion-input>
@@ -322,6 +328,7 @@ export class MisProductosComponent implements OnInit {
       nombre: producto.name,
       descripcion: producto.description ?? '',
       precio: producto.price,
+      costo: producto.unitCost ?? null,
       inventario: producto.stock,
       categoria: producto.category,
       marcaId: producto.brandId,
@@ -360,7 +367,7 @@ export class MisProductosComponent implements OnInit {
 
   private formularioVacio(): Formulario {
     return {
-      nombre: '', descripcion: '', precio: null, inventario: null, categoria: '', marcaId: null,
+      nombre: '', descripcion: '', precio: null, costo: null, inventario: null, categoria: '', marcaId: null,
       imagenes: '', atributos: [], variantes: []
     };
   }
@@ -379,7 +386,9 @@ export class MisProductosComponent implements OnInit {
       brandId: this.formulario.marcaId,
       imageUrls: this.formulario.imagenes.split('\n').map(linea => linea.trim()).filter(linea => linea !== ''),
       attributeValueIds: this.formulario.atributos,
-      variants: variantes
+      variants: variantes,
+      // Un campo vacío envía nulo: el producto queda sin costo registrado.
+      unitCost: this.formulario.costo === null || String(this.formulario.costo) === '' ? null : Number(this.formulario.costo)
     };
   }
 

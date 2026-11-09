@@ -81,6 +81,12 @@ public class Product {
     @Column(name = "low_stock_alerted", nullable = false)
     private Boolean lowStockAlerted = false;
 
+    // ---------- CU-26: rentabilidad ----------
+
+    /** Costo unitario interno; solo lo ve su vendedor. Nulo si no lo ha registrado. Cada compra copia el vigente. */
+    @Column(name = "unit_cost", precision = 19, scale = 2)
+    private BigDecimal unitCost;
+
     /** Constructor previo a CU-23 (sin tienda): el producto queda en la tienda 1, igual que el valor por defecto. */
     public Product(Long id, String name, String description, BigDecimal price, Integer stock, String category,
                    Boolean active) {

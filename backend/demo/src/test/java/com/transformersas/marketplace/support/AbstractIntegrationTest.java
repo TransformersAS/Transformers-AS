@@ -44,6 +44,7 @@ public abstract class AbstractIntegrationTest {
 
     /** Tablas de negocio en orden de borrado seguro para las claves foráneas (hijas primero). */
     private static final List<String> TABLES_TO_CLEAR = List.of(
+            "store_suspension_changes", "store_reviews", "store_clarification_requests", "store_suspensions",
             "seller_terms_acceptances", "stock_movements",
             "claim_messages", "claim_evidences", "claims", "audit_events", "notifications", "refunds", "order_cancellations", "return_tracking_events", "return_shipments",
             "shipment_tracking_events", "shipments", "order_issues", "order_status_history", "order_items", "orders",

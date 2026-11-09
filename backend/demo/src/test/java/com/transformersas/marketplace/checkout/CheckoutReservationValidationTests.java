@@ -34,7 +34,8 @@ class CheckoutReservationValidationTests {
         var items = mock(CartItemRepository.class);
         var addresses = mock(AddressRepository.class);
         reservations = new InventoryReservationService(repository, carts, items, products);
-        checkout = new CheckoutService(carts, items, addresses);
+        checkout = new CheckoutService(carts, items, addresses,
+                mock(com.transformersas.marketplace.stores.application.usecase.CheckStoreCommercialOperationUseCase.class));
         var cart = new Cart();
         cart.setId(1L);
         product = new Product(1L, "Producto", null, new BigDecimal("10"), 5, "Test", true);
