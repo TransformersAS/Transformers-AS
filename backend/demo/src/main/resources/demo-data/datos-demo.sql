@@ -93,6 +93,24 @@ FROM (
 WHERE c.store_id IS NOT NULL
   AND NOT EXISTS (SELECT 1 FROM products p WHERE p.store_id = c.store_id AND p.name = c.name);
 
+-- Costo unitario interno (CU-26), para que la analítica calcule ganancias. Solo donde el vendedor no lo registró.
+UPDATE products p
+JOIN (SELECT 'Camiseta basica demo' AS name, 18000 AS cost
+      UNION ALL SELECT 'Jean clasico demo', 52000
+      UNION ALL SELECT 'Chaqueta ligera demo', 80000
+      UNION ALL SELECT 'Tenis urbanos demo', 66000
+      UNION ALL SELECT 'Mochila urbana demo', 45000
+      UNION ALL SELECT 'Cafetera de goteo demo', 41000
+      UNION ALL SELECT 'Audifonos bluetooth demo', 58000
+      UNION ALL SELECT 'Teclado USB demo', 34000
+      UNION ALL SELECT 'Lampara de escritorio demo', 29000
+      UNION ALL SELECT 'Botella reutilizable demo', 12000
+      UNION ALL SELECT 'Libreta artesanal demo', 8000
+      UNION ALL SELECT 'Taza de ceramica demo', 11000
+      UNION ALL SELECT 'Gorra de lona demo', 15000) c ON c.name = p.name
+SET p.unit_cost = c.cost
+WHERE p.unit_cost IS NULL AND p.store_id IN (1, @tienda_vecina);
+
 -- Fichas ampliadas (CU-01): descripción, marca y especificaciones de los diez productos de la tienda principal.
 SET @fichas = '[
  {"name":"Camiseta basica demo","previous":"Camiseta de algodon para uso diario.","description":"Camiseta de corte regular para uso diario, con cuello redondo y manga corta. Combina con prendas casuales. Ficha ficticia de demostracion.","specs":[{"name":"Material","value":"Algodon"},{"name":"Tipo de cuello","value":"Redondo"},{"name":"Tipo de manga","value":"Corta"}]},
@@ -194,12 +212,20 @@ JOIN addresses a ON a.id = @direccion
 WHERE @comprador IS NOT NULL
   AND NOT EXISTS (SELECT 1 FROM orders o WHERE o.transaction_id = d.tx);
 
-INSERT INTO order_items (order_id, product_id, product_name, quantity, unit_price, subtotal)
-SELECT o.id, p.id, p.name, d.cantidad, p.price, p.price * d.cantidad
+-- La línea copia el costo del producto al comprar, como hace el checkout (CU-26).
+INSERT INTO order_items (order_id, product_id, product_name, quantity, unit_price, subtotal, unit_cost)
+SELECT o.id, p.id, p.name, d.cantidad, p.price, p.price * d.cantidad, p.unit_cost
 FROM demo_pedidos d
 JOIN orders o ON o.transaction_id = d.tx
 JOIN products p ON p.store_id = 1 AND p.name = d.producto
 WHERE NOT EXISTS (SELECT 1 FROM order_items i WHERE i.order_id = o.id);
+
+-- Bases cargadas antes de CU-26: sus líneas de demostración reciben el costo una sola vez.
+UPDATE order_items i
+JOIN orders o ON o.id = i.order_id
+JOIN products p ON p.id = i.product_id
+SET i.unit_cost = p.unit_cost
+WHERE o.transaction_id LIKE 'demo-datos-%' AND i.unit_cost IS NULL AND p.unit_cost IS NOT NULL;
 
 INSERT INTO order_status_history (order_id, from_status, to_status, actor_type, actor_id, reason, correlation_id, created_at)
 SELECT o.id, c.desde, c.hacia, c.actor,

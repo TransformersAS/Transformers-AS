@@ -49,6 +49,7 @@ public final class OrderMapper {
             itemEntity.setQuantity(item.quantity());
             itemEntity.setUnitPrice(item.unitPrice());
             itemEntity.setSubtotal(item.subtotal());
+            itemEntity.setUnitCost(item.unitCost());
             entity.addItem(itemEntity);
         }
         return entity;
@@ -62,7 +63,7 @@ public final class OrderMapper {
     public static Order toDomain(OrderEntity entity) {
         List<OrderItem> items = entity.getItems().stream()
                 .map(item -> new OrderItem(item.getProductId(), item.getProductName(), item.getQuantity(),
-                        item.getUnitPrice(), item.getSubtotal()))
+                        item.getUnitPrice(), item.getSubtotal(), item.getUnitCost()))
                 .toList();
 
         DeliverySnapshot delivery = new DeliverySnapshot(entity.getDeliveryRecipientName(),

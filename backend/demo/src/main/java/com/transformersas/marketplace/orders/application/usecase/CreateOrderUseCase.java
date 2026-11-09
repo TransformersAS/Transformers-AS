@@ -116,7 +116,8 @@ public class CreateOrderUseCase {
                             item.getProduct().getName(),
                             item.getQuantity(),
                             item.getProduct().getPrice(),
-                            subtotal
+                            subtotal,
+                            item.getProduct().getUnitCost()
                     );
                 })
                 .toList();

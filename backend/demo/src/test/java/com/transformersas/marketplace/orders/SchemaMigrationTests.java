@@ -56,11 +56,18 @@ class SchemaMigrationTests extends AbstractIntegrationTest {
                 WHERE version = '39' AND success = 1""");
         var loginAttempts = jdbc.queryForMap("""
                 SELECT version, script, installed_rank FROM flyway_schema_history
-                WHERE version = '40' AND success = 1""");
+                WHERE version = '42' AND success = 1""");
         assertThat(favorites).containsEntry("version", "39")
                 .containsEntry("script", "V39__favorites_and_product_alerts.sql");
-        assertThat(loginAttempts).containsEntry("version", "40")
-                .containsEntry("script", "V40__login_attempts.sql");
+        assertThat(loginAttempts).containsEntry("version", "42")
+                .containsEntry("script", "V42__login_attempts.sql");
+        assertThat(jdbc.queryForList("""
+                SELECT script FROM flyway_schema_history
+                WHERE version IN ('39', '40', '41', '42') AND success = 1
+                ORDER BY installed_rank""", String.class))
+                .containsExactly("V39__favorites_and_product_alerts.sql", "V40__add_product_unit_cost.sql",
+                        "V41__create_store_suspensions.sql", "V42__login_attempts.sql");
+
         assertThat(((Number) favorites.get("installed_rank")).intValue())
                 .isLessThan(((Number) loginAttempts.get("installed_rank")).intValue());
 

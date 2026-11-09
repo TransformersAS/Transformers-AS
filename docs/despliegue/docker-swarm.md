@@ -380,6 +380,45 @@ Usar motores Docker Linux con IPs alcanzables entre sí. La VM de Docker Desktop
 NAT, VPN y firewalls pueden impedir que dos Macs formen una overlay funcional.
 No reutilizar la dirección loopback del ensayo local como dirección de cluster.
 
+### Red y Docker con dos PCs Windows
+
+Preparación para dos PCs con Windows 11. Lo de la red se comprobó con ping entre
+dos equipos; los pasos de Docker y firewall son los previstos y quedan por confirmar
+en la prueba con los dos computadores:
+
+- **Red.** JaverRED pone a los equipos en segmentos distintos y no deja que se
+  hablen: el ping entre ellos se pierde. Conectar ambos al hotspot de un celular y
+  confirmar `ping` en los dos sentidos. Windows bloquea el ping en redes públicas;
+  para permitirlo, en PowerShell como administrador:
+  `New-NetFirewallRule -DisplayName "Ping Swarm" -Protocol ICMPv4 -IcmpType 8 -Direction Inbound -Action Allow`.
+- **Docker.** Docker Desktop queda detrás de su propia red interna y no sirve como
+  nodo. Usar Docker Engine dentro de WSL (Ubuntu) con la red en espejo, para que WSL
+  tenga la IP real del PC. Cerrar antes Docker Desktop. En cada PC:
+
+  ```powershell
+  Set-Content -Path "$env:USERPROFILE\.wslconfig" -Value "[wsl2]`nnetworkingMode=mirrored"
+  wsl --shutdown
+  ```
+
+  En un PC sin Docker en WSL: `wsl --install -d Ubuntu`, y dentro de Ubuntu
+  `curl -fsSL https://get.docker.com | sudo sh` y `sudo usermod -aG docker $USER`.
+  En Ubuntu, `ip -4 addr` debe mostrar la IP del PC en el hotspot.
+- **Firewall.** En cada PC, PowerShell como administrador:
+
+  ```powershell
+  New-NetFirewallRule -DisplayName "Swarm TCP" -Direction Inbound -Protocol TCP -LocalPort 2377,7946,80,8080 -Action Allow
+  New-NetFirewallRule -DisplayName "Swarm UDP" -Direction Inbound -Protocol UDP -LocalPort 7946,4789 -Action Allow
+  Set-NetFirewallHyperVVMSetting -Name '{40E0AC32-46A5-438A-A0B2-2B479E8F2E90}' -DefaultInboundAction Allow
+  ```
+
+  La última línea deja entrar el tráfico de la red a WSL.
+- **Repositorio.** En el manager, clonar el repositorio dentro de Ubuntu
+  (`git clone https://github.com/TransformersAS/Transformers-AS.git ~/Transformers-AS`):
+  en la copia de `C:\` los guiones tienen fin de línea de Windows y Bash los rechaza.
+- **Un Swarm anterior.** Si `docker info --format '{{.Swarm.LocalNodeState}}'` dice
+  `active` en un nodo que no es el del cluster nuevo, salir antes con
+  `docker swarm leave --force` (borra los stacks de ensayo de ese motor).
+
 En un entorno nuevo, planificado y sin workloads que deban preservarse:
 
 ```bash
@@ -694,12 +733,27 @@ virtuales, alojar una en cada computador y comprobar la conectividad entre ellas
 
    Abrir tambien `http://IP_REAL_MANAGER` en su navegador. Permitir TCP 80 entre
    el cliente y el manager, ademas de los puertos Swarm indicados anteriormente.
-   El stack distribuido no activa el perfil local ni crea la cuenta demo local.
-   Para pruebas de negocio, preparar cuentas verificadas y datos de prueba.
+   El stack arranca con los datos de demostración (cuentas de cada rol con
+   `MarketplaceDemo123!`, catálogo y pedidos; ver **Paso 4** del despliegue local):
+   no hay que crear cuentas ni cargar datos a mano.
 
-7. Adjuntar las salidas anteriores y capturas de la aplicacion y de los dos
+7. Medir el balanceo entre los dos computadores (ver **Balanceo de carga**), en el
+   manager. Cada IP del resultado debe aparecer asociada a un nodo distinto:
+
+   ```bash
+   export CATALOG_EMAIL=comprador.demo@example.com
+   export CATALOG_PASSWORD='MarketplaceDemo123!'
+   python3 scripts/quality/run.py balancing --base-url http://IP_REAL_MANAGER --stack STACK_NAME
+   ```
+
+8. Medir la disponibilidad matando la réplica del backend del worker, con
+   `python3 scripts/quality/run.py availability --base-url http://IP_REAL_MANAGER --stack STACK_NAME`
+   y el procedimiento de `docs/sustentacion/PRUEBAS-ATRIBUTOS-CALIDAD.md`. Matar
+   siempre la del worker: MySQL vive en el manager y no tiene réplica.
+
+9. Adjuntar las salidas anteriores y capturas de la aplicacion y de los dos
    computadores. No ejecutar el script Compose `desplegar-local.ps1` como
-   sustituto de esta prueba. El catalogo local no se carga automaticamente en Swarm.
+   sustituto de esta prueba.
 
 Al finalizar correctamente, `deploy.sh` guarda evidencia tecnica en
 `artifacts/deploy-<fecha UTC>-<proceso>/` (ignorada por Git). Se puede elegir otra
@@ -718,6 +772,8 @@ Copiar las evidencias revisadas a la entrega y completar este registro:
 | Servicios completos | Frontend 2/2, backend 2/2 y MySQL 1/1 |
 | Distribucion | Tasks frontend/backend con NodeID distintos |
 | Conectividad | Readiness UP consultado desde el segundo equipo |
+| Balanceo | `balancing-result.json`: las dos réplicas, una por nodo, atienden peticiones |
+| Disponibilidad | `availability-result.json`: caída de la réplica del worker y su reemplazo |
 | Uso del sistema | Capturas y operacion funcional observada |
 | Repeticion | Segunda ejecucion, estado final y persistencia de datos |
 

@@ -2,6 +2,7 @@
 com/transformersas/marketplace/BusinessApiIntegrationTests.java
 com/transformersas/marketplace/MarketplaceApplicationTests.java
 com/transformersas/marketplace/SupportApiIntegrationTests.java
+com/transformersas/marketplace/analytics/SellerAnalyticsIntegrationTests.java
 com/transformersas/marketplace/auth/BuyerIsolationIntegrationTests.java
 com/transformersas/marketplace/auth/BuyerOwnershipMigrationTests.java
 com/transformersas/marketplace/auth/CurrentAccountSessionIntegrationTests.java
@@ -103,5 +104,6 @@ com/transformersas/marketplace/stores/SellerStoreSettingsTests.java
 com/transformersas/marketplace/stores/StoreBoundaryIntegrationTests.java
 com/transformersas/marketplace/stores/StoresMigrationTests.java
 com/transformersas/marketplace/stores/infrastructure/config/OwnerRunnerIntegrationTests.java
+com/transformersas/marketplace/suspensions/StoreSuspensionIntegrationTests.java
 com/transformersas/marketplace/users/UserAccountPersistenceTests.java
 com/transformersas/marketplace/users/infrastructure/config/LocalProvisioningIntegrationTests.java

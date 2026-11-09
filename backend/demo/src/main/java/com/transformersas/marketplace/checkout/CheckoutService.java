@@ -8,7 +8,8 @@ import com.transformersas.marketplace.cart.CartItemRepository;
 import com.transformersas.marketplace.cart.CartRepository;
 import com.transformersas.marketplace.checkout.dto.CheckoutPreviewRequest;
 import com.transformersas.marketplace.checkout.dto.CheckoutPreviewResponse;
-import com.transformersas.marketplace.shared.error.BusinessException;   
+import com.transformersas.marketplace.shared.error.BusinessException;
+import com.transformersas.marketplace.stores.application.usecase.CheckStoreCommercialOperationUseCase;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -37,16 +38,20 @@ public class CheckoutService {
 
     private final AddressRepository addressRepository;
 
+    private final CheckStoreCommercialOperationUseCase storeOperation;
+
 
     public CheckoutService(
             CartRepository cartRepository,
             CartItemRepository cartItemRepository,
-            AddressRepository addressRepository
+            AddressRepository addressRepository,
+            CheckStoreCommercialOperationUseCase storeOperation
     ) {
 
         this.cartRepository = cartRepository;
         this.cartItemRepository = cartItemRepository;
         this.addressRepository = addressRepository;
+        this.storeOperation = storeOperation;
     }
 
 
@@ -244,6 +249,14 @@ public class CheckoutService {
                             itemSubtotal
                     );
         }
+
+
+        /*
+         * CU-27: una tienda suspendida no recibe nuevas compras.
+         * Todos los pagos recalculan aquí el total, así que
+         * ninguno puede saltarse esta comprobación.
+         */
+        storeOperation.requireForPurchase(storeId);
 
 
         // ===============================

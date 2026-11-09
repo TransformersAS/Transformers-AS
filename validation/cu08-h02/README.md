@@ -44,7 +44,7 @@ Pendientes reales:
 - Separar dos orígenes independientes: localhost fue unificado por NAT.
 - Probar CSRF ausente por separado del token inválido.
 - Otros equipos Docker Desktop, Swarm, producción y túneles HTTPS.
-- Integración conjunta V39 de favoritos + V40 y actualización de bases antiguas.
+- Validación real de la secuencia actual V39 → V40 de costos → V41 de suspensiones → V42 de intentos, y actualización de bases antiguas.
 
 Las pruebas internas que simulan tiempo o el atributo de Tomcat complementan,
 pero no sustituyen, los escenarios reales pendientes. Cambiar cabeceras desde
@@ -69,11 +69,18 @@ conclusiones son resultados históricos: seleccionarlos y revisar su saneamiento
 en otro cambio, sin añadir automáticamente toda la carpeta. El modo
 `after-restart` requiere el JSON generado por `before-restart` en esa ejecución.
 
+La ejecución histórica usó `V40__login_attempts.sql`. El checkout actual la
+renombra a `V42__login_attempts.sql` sin cambiar su SQL, para conservar V40 de
+costos y V41 de suspensiones del equipo. No reconstruir ni reiniciar este
+laboratorio sobre su volumen histórico con el código actual: requiere una base
+nueva expresamente autorizada. No alterar el historial ni ejecutar `repair`.
+Los resultados anteriores no acreditan la nueva secuencia.
+
 ## Requisitos y dependencias
 
 - Checkout completo de Transformers-AS, manteniendo esta carpeta en su ubicación:
   los builds usan `../../backend/demo` y `../../frontend`. Deben existir el guard,
-  repositorio JDBC, perfil `compose-local` y migración V40.
+  repositorio JDBC, perfil `compose-local` y migración V42.
 - Docker Desktop con daemon Linux local, contexto llamado `desktop-linux` y
   endpoint de socket Unix. El wrapper rechaza endpoints de otro tipo.
 - Docker Compose v2 con soporte de `name`, límites CPU/memoria y `up --wait`.

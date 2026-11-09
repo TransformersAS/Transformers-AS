@@ -210,7 +210,9 @@ se ejecute en una etapa futura autorizada.
    de credenciales, herencia de contexto/proyecto, pipeline de PowerShell, Windows,
    restauración de variables ni propagación de errores del script real. El wrapper
    separa build/start/seed y añade defensas de destino que el script real no tiene.
-4. **V39 + V40:** pendiente; V39 todavía no existe en la copia local.
+4. **Secuencia actual V39 → V40 → V41 → V42:** pendiente de validación real conjunta.
+   La preparación original no incluía V39 y usaba V40 para intentos de login;
+   esos resultados históricos no acreditan la secuencia actual.
 5. **Actualización desde V32:** pendiente; la base de este laboratorio será nueva.
 
 ### Limpiar (NO ejecutado, autorización separada)
@@ -239,7 +241,9 @@ preparar un seed exclusivo autorizado; nunca consultar otra base como fuente.
 3. Confirmar backend -> mysql:3306 por database y readiness UP. Desde el host,
    conectar al puerto 13430/13431 y ejecutar SELECT DATABASE(): debe ser la base
    exclusiva correcta. Guardar solo el booleano de coincidencia, no credenciales.
-4. Consultar flyway_schema_history en esa base: V1-V38 y V40 exitosas, sin fallos.
+4. En una base NUEVA autorizada, consultar flyway_schema_history: todas las
+   migraciones actuales exitosas, incluida la secuencia V39 de favoritos, V40 de
+   costos, V41 de suspensiones y V42 de intentos de login, sin fallos.
    Demo incluye R__demo_fixture.sql. Revisar metadatos de login_attempts y sus
    cero registros; esto NO activa H02.
 5. Verificar en runtime, sin volcar el entorno, enabled=false y origin-verified=false.
@@ -254,7 +258,9 @@ preparar un seed exclusivo autorizado; nunca consultar otra base como fuente.
 ## Alcance que NO queda acreditado
 
 - No hay ejecución de estos laboratorios en esta etapa.
-- El código local no tiene V39 de favoritos. No se acredita V39 + V40 juntas.
+- El checkout actual incluye V39–V42. Las pruebas históricas con V40 de intentos
+  no acreditan esta secuencia y sus bases no deben reutilizarse con el código
+  actual sin un procedimiento separado; no alterar historiales ni usar repair.
 - Una instalación nueva NO acredita la actualización desde la demo V32. Eso
   requiere otra prueba sobre una base desechable representativa y un rollback
   ensayado, antes de tocar la demo real.

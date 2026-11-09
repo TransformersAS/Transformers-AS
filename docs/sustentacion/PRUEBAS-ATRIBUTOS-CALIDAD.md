@@ -59,16 +59,29 @@ Salida en `artifacts/quality/<fechaUTC>-<PID>/`: `context.json`, `catalogo-50.lo
 
 Anotar p95 listado, p95 detalle, `catalog_error_rate`, `catalog_throughput` count/rate y `http_reqs`. Nuevos `catalog_requests = catalog_successes + catalog_failures` cuentan HTTP de listado/detalle durante carga, **no** setup/login; successes significa HTTP 200, no certifica semántica completa de un cuerpo inválido. El rate de negocio sigue detectando catálogo vacío. No convertir las Rates HTTP en contadores de éxito con semántica invertida.
 
+## Cuenta de prueba y dirección del frontend
+
+El stack arranca con datos de demostración: como cuenta verificada sirve `comprador.demo@example.com` con `MarketplaceDemo123!`, sin crear nada. `IP_MANAGER` es la IP del manager en la red de los dos PCs (con hotspot cambia de un día a otro: confirmarla con `ip -4 addr` en Ubuntu). `deploy.sh` en modo real publica el frontend en el puerto 80, así que la URL va sin puerto; con `--local` sería `:18000`, que solo sirve de ensayo en un PC.
+
+## Balanceo — reparto entre las dos réplicas
+
+**DÓNDE EJECUTAR ESTO — 💻 PC MANAGER, Bash en raíz, mismas variables de cuenta.** Antes de la prueba de disponibilidad, con el stack recién desplegado.
+```bash
+python3 scripts/quality/run.py balancing --base-url http://IP_MANAGER --stack transformers
+```
+
+Hace 200 peticiones sin sesión y 200 con sesión, y cuenta qué réplica del backend atendió cada una (cabecera `X-Served-By-Backend`). PASS si todas responden 200 y cada réplica atiende al menos el 30 %; en el manager cada IP aparece con su nodo, que deben ser los dos PCs. Guarda `balancing-result.json`. Detalle en `docs/despliegue/docker-swarm.md`, sección **Balanceo de carga**.
+
 ## Availability — observar sin matar automáticamente
 
 **DÓNDE EJECUTAR ESTO — 💻 PC MANAGER, terminal Bash de medición en raíz, MISMAS variables de cuenta ya exportadas.**
 ```bash
-python3 scripts/quality/run.py availability --base-url http://192.168.40.13:18000 --stack transformers
+python3 scripts/quality/run.py availability --base-url http://IP_MANAGER --stack transformers
 ```
 
 **DÓNDE EJECUTAR ESTO — 💻 PC MANAGER Windows, PowerShell en raíz, variables de cuenta de su bloque previo; alternativa.**
 ```powershell
-py scripts/quality/run.py availability --base-url http://192.168.40.13:18000 --stack transformers
+py scripts/quality/run.py availability --base-url http://IP_MANAGER --stack transformers
 ```
 
 Debe iniciar con dos backends Running en nodos distintos y readiness proxy UP. No basta usar el stack antiguo marketplace del Mac para afirmar despliegue de esta versión.
