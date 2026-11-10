@@ -63,10 +63,11 @@ class SchemaMigrationTests extends AbstractIntegrationTest {
                 .containsEntry("script", "V42__login_attempts.sql");
         assertThat(jdbc.queryForList("""
                 SELECT script FROM flyway_schema_history
-                WHERE version IN ('39', '40', '41', '42') AND success = 1
+                WHERE version IN ('39', '40', '41', '42', '43', '44') AND success = 1
                 ORDER BY installed_rank""", String.class))
                 .containsExactly("V39__favorites_and_product_alerts.sql", "V40__add_product_unit_cost.sql",
-                        "V41__create_store_suspensions.sql", "V42__login_attempts.sql");
+                        "V41__create_store_suspensions.sql", "V42__login_attempts.sql",
+                        "V43__product_reviews.sql", "V44__notification_outbox_and_web_push.sql");
 
         assertThat(((Number) favorites.get("installed_rank")).intValue())
                 .isLessThan(((Number) loginAttempts.get("installed_rank")).intValue());
@@ -74,8 +75,10 @@ class SchemaMigrationTests extends AbstractIntegrationTest {
         assertThat(jdbc.queryForList("""
                 SELECT table_name FROM information_schema.tables
                 WHERE table_schema = DATABASE() AND table_type = 'BASE TABLE'
-                  AND table_name IN ('buyer_favorites', 'product_alerts', 'login_attempts')""", String.class))
-                .containsExactlyInAnyOrder("buyer_favorites", "product_alerts", "login_attempts");
+                  AND table_name IN ('buyer_favorites', 'product_alerts', 'login_attempts',
+                    'product_reviews', 'notification_jobs', 'push_subscriptions', 'push_deliveries')""", String.class))
+                .containsExactlyInAnyOrder("buyer_favorites", "product_alerts", "login_attempts",
+                        "product_reviews", "notification_jobs", "push_subscriptions", "push_deliveries");
     }
 
     @Test

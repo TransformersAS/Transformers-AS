@@ -177,6 +177,22 @@ específico del CU-05 no ejecuta toda la suite del repositorio.
 
 ## Cómo demostrarlo manualmente
 
+**Actualización después del merge `7e331088`:** la versión actual de push es
+**V44**, porque `main` incorporó `V42__login_attempts.sql`. Se conservan V42 para
+login y V43 para reseñas. En la base local se respaldó de nuevo y se reasignó
+únicamente el registro anterior de push a V44, comprobando su checksum. El respaldo
+está en `artifacts/cu05/respaldo-flyway-v44-20261109-202329/`. La V42 de login se
+aplicó con `out-of-order` temporal; después se volvió al comando normal. Los datos
+de usuarios, productos, compras, pagos, reseñas e imágenes se conservaron.
+
+La regresión posterior al merge aprobó 73 pruebas de backend (migraciones,
+autenticación, cola y reseñas), el E2E real de CU-08 y 19 pruebas Chrome de
+favoritos, notificaciones y reseñas. El perfil CU-05 aprobó sus 23 pruebas y
+mantiene 99,25–100 % de líneas por paquete. Evidencias locales:
+`artifacts/cu05/merge-7e331088/`. Son verificaciones seleccionadas después del
+merge; la medición global anterior corresponde a la revisión previa, no a otra
+ejecución completa posterior al merge.
+
 En la base local `marketplace-pruebas`, el 9 de noviembre se reconcilió la antigua
 V40 de push con V42 después de comprobar que el checksum y la estructura coincidían.
 Se creó un respaldo completo en `artifacts/cu05/respaldo-flyway-20261109-185030/`.

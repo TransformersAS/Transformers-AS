@@ -10,12 +10,16 @@ services:
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_USER: ${RABBITMQ_USER:?Missing RABBITMQ_USER}
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?Missing RABBITMQ_PASSWORD}
+    networks:
+      notification_queue:
     depends_on:
       rabbitmq:
         condition: service_started
   rabbitmq:
     image: rabbitmq:4.3.6-management
     hostname: marketplace-rabbitmq
+    networks:
+      notification_queue:
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:?Missing RABBITMQ_USER}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?Missing RABBITMQ_PASSWORD}
@@ -32,3 +36,9 @@ services:
       start_period: 30s
 volumes:
   rabbitmq_data:
+networks:
+  # Explicit peer network: base Compose no longer attaches backend to default.
+  # Published broker/management ports remain restricted to host loopback above.
+  notification_queue:
+    driver: bridge
+    internal: false
