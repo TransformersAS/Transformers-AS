@@ -1,7 +1,7 @@
 import { API_BASE } from '../../core/config/api.config';
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { Observable, map, of } from 'rxjs';
+import { Observable, map, of, BehaviorSubject } from 'rxjs';
 import { Categoria, Producto } from '../models/producto.model';
 
 interface ProductoApi {
@@ -12,6 +12,8 @@ interface ProductoApi {
   stock: number;
   category: string;
   active: boolean;
+  ratingAverage?: number;
+  reviewCount?: number;
   brand?: string;
   store?: { id: number; name: string; description?: string };
   imageUrls?: string[];
@@ -21,6 +23,8 @@ interface ProductoApi {
 
 @Injectable({ providedIn: 'root' })
 export class CatalogoService {
+  readonly actualizaciones = new BehaviorSubject(0);
+  refrescarValoraciones(){this.actualizaciones.next(this.actualizaciones.value+1);}
 
   private readonly http = inject(HttpClient);
 
@@ -63,8 +67,8 @@ export class CatalogoService {
       descripcionTienda: producto.store?.description,
       categoria: producto.category,
       tienda: producto.store?.name || 'Marketplace',
-      calificacion: 5,
-      cantidadResenas: 0,
+      calificacion: producto.ratingAverage ?? 0,
+      cantidadResenas: producto.reviewCount ?? 0,
       envioGratis: true
     };
   }

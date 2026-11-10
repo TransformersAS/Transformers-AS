@@ -7,7 +7,8 @@
     "build": "ng build",
     "test": "ng test",
     "test:catalogo": "playwright test --config=playwright.catalogo.config.ts",
-    "demo:cu04": "playwright test --config=playwright.cu04-demo.config.ts"
+    "demo:cu04": "playwright test --config=playwright.cu04-demo.config.ts",
+    "demo:cu05": "playwright test --config=playwright.cu05-demo.config.ts"
   },
   "dependencies": {
     "@angular/common": "18.2.14",

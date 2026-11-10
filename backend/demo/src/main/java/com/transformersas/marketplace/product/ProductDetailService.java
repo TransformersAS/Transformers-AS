@@ -44,6 +44,6 @@ public class ProductDetailService {
                 summary.stock(), summary.category(), summary.active(), brand, store,
                 java.util.List.copyOf(product.getImageUrls()), specifications,
                 product.getVariants().stream().map(v -> new ProductDetailResponse.Variant(
-                        v.getName(), v.getPrice(), v.getStock())).toList());
+                        v.getName(), v.getPrice(), v.getStock())).toList(), summary.ratingAverage(), summary.reviewCount());
     }
 }

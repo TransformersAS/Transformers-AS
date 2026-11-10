@@ -106,7 +106,7 @@
     <!-- ===================================================== -->
 
     <app-mis-pedidos *ngIf="esComprador && mostrarPedidos"
-      (cerrar)="mostrarPedidos = false"></app-mis-pedidos>
+      (cerrar)="mostrarPedidos = false" (resenasCambio)="actualizarResenas()"></app-mis-pedidos>
 
     <app-acceso
       *ngIf="mostrarAcceso"
@@ -1533,6 +1533,7 @@
             <h3>Descripción</h3>
             <p class="detalle-descripcion">{{ p.descripcion || 'El vendedor aún no ha añadido una descripción.' }}</p>
           </section>
+          <app-resenas-producto [productId]="p.id"></app-resenas-producto>
           <section class="detalle-seccion" *ngIf="p.variantes?.length">
             <h3>Opciones publicadas</h3>
             <p class="detalle-ayuda">Consulta las opciones y sus existencias. El botón de compra agrega el producto base.</p>
@@ -1555,6 +1556,10 @@
       </div>
     </ng-container>
   </section>
+</div>
+
+<div class="panel-pedidos" *ngIf="mostrarResenas && (esComprador || esVendedor)">
+  <app-mis-resenas [seller]="esVendedor" (cerrar)="mostrarResenas=false" (changed)="actualizarResenas()"></app-mis-resenas>
 </div>
 </ion-app>
 

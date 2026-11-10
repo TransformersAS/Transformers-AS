@@ -6,7 +6,8 @@ import java.util.List;
 /** Informacion publica de una publicacion; no expone datos privados del vendedor. */
 public record ProductDetailResponse(Long id, String name, String description, BigDecimal price,
         Integer stock, String category, Boolean active, String brand, StoreSummary store,
-        List<String> imageUrls, List<Specification> specifications, List<Variant> variants) {
+        List<String> imageUrls, List<Specification> specifications, List<Variant> variants,
+        double ratingAverage, long reviewCount) {
     public record StoreSummary(Long id, String name, String description) {}
     public record Specification(String name, String value) {}
     public record Variant(String name, BigDecimal price, Integer stock) {}

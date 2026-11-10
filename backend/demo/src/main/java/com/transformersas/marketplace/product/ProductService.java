@@ -21,13 +21,15 @@ public class ProductService {
     private final ProductRepository productRepository;
     private final ContentVisibility contentVisibility;
     private final CheckStoreCommercialOperationUseCase storeOperation;
+    private final com.transformersas.marketplace.reviews.application.ReviewService reviews;
 
     public ProductService(ProductRepository productRepository, ContentVisibility contentVisibility, CurrentActorProvider actor,
-                          CheckStoreCommercialOperationUseCase storeOperation) {
+                          CheckStoreCommercialOperationUseCase storeOperation, com.transformersas.marketplace.reviews.application.ReviewService reviews) {
         this.actor = actor;
         this.productRepository = productRepository;
         this.contentVisibility = contentVisibility;
         this.storeOperation = storeOperation;
+        this.reviews = reviews;
     }
 
     /**
@@ -37,11 +39,12 @@ public class ProductService {
     public List<ProductResponse> getAllProducts() {
         Set<String> moderated = contentVisibility.nonVisibleIds(ReportContentType.PUBLICACION);
         Set<Long> closedStores = storeOperation.nonOperatingStoreIds();
+        var ratings=reviews.summaries(null,null);
         return productRepository.findAll().stream()
                 .filter(this::isVisibleToBuyers)
                 .filter(product -> !moderated.contains(String.valueOf(product.getId())))
                 .filter(product -> !closedStores.contains(product.getStoreId()))
-                .map(ProductResponse::from).toList();
+                .map(p->{var rating=ratings.get(p.getId());return ProductResponse.from(p).withRating(rating==null?0:rating.average(),rating==null?0:rating.count());}).toList();
     }
 
     /** Los borradores y los productos retirados por su vendedor (CU-14) nunca se muestran a los compradores. */
@@ -53,7 +56,7 @@ public class ProductService {
         if (contentVisibility.stateOf(ReportContentType.PUBLICACION, String.valueOf(id)) != ContentModerationState.VISIBLE) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Producto no encontrado");
         }
-        return productRepository.findById(id).filter(this::isVisibleToBuyers).map(ProductResponse::from)
+        return productRepository.findById(id).filter(this::isVisibleToBuyers).map(p->{var rating=reviews.summary(id);return ProductResponse.from(p).withRating(rating.average(),rating.count());})
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Producto no encontrado"));
     }
 

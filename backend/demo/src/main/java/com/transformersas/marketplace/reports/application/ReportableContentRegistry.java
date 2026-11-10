@@ -12,9 +12,8 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * Los tipos de contenido que se pueden reportar hoy: los que tienen un verificador registrado. Reseñas, respuestas y
- * mensajes no tienen módulo todavía y se rechazan con 422; cuando lo tengan, basta con que registren su verificador y
- * su resolutor de propietario.
+ * Los tipos reportables son los que registran verificador y resolutor de propietario.
+ * Publicaciones, reseñas y respuestas tienen adaptadores; los tipos pendientes se rechazan con 422.
  */
 @Component
 public class ReportableContentRegistry {

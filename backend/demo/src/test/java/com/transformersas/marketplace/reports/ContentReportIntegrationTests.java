@@ -139,7 +139,7 @@ class ContentReportIntegrationTests extends ContentReportSupport {
 
     @Test
     void contentTypesWithoutAModuleAreRefusedWith422() throws Exception {
-        for (String type : List.of("RESENA", "RESPUESTA_RESENA", "MENSAJE", "TIENDA")) {
+        for (String type : List.of("MENSAJE", "TIENDA")) {
             perform(buyer, post(REPORTS).contentType("application/json").content(
                     "{\"contentType\":\"" + type + "\",\"contentId\":\"1\",\"reason\":\"SPAM\",\"description\":\"x\"}"))
                     .andExpect(status().isUnprocessableEntity())

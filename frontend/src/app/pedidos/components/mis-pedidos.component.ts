@@ -12,17 +12,19 @@ import { SeguimientoLogisticoComponent } from '../../seguimiento/components/segu
 import { ConsultaDevolucionComponent } from '../../seguimiento/components/consulta-devolucion.component';
 import { estadoConSeguimiento } from '../../seguimiento/models/seguimiento.model';
 import { DevolverLineaComponent } from '../../devoluciones/components/devolver-linea.component';
+import { EditorResenaComponent } from '../../resenas-favoritos/components/editor-resena.component';
 
 @Component({
   selector: 'app-mis-pedidos', standalone: true,
   imports: [CommonModule, FormsModule, ResumenPedidoComponent, SeguimientoLogisticoComponent, ConsultaDevolucionComponent,
-    DevolverLineaComponent],
+    DevolverLineaComponent,EditorResenaComponent],
   templateUrl: './mis-pedidos.component.html',
   styleUrl: './mis-pedidos.component.scss'
 })
 export class MisPedidosComponent {
   @Input() pedidoInicial: number | null = null;
   @Output() cerrar = new EventEmitter<void>();
+  @Output() resenasCambio = new EventEmitter<void>();
   readonly auth = inject(AuthService);
   private readonly servicio = inject(PedidosService);
   private readonly sanitizer = inject(DomSanitizer);

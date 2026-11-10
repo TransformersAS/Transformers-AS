@@ -1,5 +1,7 @@
 import { CheckoutStatusComponent } from './checkout/components/checkout-status.component';
 import { PushService } from './notificaciones/push.service';
+import { MisResenasComponent } from './resenas-favoritos/components/mis-resenas.component';
+import { ResenasProductoComponent } from './resenas-favoritos/components/resenas-producto.component';
 import { FavoritosService } from './resenas-favoritos/services/favoritos.service';
 import { MisFavoritosComponent } from './resenas-favoritos/components/mis-favoritos.component';
 import { NotificacionesComponent } from './notificaciones/notificaciones.component';
@@ -49,7 +51,7 @@ import {
 
 import {
   finalize,
-  switchMap, catchError, of, tap, shareReplay
+  switchMap, catchError, of, tap, shareReplay, combineLatest
 } from 'rxjs';
 import { toObservable } from '@angular/core/rxjs-interop';
 import { Producto } from './catalogo/models/producto.model';
@@ -120,7 +122,7 @@ import {
 type OpcionMenu =
   | 'pedidos-recibidos' | 'devoluciones-recibidas' | 'reclamaciones' | 'mis-productos' | 'inventario' | 'mi-tienda'
   | 'estado-tienda' | 'analitica' | 'mis-reportes' | 'mis-devoluciones' | 'favoritos' | 'moderacion'
-  | 'evaluar-tiendas' | 'catalogo-admin';
+  | 'evaluar-tiendas' | 'catalogo-admin' | 'resenas';
 
 interface MenuRol {
   /** Texto visible del botón; el nombre accesible es «Opciones de …». */
@@ -139,7 +141,8 @@ const MENUS_POR_ROL: Record<string, MenuRol> = {
       { id: 'mis-devoluciones', etiqueta: 'Mis devoluciones' },
       { id: 'reclamaciones', etiqueta: 'Mis reclamaciones' },
       { id: 'mis-reportes', etiqueta: 'Mis reportes' },
-      { id: 'favoritos', etiqueta: 'Mis favoritos y alertas' }
+      { id: 'favoritos', etiqueta: 'Mis favoritos y alertas' },
+      { id: 'resenas', etiqueta: 'Mis reseñas' }
     ] }]
   },
   VENDEDOR: {
@@ -147,6 +150,7 @@ const MENUS_POR_ROL: Record<string, MenuRol> = {
     grupos: [
       { titulo: 'Ventas', opciones: [
         { id: 'pedidos-recibidos', etiqueta: 'Pedidos recibidos' },
+        { id: 'resenas', etiqueta: 'Reseñas recibidas' },
         { id: 'devoluciones-recibidas', etiqueta: 'Devoluciones recibidas' },
         { id: 'reclamaciones', etiqueta: 'Reclamaciones' },
         { id: 'analitica', etiqueta: 'Analítica' }
@@ -184,7 +188,7 @@ const MENUS_POR_ROL: Record<string, MenuRol> = {
   standalone: true,
 
   imports: [
-    CheckoutStatusComponent, MisFavoritosComponent, IonApp,
+    CheckoutStatusComponent, MisFavoritosComponent, MisResenasComponent, ResenasProductoComponent, IonApp,
     IonContent,
     IonIcon,
     AsyncPipe,
@@ -293,7 +297,9 @@ export class AppComponent {
   private detalleSolicitud = 0;
   private focoAntesDelDetalle: HTMLElement | null = null;
 
-  readonly destacados$ = toObservable(this.auth.cuenta).pipe(
+  mostrarResenas=false;
+  actualizarResenas(){this.catalogo.refrescarValoraciones();}
+  readonly destacados$ = combineLatest([toObservable(this.auth.cuenta),this.catalogo.actualizaciones]).pipe(
     tap(() => {
       this.comparados = [];
       this.detalle = null;
@@ -521,6 +527,7 @@ export class AppComponent {
       case 'mis-reportes': this.reportes.abrirPanel(); break;
       case 'mis-devoluciones': this.devoluciones.abrirPanelComprador(); break;
       case 'favoritos': this.mostrarFavoritos = true; break;
+      case 'resenas': this.mostrarResenas = true; break;
       case 'moderacion': this.mostrarModeracion = true; break;
       case 'evaluar-tiendas': this.mostrarEvaluacionTiendas = true; break;
       case 'catalogo-admin': this.mostrarCatalogoAdmin = true; break;
@@ -537,7 +544,7 @@ export class AppComponent {
 
     this.auth.restaurar();
     effect(() => {
-      const cuenta=this.auth.cuenta();this.mostrarFavoritos=false;this.mostrarMenu=false;
+      const cuenta=this.auth.cuenta();this.mostrarFavoritos=false;this.mostrarMenu=false;this.mostrarResenas=false;
       if(cuenta && ['COMPRADOR','VENDEDOR'].includes(cuenta.activeRole || '') && new URLSearchParams(location.search).get('notificaciones')==='1') {
         this.mostrarNotificaciones=true;
         const url=new URL(location.href);url.searchParams.delete('notificaciones');history.replaceState(null,'',url);

@@ -105,6 +105,9 @@ public class SecurityConfiguration {
                         // Catálogo público: el visitante explora los productos y su ficha antes de iniciar sesión.
                         // Solo la lectura; comprar, reportar o publicar siguen exigiendo sesión.
                         .requestMatchers(HttpMethod.GET, "/api/products", "/api/products/{id}").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/reviews/products/**", "/api/reviews/images/**").permitAll()
+                        .requestMatchers(HttpMethod.HEAD, "/api/reviews/products/**", "/api/reviews/images/**").permitAll()
+                        .requestMatchers("/api/reviews", "/api/reviews/**").hasRole("COMPRADOR")
                         .requestMatchers(HttpMethod.GET, "/api/auth/validation/comprador").hasRole("COMPRADOR")
                         .requestMatchers(HttpMethod.GET, "/api/auth/validation/vendedor").hasRole("VENDEDOR")
                         .requestMatchers(HttpMethod.HEAD, "/api/auth/validation/comprador").hasRole("COMPRADOR")

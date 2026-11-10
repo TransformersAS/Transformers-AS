@@ -1,5 +1,7 @@
 # Documentación del proyecto
 
+- [CU-05: reseñas de productos comprados](casos-de-uso/cu-05-resenas.md): implementación, pruebas automáticas, cobertura y consultas SQL.
+
 Este es el punto de entrada a las guías de Marketplace. Los documentos están agrupados por tema y sus nombres están en español, en minúsculas y separados por guiones. **CU** significa **caso de uso**; se conserva su número para relacionar las guías con los requisitos.
 
 ## Por dónde empezar
