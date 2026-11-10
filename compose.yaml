@@ -4,6 +4,16 @@ services:
   frontend:
     build:
       context: ./frontend
+    environment:
+      # Alias definido SOLO en login_proxy; nunca resolver la interfaz de web_entry.
+      BACKEND_UPSTREAM_HOST: backend-login-proxy
+    volumes:
+      # Solo Compose: Swarm conserva la plantilla de la imagen.
+      - ./frontend/nginx.compose.conf:/etc/nginx/templates/default.conf.template:ro
+    networks:
+      web_entry:
+      login_proxy:
+        ipv4_address: 172.30.238.10
     ports:
       - "127.0.0.1:${FRONTEND_PORT:-4300}:80"
     depends_on:
@@ -21,7 +31,13 @@ services:
       MERCADOPAGO_COLLECTOR_ID: ${MERCADOPAGO_COLLECTOR_ID:-}
       MERCADOPAGO_RETURN_URL: ${MERCADOPAGO_RETURN_URL:-}
       MERCADOPAGO_NOTIFICATION_URL: ${MERCADOPAGO_NOTIFICATION_URL:-}
-      SERVER_FORWARD_HEADERS_STRATEGY: framework
+      SPRING_PROFILES_INCLUDE: compose-local
+      SERVER_FORWARD_HEADERS_STRATEGY: native
+      SERVER_TOMCAT_REMOTEIP_INTERNAL_PROXIES: '\Q172.30.238.10\E'
+      SERVER_TOMCAT_REMOTEIP_TRUSTED_PROXIES: ''
+      SERVER_TOMCAT_REMOTEIP_REMOTE_IP_HEADER: X-Forwarded-For
+      SERVER_TOMCAT_REMOTEIP_PROTOCOL_HEADER: X-Forwarded-Proto
+      APP_AUTH_LOGIN_ATTEMPTS_TRUSTED_PROXY_ADDRESSES: 172.30.238.10
       DB_PORT: 3306
       DB_NAME: ${DB_NAME:-marketplace}
       DB_USER: ${DB_USER:-marketplace_app}
@@ -47,12 +63,22 @@ services:
       LOGISTICS_SIMULATED_STEP: ${LOGISTICS_SIMULATED_STEP:-15s}
     ports:
       - "127.0.0.1:${BACKEND_HOST_PORT:-8080}:8080"
+    networks:
+      web_entry:
+      database:
+      login_proxy:
+        ipv4_address: 172.30.238.11
+        aliases:
+          - backend-login-proxy
     depends_on:
       mysql:
         condition: service_healthy
 
   mysql:
     image: mysql:8.4.11
+    networks:
+      database:
+      mysql_host:
     environment:
       MYSQL_DATABASE: ${DB_NAME:-marketplace}
       MYSQL_USER: ${DB_USER:-marketplace_app}
@@ -76,3 +102,23 @@ services:
 
 volumes:
   mysql_data:
+
+# Direcciones exclusivas de este proyecto; nunca confiar en toda la subred.
+networks:
+  # Bridges por proyecto: permiten publicar SOLO los puertos loopback indicados.
+  # Docker asigna subredes; comprobar también rutas LAN/VPN antes de desplegar.
+  web_entry:
+    driver: bridge
+    internal: false
+  mysql_host:
+    driver: bridge
+    internal: false
+  database:
+    driver: bridge
+    internal: true
+  login_proxy:
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.30.238.0/24

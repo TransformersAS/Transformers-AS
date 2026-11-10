@@ -48,8 +48,9 @@ for (const scenario of ['single-role', 'account-switch'] as const) {
       await page.getByRole('button', { name: 'Cerrar carrito', exact: true }).click();
       await page.getByRole('button', { name: 'Ver cuenta', exact: true }).click();
       await page.getByRole('button', { name: 'Cerrar sesión', exact: true }).click();
-      await expect(page.getByRole('dialog')).toHaveCount(0);
+      await expect(page.getByRole('dialog', { name: 'Acceso a tu cuenta', exact: true })).toBeVisible();
       await expect(page.locator('.cart-button em')).toHaveText('0');
+      await page.getByRole('button', { name: 'Cerrar panel', exact: true }).click();
       await page.getByRole('button', { name: 'Abrir carrito', exact: true }).click();
       await expect(page.getByText('Privado de A', { exact: true })).toHaveCount(0);
       await page.getByRole('button', { name: 'Cerrar carrito', exact: true }).click();

@@ -6,6 +6,7 @@ import com.transformersas.marketplace.auth.infrastructure.security.CurrentAccoun
 import org.springframework.security.web.context.SecurityContextHolderFilter;
 import com.transformersas.marketplace.auth.infrastructure.security.EmailNotVerifiedException;
 import com.transformersas.marketplace.auth.infrastructure.security.LoginSessionPolicy;
+import com.transformersas.marketplace.auth.infrastructure.security.LoginAttemptGuard;
 import com.transformersas.marketplace.users.domain.repository.UserAccountRepository;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -46,8 +47,13 @@ public class SecurityConfiguration {
 
     @Bean
     DaoAuthenticationProvider accountAuthenticationProvider(UserDetailsService users, PasswordEncoder encoder,
-            UserAccountRepository accounts) {
-        var provider = new DaoAuthenticationProvider(users);
+            UserAccountRepository accounts, LoginAttemptGuard loginAttempts) {
+        var provider = new DaoAuthenticationProvider(users) {
+            @Override
+            public org.springframework.security.core.Authentication authenticate(org.springframework.security.core.Authentication authentication) {
+                return loginAttempts.authenticate(authentication, () -> super.authenticate(authentication));
+            }
+        };
         provider.setPasswordEncoder(encoder);
         // Post-checks run AFTER password validation: wrong credentials never reveal verification status.
         provider.setPostAuthenticationChecks(user -> {
@@ -80,7 +86,7 @@ public class SecurityConfiguration {
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http, DaoAuthenticationProvider provider,
                                             SecurityContextRepository contexts, LoginSessionPolicy sessionPolicy,
-                                            UserAccountRepository accounts) throws Exception {
+                                            UserAccountRepository accounts, LoginAttemptGuard loginAttempts) throws Exception {
         return http
                 .cors(Customizer.withDefaults())
                 .authenticationProvider(provider)
@@ -151,6 +157,7 @@ public class SecurityConfiguration {
                         .accessDeniedHandler((request, response, exception) -> response.setStatus(403)))
                 .formLogin(login -> login
                         .loginProcessingUrl("/api/auth/login")
+                        .authenticationDetailsSource(loginAttempts::details)
                         .usernameParameter("email")
                         .successHandler((request, response, authentication) -> {
                             var principal = (AccountPrincipal) authentication.getPrincipal();
@@ -165,7 +172,13 @@ public class SecurityConfiguration {
                             response.setStatus(204);
                         })
                         .failureHandler((request, response, exception) -> {
-                            if (exception instanceof EmailNotVerifiedException) {
+                            if (exception instanceof LoginAttemptGuard.Denied denied) {
+                                response.setStatus(denied.status);
+                                if (denied.retrySeconds > 0) response.setHeader("Retry-After", Long.toString(denied.retrySeconds));
+                                response.setContentType("application/json");
+                                response.setCharacterEncoding("UTF-8");
+                                response.getWriter().write("{\"code\":\"LOGIN_TEMPORARILY_UNAVAILABLE\",\"message\":\"No se puede iniciar sesión en este momento. Inténtalo más tarde.\"}");
+                            } else if (exception instanceof EmailNotVerifiedException) {
                                 response.setStatus(403);
                                 response.setContentType("application/json");
                                 response.setCharacterEncoding("UTF-8");

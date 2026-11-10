@@ -47,8 +47,13 @@ test('pending email blocks login, offers resend, handles delivery failure and ve
   await expect(page.getByRole('alert')).toContainText('Debes verificar tu correo');
   await page.getByRole('button', { name: 'Reenviar verificación', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('No se pudo enviar el correo');
+  await expect(page.locator('ion-input[name="correo"] input')).toHaveValue(account.email);
+  await expect(page.locator('ion-input[name="clave"] input')).toHaveValue('CorrectPassword123!');
+  await expect(page.getByRole('button', { name: 'Reenviar verificación', exact: true })).toBeEnabled();
+  expect(resendAttempts).toBe(1);
   await page.getByRole('button', { name: 'Reenviar verificación', exact: true }).click();
   await expect(page.getByRole('status').filter({ hasText: 'enviamos un nuevo código' })).toBeVisible();
+  expect(resendAttempts).toBe(2);
   await page.getByRole('button', { name: 'Verificar correo', exact: true }).click();
   await page.locator('ion-input[name="verificacion"] input').fill('invalid');
   await page.getByRole('button', { name: 'Confirmar correo', exact: true }).click();

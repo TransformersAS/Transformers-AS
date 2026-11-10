@@ -14,6 +14,8 @@ for (const rememberMe of [false, true]) {
       let releaseSuccess: () => void = () => {};
       const pendingSuccess = new Promise<void>(resolve => { releaseSuccess = resolve; });
       const account = { accountId: 1, email: 'person@example.com', roles: ['COMPRADOR'], activeRole: 'COMPRADOR' };
+      const product = { id: 71, name: 'Favorito de prueba', price: 10000, stock: 2, active: true,
+        category: 'Hogar', images: [], variants: [] };
       await page.route('**/api/**', async route => {
         const request = route.request();
         const path = new URL(request.url()).pathname;
@@ -55,6 +57,8 @@ for (const rememberMe of [false, true]) {
           return route.fulfill({ status: 204 });
         }
         if (path === '/api/cart') return json(200, { items: [], total: 0 });
+        if (path === '/api/products') return json(200, [product]);
+        if (path === '/api/favorites/ids') return json(200, authenticated ? [product.id] : []);
         if (path === '/api/recommendations') return json(200, { userId: 1, strategy: 'test', products: [] });
         return json(200, []);
       });
@@ -75,6 +79,12 @@ for (const rememberMe of [false, true]) {
       const heading = page.getByRole('heading', { name: 'Seguridad de tu cuenta' });
       const logout = page.getByRole('button', { name: 'Cerrar sesión', exact: true });
       await expect(heading).toBeVisible();
+      if (scenario === 'success') {
+        await page.getByRole('button', { name: 'Cerrar panel', exact: true }).click();
+        await expect(page.getByRole('button', { name: 'Retirar de favoritos Favorito de prueba', exact: true }))
+          .toHaveAttribute('aria-pressed', 'true');
+        await page.getByRole('button', { name: 'Ver cuenta', exact: true }).first().click();
+      }
       expect(csrfRequests).toBe(2); // Before and after login.
       await logout.click();
 
@@ -108,7 +118,8 @@ for (const rememberMe of [false, true]) {
         await logout.click();
       }
 
-      await expect(page.getByRole('dialog')).toHaveCount(0);
+      const loginPanel = page.getByRole('dialog', { name: 'Acceso a tu cuenta', exact: true });
+      await expect(loginPanel).toBeVisible();
       expect(authenticated).toBe(false);
       expect(logoutRequests).toBe(scenario === 'success' ? 1 : 2);
       expect(csrfRequests).toBe(scenario === 'csrf-fetch' ? 4 : scenario === 'csrf' ? 3 : 2);
@@ -116,13 +127,25 @@ for (const rememberMe of [false, true]) {
       // fetch above checks the server contract, not Angular's authentication/render state.
       await expect(page.locator('.welcome-strip')).toContainText('Hola, visitante');
       await expect(page.locator('.cart-button em')).toHaveText('0');
-      await page.getByRole('button', { name: 'Ver cuenta', exact: true }).first().click();
-      const loginPanel = page.getByRole('dialog', { name: 'Acceso a tu cuenta', exact: true });
       await expect(loginPanel).toBeVisible();
       await expect(loginPanel).toHaveAttribute('aria-busy', 'false');
       await expect(loginPanel.getByRole('button', { name: 'Iniciar sesión', exact: true })).toBeVisible();
       await expect(heading).toHaveCount(0);
       await expect(page.getByRole('alert')).toHaveCount(0);
+      await expect(page.locator('ion-input[name="correo"] input')).toHaveValue('');
+      await expect(page.locator('ion-input[name="clave"] input')).toHaveValue('');
+      await expect(page.getByRole('checkbox', { name: 'Mantener la sesión iniciada' })).not.toBeChecked();
+      // The visitor can close and reopen the login form normally.
+      await loginPanel.getByRole('button', { name: 'Cerrar panel', exact: true }).click();
+      await expect(loginPanel).toHaveCount(0);
+      if (scenario === 'success') {
+        await expect(page.getByRole('button', { name: 'Guardar Favorito de prueba', exact: true }))
+          .toHaveAttribute('aria-pressed', 'false');
+        await expect(page.getByRole('button', { name: 'Mis pedidos', exact: true })).toHaveCount(0);
+        await expect(page.getByRole('button', { name: 'Opciones de mis compras', exact: true })).toHaveCount(0);
+      }
+      await page.getByRole('button', { name: 'Ver cuenta', exact: true }).first().click();
+      await expect(loginPanel).toBeVisible();
     });
   }
 }

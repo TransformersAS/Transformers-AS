@@ -2,8 +2,10 @@ package com.transformersas.marketplace.orders;
 
 import com.transformersas.marketplace.support.AbstractIntegrationTest;
 import org.flywaydb.core.Flyway;
+import org.flywaydb.core.api.MigrationState;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 
@@ -19,6 +21,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class SchemaMigrationTests extends AbstractIntegrationTest {
 
     private static final String LEGACY_DB = "legacy_backfill";
+
+    @Autowired
+    private Flyway flyway;
 
     @AfterAll
     static void dropLegacyDatabase() {
@@ -38,6 +43,39 @@ class SchemaMigrationTests extends AbstractIntegrationTest {
                 String.class)).containsExactlyInAnyOrder("9", "10", "11");
         assertThat(jdbc.queryForMap("SELECT id, name FROM stores WHERE id = 1"))
                 .containsEntry("name", "Tienda principal");
+
+        // Validate the migrations actually resolved from the classpath, without assuming consecutive versions.
+        flyway.validate();
+        var migrations = flyway.info();
+        assertThat(migrations.pending()).isEmpty();
+        assertThat(migrations.all()).isNotEmpty().allSatisfy(migration ->
+                assertThat(migration.getState()).isEqualTo(MigrationState.SUCCESS));
+
+        var favorites = jdbc.queryForMap("""
+                SELECT version, script, installed_rank FROM flyway_schema_history
+                WHERE version = '39' AND success = 1""");
+        var loginAttempts = jdbc.queryForMap("""
+                SELECT version, script, installed_rank FROM flyway_schema_history
+                WHERE version = '42' AND success = 1""");
+        assertThat(favorites).containsEntry("version", "39")
+                .containsEntry("script", "V39__favorites_and_product_alerts.sql");
+        assertThat(loginAttempts).containsEntry("version", "42")
+                .containsEntry("script", "V42__login_attempts.sql");
+        assertThat(jdbc.queryForList("""
+                SELECT script FROM flyway_schema_history
+                WHERE version IN ('39', '40', '41', '42') AND success = 1
+                ORDER BY installed_rank""", String.class))
+                .containsExactly("V39__favorites_and_product_alerts.sql", "V40__add_product_unit_cost.sql",
+                        "V41__create_store_suspensions.sql", "V42__login_attempts.sql");
+
+        assertThat(((Number) favorites.get("installed_rank")).intValue())
+                .isLessThan(((Number) loginAttempts.get("installed_rank")).intValue());
+
+        assertThat(jdbc.queryForList("""
+                SELECT table_name FROM information_schema.tables
+                WHERE table_schema = DATABASE() AND table_type = 'BASE TABLE'
+                  AND table_name IN ('buyer_favorites', 'product_alerts', 'login_attempts')""", String.class))
+                .containsExactlyInAnyOrder("buyer_favorites", "product_alerts", "login_attempts");
     }
 
     @Test

@@ -39,7 +39,8 @@ function fixture(status = 'CONFIRMED', response, options = {}) {
     },
     obtenerPedido: id => {
       details.push(id);
-      return options.detail ? options.detail(id) : rx.of({ id, status, items: [], history: [] });
+      return options.detail ? options.detail(id) : rx.of({ id,
+        status: rows.find(row => row.id === id)?.status ?? status, items: [], history: [] });
     },
     obtenerComprobante: (id, download) => {
       pdfs.push({ id, download });
@@ -236,7 +237,9 @@ test('cancelar recarga desde backend respetando los filtros y conserva el detall
 });
 
 test('un cambio logístico recarga la búsqueda activa', () => {
-  const { component: c, lists } = fixture();
+  const { component: c, lists } = fixture('CONFIRMED', undefined, {
+    detail: id => rx.of({ id, status: 'DELIVERED', history: [] })
+  });
   c.filtrosActivos = { status: 'IN_TRANSIT' };
   c.estadoActualizado('DELIVERED');
   assert.equal(c.detalle.status, 'DELIVERED');
@@ -386,6 +389,33 @@ test('actualizar seguimiento recupera pago y devoluciones sin cancelar de nuevo'
   c.detalle.paymentStatus = 'REFUND_PENDING'; c.actualizarHistorial(); c.exito = '';
   assert.equal(c.detalle.paymentStatus, 'REFUNDED');
   assert.equal(c.detalle.refunds[0].status, 'CONFIRMED_REVIEW'); assert.equal(requests.length, 0);
+});
+
+test('actualizar seguimiento refleja el estado vigente y retira la confirmación si el pedido dejó de ser cancelable', () => {
+  const { component: c, requests } = fixture('CONFIRMED', undefined, { detail: id => rx.of({ id,
+    status: 'READY_FOR_DISPATCH', paymentStatus: 'APPROVED', history: [], refunds: [] }) });
+  c.prepararCancelacion(); c.motivo = 'CHANGED_MIND';
+  c.actualizarHistorial();
+  assert.equal(c.detalle.status, 'READY_FOR_DISPATCH');
+  assert.equal(c.pedidos.find(p => p.id === 7).status, 'READY_FOR_DISPATCH');
+  assert.equal(c.puedeCancelar, false);
+  assert.equal(c.confirmar, false);
+  c.cancelarPedido();
+  assert.equal(requests.length, 0);
+});
+
+test('actualizar seguimiento muestra la confirmación financiera devuelta por el backend sin cambiar los datos históricos', () => {
+  const provenance = { financialUpdateVerified: true, paymentSource: 'UNKNOWN' };
+  const { component: c, requests } = fixture('CANCELLED', undefined, { detail: id => rx.of({ id,
+    status: 'CANCELLED', paymentStatus: 'REFUNDED', history: [], refunds: [], provenance }) });
+  c.detalle.paymentStatus = 'REFUND_PENDING';
+  c.detalle.provenance = { financialUpdateVerified: false, paymentSource: 'UNKNOWN' };
+  c.detalle.sellerNameSnapshot = 'Vendedor al comprar';
+  c.actualizarHistorial();
+  assert.equal(c.detalle.provenance.financialUpdateVerified, true);
+  assert.equal(c.detalle.sellerNameSnapshot, 'Vendedor al comprar');
+  assert.equal(c.detalle.paymentStatus, 'REFUNDED');
+  assert.equal(requests.length, 0);
 });
 test('cerrar sesión cancela seguimiento pendiente y elimina datos financieros', () => {
   const pending = new rx.Subject();

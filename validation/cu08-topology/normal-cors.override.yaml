@@ -1,0 +1,5 @@
+# Loaded only by control.py normal. Not used by demo, root Compose or production.
+services:
+  backend:
+    environment:
+      APP_CORS_ALLOWED_ORIGINS: 'http://localhost:4300,http://localhost:4200,http://localhost:8100,http://127.0.0.1:14430'

@@ -1,6 +1,7 @@
 package com.transformersas.marketplace.auth.application.usecase;
 
 import com.transformersas.marketplace.auth.infrastructure.security.AccountPrincipal;
+import com.transformersas.marketplace.auth.infrastructure.security.LoginSessionPolicy;
 import com.transformersas.marketplace.users.domain.model.*;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -24,6 +25,36 @@ class ManageAccountSessionsTests {
     private final Map<String, MapSession> indexed = new LinkedHashMap<>();
 
     @Test
+    void descriptionsBelongToTheirSessionAndMissingMetadataIsNotReconstructed() {
+        var current = session("current", owner);
+        current.setAttribute(LoginSessionPolicy.DEVICE_DESCRIPTION, "Chrome · Windows");
+        session("older", owner);
+        var foreign = session("foreign", principal(2L));
+        foreign.setAttribute(LoginSessionPolicy.DEVICE_DESCRIPTION, "Firefox · Linux");
+        stubIndex();
+        var result = service.list(owner, "current");
+        assertThat(result).hasSize(2);
+        assertThat(result.stream().filter(ManageAccountSessions.SessionSummary::current).findFirst().orElseThrow()
+                .deviceDescription()).isEqualTo("Chrome · Windows");
+        assertThat(result.stream().filter(summary -> !summary.current()).findFirst().orElseThrow()
+                .deviceDescription()).isEqualTo(LoginSessionPolicy.UNKNOWN_DEVICE);
+        assertThat(result).extracting(ManageAccountSessions.SessionSummary::deviceDescription).doesNotContain("Firefox · Linux");
+        verify(repository, never()).deleteById(anyString());
+    }
+
+    @Test
+    void absoluteExpiryRejectsBoundaryAndMissingOrInvalidMetadata() {
+        Instant now = Instant.parse("2026-01-01T00:00:00Z");
+        assertThat(LoginSessionPolicy.isAbsolutelyExpired(now.minusSeconds(1), now, now)).isTrue();
+        assertThat(LoginSessionPolicy.isAbsolutelyExpired(now, now.plusSeconds(1), now)).isFalse();
+        assertThat(LoginSessionPolicy.isAbsolutelyExpired(null, now.plusSeconds(1), now)).isTrue();
+        assertThat(LoginSessionPolicy.isAbsolutelyExpired(now, null, now)).isTrue();
+        assertThat(LoginSessionPolicy.isAbsolutelyExpired("legacy", now.plusSeconds(1), now)).isTrue();
+        assertThat(LoginSessionPolicy.isAbsolutelyExpired(now.plusSeconds(1), now.plusSeconds(2), now)).isTrue();
+        assertThat(LoginSessionPolicy.isAbsolutelyExpired(now, now.minusSeconds(1), now)).isTrue();
+    }
+
+    @Test
     void listsOnlyAuthenticatedUnexpiredOwnedSessionsAndHandlesUnlimitedExpiry() {
         var current = session("current", owner);
         current.setMaxInactiveInterval(Duration.ofSeconds(-1));
@@ -41,7 +72,7 @@ class ManageAccountSessionsTests {
         assertThat(result).hasSize(2);
         assertThat(result.getFirst().current()).isTrue();
         assertThat(result.getFirst().createdAt()).isEqualTo(created);
-        assertThat(result.getFirst().expiresAt()).isNull();
+        assertThat(result.getFirst().expiresAt()).isEqualTo((Instant) current.getAttribute(LoginSessionPolicy.ABSOLUTE_EXPIRES_AT));
         assertThat(result.getLast().current()).isFalse();
         assertThat(result.getLast().lastAccessedAt()).isEqualTo(other.getLastAccessedTime());
         assertThat(result.getLast().expiresAt()).isEqualTo(other.getLastAccessedTime().plus(other.getMaxInactiveInterval()));
@@ -97,6 +128,8 @@ class ManageAccountSessionsTests {
     }
     private MapSession session(String id, AccountPrincipal principal) {
         var session = new MapSession(id);
+        session.setAttribute(LoginSessionPolicy.AUTHENTICATED_AT, Instant.now().minusSeconds(60));
+        session.setAttribute(LoginSessionPolicy.ABSOLUTE_EXPIRES_AT, Instant.now().plusSeconds(86400));
         session.setAttribute(CONTEXT, new SecurityContextImpl(
                 UsernamePasswordAuthenticationToken.authenticated(principal, null, principal.getAuthorities())));
         indexed.put(id, session);

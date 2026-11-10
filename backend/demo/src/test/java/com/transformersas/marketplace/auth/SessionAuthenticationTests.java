@@ -234,7 +234,8 @@ class SessionAuthenticationTests {
             var expires = java.time.Instant.parse(session.get("expiresAt").asText());
             assertThat(accessed).isAfterOrEqualTo(created);
             assertThat(expires).isAfter(accessed);
-            assertThat(session.size()).isEqualTo(5);
+            assertThat(session.size()).isEqualTo(6);
+            assertThat(session.get("deviceDescription").asText()).isEqualTo("Dispositivo o navegador no identificado");
             if (session.get("current").asBoolean()) {
                 assertThat(currentId).isNull();
                 currentId = session.get("id").asText();

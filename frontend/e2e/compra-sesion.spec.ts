@@ -40,6 +40,8 @@ async function accountPanel(page: Page) {
 async function logoutAndLoginB(page: Page, checkLogout = true) {
   await accountPanel(page); await page.getByRole('button', { name: 'Cerrar sesión', exact: true }).click();
   await expect(page.locator('.welcome-strip')).toContainText('Hola, visitante');
+  await expect(page.getByLabel('Finalizar compra', { exact: true })).toHaveCount(0);
+  await expect(page.getByText('Tu sesión ha finalizado. Inicia sesión de nuevo para continuar.', { exact: true })).toHaveCount(0);
   if (checkLogout) await expect(page.getByText('Error de compra de A', { exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'Ver cuenta', exact: true }).focus(); await page.keyboard.press('Enter');
   await page.locator('ion-input[name="correo"] input').fill('b@example.test');
@@ -47,6 +49,11 @@ async function logoutAndLoginB(page: Page, checkLogout = true) {
   await page.getByRole('button', { name: 'Iniciar sesión', exact: true }).click();
   await expect(page.locator('.welcome-strip')).toContainText('Hola, b');
   await page.getByRole('button', { name: 'Cerrar panel', exact: true }).click();
+  // A fresh checkout for B keeps the original late-response/error isolation assertions meaningful.
+  await page.getByRole('button', { name: 'Abrir carrito', exact: true }).click();
+  await page.getByRole('button', { name: 'Continuar compra', exact: true }).click();
+  await page.getByPlaceholder('Escribe tu dirección de entrega').fill('Dirección de B');
+  await page.getByRole('button', { name: 'Calcular total', exact: true }).click();
 }
 test('logout y comprador B no conservan el error visible de A', async ({ page }) => {
   await fixture(page); await logoutAndLoginB(page);

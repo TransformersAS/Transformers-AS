@@ -67,6 +67,7 @@ export class CheckoutStatusComponent implements OnDestroy {
       next: value => {
         if (!this.valid(version)) return;
         this.checkout = value; this.busy = false;
+        if (!this.canCancel) this.confirming = false;
         if (value.status === 'APPROVED') this.cart.refrescar();
       },
       error: err => { if (this.valid(version)) { this.busy = false; this.handleError(err); } }
