@@ -112,6 +112,10 @@
     <app-mis-pedidos *ngIf="esComprador && mostrarPedidos"
       (cerrar)="mostrarPedidos = false" (resenasCambio)="actualizarResenas()"></app-mis-pedidos>
 
+    <button class="registro-comprador-trigger" type="button" (click)="mostrarRegistroComprador = true; mostrarAcceso = false">Crear cuenta de comprador / Habilitar COMPRADOR</button>
+<div class="panel-pedidos" role="dialog" aria-modal="true" aria-labelledby="titulo-registro-comprador" *ngIf="mostrarRegistroComprador">
+  <app-registro-comprador (cerrar)="mostrarRegistroComprador = false" (acceso)="mostrarAcceso = true"></app-registro-comprador>
+</div>
     <app-acceso
       *ngIf="mostrarAcceso"
       (cerrar)="mostrarAcceso = false"
@@ -1565,6 +1569,7 @@
 <div class="panel-pedidos" *ngIf="mostrarResenas && (esComprador || esVendedor)">
   <app-mis-resenas [seller]="esVendedor" (cerrar)="mostrarResenas=false" (changed)="actualizarResenas()"></app-mis-resenas>
 </div>
+
 </ion-app>
 
 <app-notificaciones *ngIf="(esComprador || esVendedor) && mostrarNotificaciones" (cerrar)="mostrarNotificaciones = false" (abrirProducto)="abrirProductoGuardado($event)"></app-notificaciones>
@@ -1572,3 +1577,4 @@
   <app-mis-favoritos (cerrar)="mostrarFavoritos = false" (abrir)="abrirProductoGuardado($event)"
     (agregar)="agregarAlCarrito($event)" (comparar)="abrirProductoGuardado($event, true)"></app-mis-favoritos>
 </div>
+

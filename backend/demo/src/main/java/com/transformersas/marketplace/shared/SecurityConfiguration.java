@@ -106,6 +106,8 @@ public class SecurityConfiguration {
                                 "/api/auth/email-verification/confirm").permitAll()
                         // Registro de vendedores (CU-12): un visitante lee las condiciones, se registra y confirma su
                         // correo sin sesión. Habilitar el rol con una cuenta existente sí exige sesión.
+                        .requestMatchers(HttpMethod.GET, "/api/buyers/terms").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/buyers/register").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/sellers/terms").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/sellers/register").permitAll()
                         // Catálogo público: el visitante explora los productos y su ficha antes de iniciar sesión.

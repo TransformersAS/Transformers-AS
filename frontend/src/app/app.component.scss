@@ -2114,3 +2114,15 @@ footer > div {
   visibility: hidden;
   pointer-events: none;
 }
+
+.registro-comprador-trigger {
+  display: block;
+  margin: 0.75rem auto;
+  padding: 0.65rem 1rem;
+  border: 1px solid currentColor;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}

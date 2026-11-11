@@ -83,6 +83,7 @@ import { EvaluacionTiendasComponent } from './suspensiones/components/evaluacion
 import { MisProductosComponent } from './panel-vendedor/components/mis-productos.component';
 import { MiTiendaComponent } from './panel-vendedor/components/mi-tienda.component';
 import { ReclamacionesComponent } from './reclamaciones-devoluciones/components/reclamaciones.component';
+import { RegistroCompradorComponent } from './registro-comprador/registro-comprador.component';
 import { RegistroVendedorComponent } from './registro-vendedor/components/registro-vendedor.component';
 import { MisReportesComponent } from './reportes/components/mis-reportes.component';
 import { ReportarContenidoComponent } from './reportes/components/reportar-contenido.component';
@@ -209,6 +210,7 @@ const MENUS_POR_ROL: Record<string, MenuRol> = {
     MiTiendaComponent,
     ReclamacionesComponent,
     RegistroVendedorComponent,
+    RegistroCompradorComponent,
     MisReportesComponent,
     ReportarContenidoComponent,
     MisDevolucionesComponent,
@@ -485,6 +487,7 @@ export class AppComponent {
 
   /** Registro de vendedores (CU-12): lo abre el botón "Conocer el espacio vendedor" de la portada. */
   mostrarRegistroVendedor = false;
+  mostrarRegistroComprador = false;
 
   get esComprador(): boolean {
     return this.auth.cuenta()?.activeRole === 'COMPRADOR';
