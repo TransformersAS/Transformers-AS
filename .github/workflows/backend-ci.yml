@@ -165,6 +165,9 @@ jobs:
       - name: Run real CU-08 browser/backend/MySQL E2E
         run: bash scripts/cu08-real-e2e.sh
 
+      - name: Ejecutar E2E real de CU-09 con MySQL y Mailpit
+        run: bash scripts/cu09-real-e2e.sh
+
       - name: Upload Playwright report
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
@@ -196,6 +199,7 @@ jobs:
           DB_PASSWORD_SECRET: validation-db
           MYSQL_ROOT_PASSWORD_SECRET: validation-root
           LOGISTICS_WEBHOOK_SECRET: validation-logistics
+          METRICS_TOKEN_SECRET: validation-metrics
         run: docker stack config -c stack.yml > /dev/null
 
   deploy:
