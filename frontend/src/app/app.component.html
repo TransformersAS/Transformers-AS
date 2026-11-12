@@ -1546,6 +1546,7 @@
             <h3>Descripción</h3>
             <p class="detalle-descripcion">{{ p.descripcion || 'El vendedor aún no ha añadido una descripción.' }}</p>
           </section>
+          <app-contactar-vendedor *ngIf="esComprador" [productId]="p.id"></app-contactar-vendedor>
           <app-resenas-producto [productId]="p.id"></app-resenas-producto>
           <section class="detalle-seccion" *ngIf="p.variantes?.length">
             <h3>Opciones publicadas</h3>
@@ -1583,3 +1584,5 @@
     (agregar)="agregarAlCarrito($event)" (comparar)="abrirProductoGuardado($event, true)"></app-mis-favoritos>
 </div>
 
+
+<app-conversaciones *ngIf="(esComprador || esVendedor) && mensajeria.abierta()"></app-conversaciones>

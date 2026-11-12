@@ -1,3 +1,4 @@
+import { ContactarVendedorComponent } from '../../mensajeria/components/contactar-vendedor.component';
 import { Component, EventEmitter, Output, Input, effect, inject } from '@angular/core';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { FormsModule } from '@angular/forms';
@@ -16,7 +17,7 @@ import { EditorResenaComponent } from '../../resenas-favoritos/components/editor
 
 @Component({
   selector: 'app-mis-pedidos', standalone: true,
-  imports: [CommonModule, FormsModule, ResumenPedidoComponent, SeguimientoLogisticoComponent, ConsultaDevolucionComponent,
+  imports: [ContactarVendedorComponent, CommonModule, FormsModule, ResumenPedidoComponent, SeguimientoLogisticoComponent, ConsultaDevolucionComponent,
     DevolverLineaComponent,EditorResenaComponent],
   templateUrl: './mis-pedidos.component.html',
   styleUrl: './mis-pedidos.component.scss'

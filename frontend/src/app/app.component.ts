@@ -1,3 +1,6 @@
+import { ConversacionesComponent } from './mensajeria/components/conversaciones.component';
+import { ContactarVendedorComponent } from './mensajeria/components/contactar-vendedor.component';
+import { MensajeriaService } from './mensajeria/services/mensajeria.service';
 import { CheckoutStatusComponent } from './checkout/components/checkout-status.component';
 import { PushService } from './notificaciones/push.service';
 import { MisResenasComponent } from './resenas-favoritos/components/mis-resenas.component';
@@ -124,7 +127,7 @@ import {
 type OpcionMenu =
   | 'pedidos-recibidos' | 'devoluciones-recibidas' | 'reclamaciones' | 'mis-productos' | 'inventario' | 'mi-tienda'
   | 'estado-tienda' | 'analitica' | 'mis-reportes' | 'mis-devoluciones' | 'favoritos' | 'moderacion'
-  | 'evaluar-tiendas' | 'catalogo-admin' | 'resenas';
+  | 'mensajeria' | 'evaluar-tiendas' | 'catalogo-admin' | 'resenas';
 
 interface MenuRol {
   /** Texto visible del botón; el nombre accesible es «Opciones de …». */
@@ -142,6 +145,7 @@ const MENUS_POR_ROL: Record<string, MenuRol> = {
     grupos: [{ titulo: 'Después de comprar', opciones: [
       { id: 'mis-devoluciones', etiqueta: 'Mis devoluciones' },
       { id: 'reclamaciones', etiqueta: 'Mis reclamaciones' },
+      { id: 'mensajeria', etiqueta: 'Conversaciones' },
       { id: 'mis-reportes', etiqueta: 'Mis reportes' },
       { id: 'favoritos', etiqueta: 'Mis favoritos y alertas' },
       { id: 'resenas', etiqueta: 'Mis reseñas' }
@@ -164,7 +168,8 @@ const MENUS_POR_ROL: Record<string, MenuRol> = {
       { titulo: 'Tienda', opciones: [
         { id: 'mi-tienda', etiqueta: 'Mi tienda' },
         { id: 'estado-tienda', etiqueta: 'Estado de mi tienda' },
-        { id: 'mis-reportes', etiqueta: 'Mis reportes' }
+        { id: 'mensajeria', etiqueta: 'Conversaciones' },
+      { id: 'mis-reportes', etiqueta: 'Mis reportes' }
       ] }
     ]
   },
@@ -190,7 +195,7 @@ const MENUS_POR_ROL: Record<string, MenuRol> = {
   standalone: true,
 
   imports: [
-    CheckoutStatusComponent, MisFavoritosComponent, MisResenasComponent, ResenasProductoComponent, IonApp,
+    ConversacionesComponent, ContactarVendedorComponent, CheckoutStatusComponent, MisFavoritosComponent, MisResenasComponent, ResenasProductoComponent, IonApp,
     IonContent,
     IonIcon,
     AsyncPipe,
@@ -223,6 +228,7 @@ const MENUS_POR_ROL: Record<string, MenuRol> = {
   styleUrl: './app.component.scss'
 })
 export class AppComponent {
+  readonly mensajeria = inject(MensajeriaService);
 
   /** Menú de accesos del rol activo (botón fijo abajo a la izquierda). */
   mostrarMenu = false;
@@ -541,6 +547,7 @@ export class AppComponent {
       case 'mis-reportes': this.reportes.abrirPanel(); break;
       case 'mis-devoluciones': this.devoluciones.abrirPanelComprador(); break;
       case 'favoritos': this.mostrarFavoritos = true; break;
+      case 'mensajeria': this.mensajeria.abrir(); break;
       case 'resenas': this.mostrarResenas = true; break;
       case 'moderacion': this.mostrarModeracion = true; break;
       case 'evaluar-tiendas': this.mostrarEvaluacionTiendas = true; break;
@@ -558,12 +565,12 @@ export class AppComponent {
 
     this.auth.restaurar();
     effect(() => {
-      const cuenta=this.auth.cuenta();this.mostrarFavoritos=false;this.mostrarMenu=false;this.mostrarResenas=false;
+      const cuenta=this.auth.cuenta();this.mensajeria.cerrar();this.mostrarFavoritos=false;this.mostrarMenu=false;this.mostrarResenas=false;
       if(cuenta && ['COMPRADOR','VENDEDOR'].includes(cuenta.activeRole || '') && new URLSearchParams(location.search).get('notificaciones')==='1') {
         this.mostrarNotificaciones=true;
         const url=new URL(location.href);url.searchParams.delete('notificaciones');history.replaceState(null,'',url);
       }
-    });
+    }, { allowSignalWrites: true });
     const compartido = new URLSearchParams(location.search).get('producto');
     if (compartido && /^[1-9][0-9]{0,14}$/.test(compartido)) this.abrirProductoGuardado(Number(compartido), false, true);
 

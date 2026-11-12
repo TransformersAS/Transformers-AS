@@ -11,7 +11,7 @@ import java.util.List;
 
 @Service
 public class ListOwnNotifications {
-    public record Item(Long id, String title, String message, LocalDateTime createdAt, Long orderId, Long productId) { }
+    public record Item(Long id, String title, String message, LocalDateTime createdAt, Long orderId, Long productId, Long conversationId) { }
     public record Page(List<Item> items, boolean hasMore) { }
     private final NotificationRepository repository;
     public ListOwnNotifications(NotificationRepository repository) { this.repository=repository; }
@@ -24,6 +24,8 @@ public class ListOwnNotifications {
             "ORDER".equals(n.referenceType()) && n.referenceId().matches("[1-9][0-9]{0,17}")
                 ? Long.valueOf(n.referenceId()) : null,
             "PRODUCT".equals(n.referenceType()) && n.referenceId().matches("[1-9][0-9]{0,17}")
+                ? Long.valueOf(n.referenceId()) : null,
+            "CONVERSATION".equals(n.referenceType()) && n.referenceId().matches("[1-9][0-9]{0,17}")
                 ? Long.valueOf(n.referenceId()) : null)).toList(),rows.size()>size);
     }
 }
