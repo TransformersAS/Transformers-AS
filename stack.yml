@@ -62,6 +62,12 @@ services:
         uid: "10001"
         gid: "10001"
         mode: 0400
+      # Token con el que Prometheus lee /actuator/prometheus (stack.monitoreo.yml). Sin él las métricas quedan cerradas.
+      - source: metrics_token
+        target: monitoring.metrics.token
+        uid: "10001"
+        gid: "10001"
+        mode: 0400
     networks:
       - internal
     ports:
@@ -153,3 +159,6 @@ secrets:
   logistics_webhook_secret:
     external: true
     name: ${LOGISTICS_WEBHOOK_SECRET:?Set LOGISTICS_WEBHOOK_SECRET}
+  metrics_token:
+    external: true
+    name: ${METRICS_TOKEN_SECRET:?Set METRICS_TOKEN_SECRET}

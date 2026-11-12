@@ -1,0 +1,26 @@
+# Prometheus del stack de monitoreo (stack.monitoreo.yml). Lee cada 5 s:
+#  - backend: las métricas de cada réplica (JVM, peticiones, pool de conexiones). "tasks.backend" devuelve una IP por
+#    réplica, igual que usa Nginx para repartir la carga; así cada réplica sale por separado en el tablero.
+#  - cadvisor: CPU y memoria de cada contenedor, con un cAdvisor por computador del clúster.
+global:
+  scrape_interval: 5s
+  scrape_timeout: 4s
+
+scrape_configs:
+  - job_name: backend
+    metrics_path: /actuator/prometheus
+    authorization:
+      type: Bearer
+      credentials_file: /run/secrets/metrics_token
+    dns_sd_configs:
+      - names: [tasks.backend]
+        type: A
+        port: 8080
+        refresh_interval: 5s
+
+  - job_name: cadvisor
+    dns_sd_configs:
+      - names: [tasks.cadvisor]
+        type: A
+        port: 8080
+        refresh_interval: 10s

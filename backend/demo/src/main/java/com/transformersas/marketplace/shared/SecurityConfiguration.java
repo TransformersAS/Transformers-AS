@@ -15,6 +15,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
+import org.springframework.security.authorization.AuthorizationDecision;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -86,7 +87,8 @@ public class SecurityConfiguration {
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http, DaoAuthenticationProvider provider,
                                             SecurityContextRepository contexts, LoginSessionPolicy sessionPolicy,
-                                            UserAccountRepository accounts, LoginAttemptGuard loginAttempts) throws Exception {
+                                            UserAccountRepository accounts, LoginAttemptGuard loginAttempts,
+                                            @Value("${monitoring.metrics.token:}") String metricsToken) throws Exception {
         return http
                 .cors(Customizer.withDefaults())
                 .authenticationProvider(provider)
@@ -96,6 +98,10 @@ public class SecurityConfiguration {
                 .authorizeHttpRequests(authorize -> authorize
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                         .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
+                        // Monitoreo: las métricas no pasan por la sesión; solo las lee quien tenga el token (Prometheus).
+                        .requestMatchers(HttpMethod.GET, "/actuator/prometheus").access((authentication, context) ->
+                                new AuthorizationDecision(MetricsToken.matches(metricsToken,
+                                        context.getRequest().getHeader("Authorization"))))
                         .requestMatchers(HttpMethod.GET, "/api/auth/csrf").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/payments/mercadopago/webhook").permitAll()

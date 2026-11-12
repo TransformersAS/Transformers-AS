@@ -86,4 +86,15 @@ class MarketplaceApplicationTests {
 		mockMvc.perform(get("/actuator/env")).andExpect(status().isUnauthorized());
 	}
 
+	@Test
+	void metricsAreReadableOnlyWithTheScrapeToken() throws Exception {
+		mockMvc.perform(get("/actuator/prometheus")).andExpect(status().isUnauthorized());
+		mockMvc.perform(get("/actuator/prometheus").header("Authorization", "Bearer otro-token"))
+				.andExpect(status().isUnauthorized());
+		String metrics = mockMvc.perform(get("/actuator/prometheus").header("Authorization", "Bearer test-metrics-token"))
+				.andExpect(status().isOk())
+				.andReturn().getResponse().getContentAsString();
+		assertThat(metrics).contains("jvm_memory_used_bytes", "process_cpu_usage", "hikaricp_connections_active");
+	}
+
 }
