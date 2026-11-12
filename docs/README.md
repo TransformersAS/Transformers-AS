@@ -61,6 +61,7 @@ Este es el punto de entrada a las guías de Marketplace. Los documentos están a
 | [Pruebas de autenticación y sesiones — CU-08](pruebas/cu-08-autenticacion-y-sesiones.md) | Localizar pruebas de backend, interfaz y extremo a extremo, con sus alcances. |
 | [Cobertura de integración del backend](pruebas/cobertura-integracion-backend.md) | Ejecutar y auditar las pruebas de integración y su cobertura. |
 | [Datos de demostración y rendimiento](pruebas/datos-demostracion-y-rendimiento.md) | Preparar datos reproducibles para demostraciones y pruebas de carga. |
+| [Mediciones de ASR-005 y ASR-006](pruebas/mediciones-asr-005-asr-006.md) | Consultar los tiempos medidos de rendimiento, despliegue y rollback, y qué falta medir con dos computadores. |
 
 ## Despliegue e integración continua
 

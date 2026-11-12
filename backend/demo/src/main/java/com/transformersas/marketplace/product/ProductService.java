@@ -11,12 +11,19 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
+import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
 @Service
 @Transactional(readOnly = true)
 public class ProductService {
+    /** Estados que ve un comprador: ni borradores ni retirados por su vendedor (CU-14). */
+    private static final Set<ProductStatus> VISIBLE_TO_BUYERS = EnumSet.of(ProductStatus.ACTIVE, ProductStatus.PAUSED);
+    /** Id que ningún producto ni tienda tiene: una lista vacía en un NOT IN de SQL no devolvería filas. */
+    private static final Set<Long> NONE = Set.of(-1L);
+
     private final CurrentActorProvider actor;
     private final ProductRepository productRepository;
     private final ContentVisibility contentVisibility;
@@ -37,19 +44,26 @@ public class ProductService {
      * nuevas compras, como una suspendida (CU-27).
      */
     public List<ProductResponse> getAllProducts() {
-        Set<String> moderated = contentVisibility.nonVisibleIds(ReportContentType.PUBLICACION);
-        Set<Long> closedStores = storeOperation.nonOperatingStoreIds();
-        var ratings=reviews.summaries(null,null);
-        return productRepository.findAll().stream()
-                .filter(this::isVisibleToBuyers)
-                .filter(product -> !moderated.contains(String.valueOf(product.getId())))
-                .filter(product -> !closedStores.contains(product.getStoreId()))
-                .map(p->{var rating=ratings.get(p.getId());return ProductResponse.from(p).withRating(rating==null?0:rating.average(),rating==null?0:rating.count());}).toList();
+        Set<Long> hidden = new HashSet<>(NONE);
+        for (String id : contentVisibility.nonVisibleIds(ReportContentType.PUBLICACION)) {
+            // Un id de contenido que no sea numérico no corresponde a ningún producto.
+            if (id.matches("[0-9]{1,18}")) {
+                hidden.add(Long.valueOf(id));
+            }
+        }
+        Set<Long> closedStores = new HashSet<>(NONE);
+        closedStores.addAll(storeOperation.nonOperatingStoreIds());
+        var ratings = reviews.summaries(null, null);
+        return productRepository.findCatalog(VISIBLE_TO_BUYERS, hidden, closedStores).stream()
+                .map(product -> {
+                    var rating = ratings.get(product.id());
+                    return rating == null ? product : product.withRating(rating.average(), rating.count());
+                }).toList();
     }
 
     /** Los borradores y los productos retirados por su vendedor (CU-14) nunca se muestran a los compradores. */
     private boolean isVisibleToBuyers(Product product) {
-        return product.getStatus() != ProductStatus.DRAFT && product.getStatus() != ProductStatus.RETIRED;
+        return VISIBLE_TO_BUYERS.contains(product.getStatus());
     }
 
     public ProductResponse getProductById(Long id) {
