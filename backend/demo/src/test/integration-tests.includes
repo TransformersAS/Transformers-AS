@@ -109,5 +109,7 @@ com/transformersas/marketplace/stores/infrastructure/config/OwnerRunnerIntegrati
 com/transformersas/marketplace/suspensions/StoreSuspensionIntegrationTests.java
 com/transformersas/marketplace/users/BuyerProfileMigrationTests.java
 com/transformersas/marketplace/users/BuyerRegistrationIntegrationTests.java
+com/transformersas/marketplace/users/PersonalProfileIntegrationTests.java
+com/transformersas/marketplace/users/PersonalProfileMigrationTests.java
 com/transformersas/marketplace/users/UserAccountPersistenceTests.java
 com/transformersas/marketplace/users/infrastructure/config/LocalProvisioningIntegrationTests.java
