@@ -34,6 +34,7 @@ com/transformersas/marketplace/logistics/TrackingSchemaTests.java
 com/transformersas/marketplace/notifications/NotificationInboxTests.java
 com/transformersas/marketplace/notifications/NotificationsHttpIntegrationTests.java
 com/transformersas/marketplace/notifications/NotificationsIntegrationTests.java
+com/transformersas/marketplace/notifications/push/PushQueueIntegrationTests.java
 com/transformersas/marketplace/orders/BuyerOrderFilterTests.java
 com/transformersas/marketplace/orders/BuyerOrderHistoricalDetailTests.java
 com/transformersas/marketplace/orders/BuyerOrderHistoryTests.java
@@ -88,6 +89,7 @@ com/transformersas/marketplace/returns/ReturnRequestAtomicityTests.java
 com/transformersas/marketplace/returns/ReturnSellerApiTests.java
 com/transformersas/marketplace/returns/ReturnsMigrationTests.java
 com/transformersas/marketplace/returns/ReturnsReadPortsIntegrationTests.java
+com/transformersas/marketplace/reviews/ReviewsIntegrationTests.java
 com/transformersas/marketplace/sellers/SellerRegistrationTests.java
 com/transformersas/marketplace/shared/AuditRecorderTests.java
 com/transformersas/marketplace/shared/CorrelationIdFilterTests.java
@@ -105,5 +107,7 @@ com/transformersas/marketplace/stores/StoreBoundaryIntegrationTests.java
 com/transformersas/marketplace/stores/StoresMigrationTests.java
 com/transformersas/marketplace/stores/infrastructure/config/OwnerRunnerIntegrationTests.java
 com/transformersas/marketplace/suspensions/StoreSuspensionIntegrationTests.java
+com/transformersas/marketplace/users/BuyerProfileMigrationTests.java
+com/transformersas/marketplace/users/BuyerRegistrationIntegrationTests.java
 com/transformersas/marketplace/users/UserAccountPersistenceTests.java
 com/transformersas/marketplace/users/infrastructure/config/LocalProvisioningIntegrationTests.java
