@@ -15,8 +15,17 @@ public class ChangeAccountPassword {
     private final UserAccountRepository accounts;
     private final PasswordEncoder encoder;
     private final ManageAccountSessions sessions;
+    private final org.springframework.jdbc.core.JdbcTemplate jdbc;
 
     public ChangeAccountPassword(UserAccountRepository accounts, PasswordEncoder encoder, ManageAccountSessions sessions) {
+        this(accounts,encoder,sessions,null);
+    }
+
+    /** Conserva el constructor de pruebas; en ejecución comparte el bloqueo de identidad de CU09. */
+    @org.springframework.beans.factory.annotation.Autowired
+    public ChangeAccountPassword(UserAccountRepository accounts, PasswordEncoder encoder, ManageAccountSessions sessions,
+                                 org.springframework.jdbc.core.JdbcTemplate jdbc) {
+        this.jdbc=jdbc;
         this.accounts = accounts;
         this.encoder = encoder;
         this.sessions = sessions;
@@ -29,8 +38,14 @@ public class ChangeAccountPassword {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Contraseña actual inválida");
         }
         PasswordPolicy.validate(newPassword);
+        // Evita reescribir un correo o estado anteriores durante cierre/cambio de correo concurrentes.
+        if (jdbc != null) jdbc.queryForList("SELECT id FROM user_accounts WHERE id=? FOR UPDATE",principal.accountId());
         var account = accounts.findById(principal.accountId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Cuenta no disponible"));
+        if (account.status() != com.transformersas.marketplace.users.domain.model.AccountStatus.ACTIVA
+                || !account.email().equals(principal.getUsername())) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "La cuenta cambió; inicia sesión nuevamente");
+        }
         if (!encoder.matches(currentPassword, account.passwordHash())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Contraseña actual incorrecta");
         }

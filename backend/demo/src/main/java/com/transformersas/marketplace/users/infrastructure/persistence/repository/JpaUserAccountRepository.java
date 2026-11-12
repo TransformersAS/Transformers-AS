@@ -22,6 +22,8 @@ public class JpaUserAccountRepository implements UserAccountRepository {
         repository.markEmailVerified(id);
     }
     private final SpringDataUserAccountRepository repository;
+    @jakarta.persistence.PersistenceContext
+    private jakarta.persistence.EntityManager entityManager;
 
     public JpaUserAccountRepository(SpringDataUserAccountRepository repository) {
         this.repository = repository;
@@ -30,6 +32,18 @@ public class JpaUserAccountRepository implements UserAccountRepository {
     @Override
     @Transactional
     public UserAccount save(UserAccount account) {
+        // Los guardados de roles/credenciales no deben restaurar la identidad anterior a CU09.
+        if (account.id() != null) {
+            var rows = entityManager.createNativeQuery("SELECT email,status FROM user_accounts WHERE id=? FOR UPDATE")
+                    .setParameter(1, account.id()).getResultList();
+            if (!rows.isEmpty()) {
+                Object[] current = (Object[]) rows.getFirst();
+                if (!account.email().equals(current[0]) || !account.status().name().equals(current[1])) {
+                    throw com.transformersas.marketplace.shared.error.BusinessException.conflict(
+                            "ACCOUNT_CHANGED", "La cuenta cambió durante la operación. Inicia sesión nuevamente.");
+                }
+            }
+        }
         return UserAccountMapper.toDomain(repository.saveAndFlush(UserAccountMapper.toEntity(account)));
     }
 

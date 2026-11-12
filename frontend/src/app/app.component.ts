@@ -71,6 +71,7 @@ import {
 
 import { MisPedidosComponent } from './pedidos/components/mis-pedidos.component';
 
+import { PerfilPersonalComponent } from './cuenta/components/perfil-personal.component';
 import { AccesoComponent } from './core/components/acceso.component';
 
 import { ColaSoporteComponent } from './panel-admin-soporte/components/cola-soporte.component';
@@ -198,6 +199,7 @@ const MENUS_POR_ROL: Record<string, MenuRol> = {
     NgIf,
     FormsModule,
     AccesoComponent,
+    PerfilPersonalComponent,
     MisPedidosComponent, NotificacionesComponent,
     ColaSoporteComponent,
     PedidosRecibidosComponent,
@@ -455,6 +457,13 @@ export class AppComponent {
   // =========================================================
 
   mostrarAcceso = false;
+  mostrarPerfilPersonal = false;
+  avisoPerfilPersonal = '';
+  finalizarPerfilPersonal(motivo:'correo'|'cierre'): void {
+    this.mostrarPerfilPersonal=false;
+    this.avisoPerfilPersonal=motivo==='correo'?'Correo actualizado. Inicia sesión con tu nueva dirección.':'Tu cuenta se desactivó. Conservamos los registros históricos necesarios.';
+    this.mostrarAcceso=motivo==='correo';
+  }
 
   mostrarModeracion = false;
 

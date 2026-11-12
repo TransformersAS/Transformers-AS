@@ -112,6 +112,12 @@ export class AuthService {
     );
   }
 
+  /** CU09: cierre voluntario o cambio de identidad confirmado, sin aviso de expiración accidental. */
+  finalizarOperacionDeCuenta(): void {
+    this._sesionFinalizada.set(false);
+    this.olvidar();
+  }
+
   /** El backend conserva esta sesión y revoca las demás de la cuenta. */
   cambiarContrasena(cambio: CambioContrasena): Observable<void> {
     return this.http.put<void>(`${API_BASE}/auth/password`, cambio);
