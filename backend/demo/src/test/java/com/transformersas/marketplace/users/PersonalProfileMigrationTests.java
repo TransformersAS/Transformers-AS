@@ -21,7 +21,8 @@ class PersonalProfileMigrationTests {
             jdbc.update("INSERT INTO user_account_roles(account_id,role) VALUES (900,'COMPRADOR'),(900,'VENDEDOR')");
             jdbc.update("INSERT INTO account_profiles(account_id,full_name,birth_date,phone) VALUES (900,'Perfil previo','2000-01-01','3001234567')");
             jdbc.update("INSERT INTO buyer_consents VALUES (900,'v1','v1',NOW())");
-            var flyway=Flyway.configure().dataSource(ds).load();assertEquals(1,flyway.migrate().migrationsExecuted);
+            var flyway=Flyway.configure().dataSource(ds).target("46").load();assertEquals(1,flyway.migrate().migrationsExecuted);
+            assertEquals("46",flyway.info().current().getVersion().toString());
             flyway.validate();assertEquals(0,flyway.migrate().migrationsExecuted);
             assertEquals("Perfil previo",jdbc.queryForObject("SELECT full_name FROM account_profiles WHERE account_id=900",String.class));
             assertEquals(2,jdbc.queryForObject("SELECT COUNT(*) FROM user_account_roles WHERE account_id=900",Integer.class));

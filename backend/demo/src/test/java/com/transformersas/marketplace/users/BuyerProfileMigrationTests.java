@@ -20,9 +20,12 @@ class BuyerProfileMigrationTests extends AbstractIntegrationTest {
             legacy.update("INSERT INTO user_accounts(email,password_hash,status,email_verified_at) VALUES ('legacy@example.com',?,'ACTIVA',NOW())",hash);
             long id=legacy.queryForObject("SELECT id FROM user_accounts WHERE email='legacy@example.com'",Long.class);
             legacy.update("INSERT INTO user_account_roles VALUES (?,'VENDEDOR')",id);
-            var before=legacy.queryForMap("SELECT * FROM user_accounts WHERE id=?",id);
+            String originalAccount="SELECT id,email,password_hash,status,email_verified_at FROM user_accounts WHERE id=?";
+            var before=legacy.queryForMap(originalAccount,id);
             Flyway.configure().dataSource(url,"root",MYSQL.getPassword()).locations("classpath:db/migration").load().migrate();
-            assertThat(legacy.queryForMap("SELECT * FROM user_accounts WHERE id=?",id)).isEqualTo(before);
+            assertThat(legacy.queryForMap(originalAccount,id)).isEqualTo(before);
+            assertThat(legacy.queryForObject("SELECT communications_restricted FROM user_accounts WHERE id=?",Boolean.class,id)).isFalse();
+            assertThat(legacy.queryForObject("SELECT COLUMN_DEFAULT FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='user_accounts' AND COLUMN_NAME='communications_restricted'",String.class)).isEqualTo("0");
             assertThat(legacy.queryForList("SELECT role FROM user_account_roles WHERE account_id=?",String.class,id)).containsExactly("VENDEDOR");
             assertThat(legacy.queryForObject("SELECT COUNT(*) FROM account_profiles",Integer.class)).isZero();
             assertThat(legacy.queryForObject("SELECT COUNT(*) FROM buyer_consents",Integer.class)).isZero();
