@@ -30,6 +30,21 @@ jobs:
           cache-dependency-path: backend/demo/pom.xml
       - name: Check Docker for Testcontainers
         run: docker info
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+      - name: Install Chrome for CU10 Playwright
+        working-directory: frontend
+        run: ./node_modules/.bin/playwright install --with-deps chrome
+      - name: Build frontend for CU10 E2E
+        working-directory: frontend
+        run: npm run build
       - name: Verify backend
         working-directory: backend/demo
         run: ./mvnw clean verify

@@ -139,12 +139,14 @@ class ContentReportIntegrationTests extends ContentReportSupport {
 
     @Test
     void contentTypesWithoutAModuleAreRefusedWith422() throws Exception {
-        for (String type : List.of("MENSAJE", "TIENDA")) {
-            perform(buyer, post(REPORTS).contentType("application/json").content(
-                    "{\"contentType\":\"" + type + "\",\"contentId\":\"1\",\"reason\":\"SPAM\",\"description\":\"x\"}"))
-                    .andExpect(status().isUnprocessableEntity())
-                    .andExpect(jsonPath("$.code", is("CONTENT_TYPE_NOT_REPORTABLE")));
-        }
+        perform(buyer, post(REPORTS).contentType("application/json").content(
+                "{\"contentType\":\"MENSAJE\",\"contentId\":\"1\",\"reason\":\"SPAM\",\"description\":\"x\"}"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code", is("CONTENT_NOT_FOUND")));
+        perform(buyer, post(REPORTS).contentType("application/json").content(
+                "{\"contentType\":\"TIENDA\",\"contentId\":\"1\",\"reason\":\"SPAM\",\"description\":\"x\"}"))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code", is("CONTENT_TYPE_NOT_REPORTABLE")));
         perform(buyer, post(REPORTS).contentType("application/json").content(
                 "{\"contentType\":\"OTRA_COSA\",\"contentId\":\"1\",\"reason\":\"SPAM\",\"description\":\"x\"}"))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.details.field", is("contentType")));

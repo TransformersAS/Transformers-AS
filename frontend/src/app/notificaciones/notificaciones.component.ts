@@ -1,3 +1,4 @@
+import { MensajeriaService } from '../mensajeria/services/mensajeria.service';
 import { Component, EventEmitter, Output, effect, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Subscription, finalize } from 'rxjs';
@@ -26,6 +27,7 @@ import { PushService } from './push.service';
         <h3>{{ aviso.title }}</h3><p>{{ aviso.message }}</p>
         <p>{{ aviso.createdAt | date:'dd/MM/yyyy HH:mm:ss' }}</p>
         <button *ngIf="aviso.orderId" type="button" (click)="pedido = aviso.orderId">Abrir pedido #{{ aviso.orderId }}</button>
+        <button *ngIf="aviso.conversationId" type="button" (click)="mensajeria.abrir(aviso.conversationId);cerrar.emit()">Abrir conversación</button>
         <button *ngIf="aviso.productId" type="button" (click)="abrirProducto.emit(aviso.productId)">Ver producto</button>
       </li></ul>
       <button *ngIf="hayMas && !error" type="button" (click)="cargar()" [disabled]="cargando">Cargar más</button>
@@ -36,6 +38,7 @@ import { PushService } from './push.service';
   styles: [`.bandeja{position:fixed;inset:5vh 5vw;z-index:1100;background:white;color:#243342;overflow:auto;padding:1.5rem;border-radius:1rem;box-shadow:0 0 0 100vmax #0008;max-width:52rem;margin:auto}li{padding:.75rem;border-bottom:1px solid #ddd}button{margin:.4rem;padding:.5rem}`]
 })
 export class NotificacionesComponent {
+  readonly mensajeria = inject(MensajeriaService);
   @Output() cerrar = new EventEmitter<void>();
   @Output() abrirProducto = new EventEmitter<number>();
   private readonly auth = inject(AuthService);

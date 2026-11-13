@@ -16,7 +16,7 @@ import java.util.Iterator;
 
 /**
  * Validación de imágenes subidas por los usuarios (RNF-007), compartida por todos los casos de uso que las acepten.
- * Se valida el contenido antes de guardar nada: tamaño, formato real (JPEG o PNG, por firma y no por extensión ni por
+ * Se valida el contenido antes de guardar nada: tamaño, formato real (JPEG, PNG o WebP, por firma y no por extensión ni por
  * el Content-Type declarado), dimensiones acotadas y que la imagen se decodifique. Una imagen inválida lanza
  * BusinessException INVALID con un código estable (IMAGE_EMPTY, IMAGE_TOO_LARGE, IMAGE_FORMAT_UNSUPPORTED,
  * IMAGE_DIMENSIONS_TOO_LARGE, IMAGE_CORRUPT) y no deja rastro.
@@ -61,8 +61,12 @@ public class ImageValidator {
         } else if (startsWith(content, JPEG_SIGNATURE)) {
             format = "jpeg";
             contentType = "image/jpeg";
+        } else if (content.length >= 12 && content[0]=='R' && content[1]=='I' && content[2]=='F' && content[3]=='F'
+                && content[8]=='W' && content[9]=='E' && content[10]=='B' && content[11]=='P') {
+            format = "webp";
+            contentType = "image/webp";
         } else {
-            throw BusinessException.invalid("IMAGE_FORMAT_UNSUPPORTED", "Solo se admiten imágenes JPG y PNG");
+            throw BusinessException.invalid("IMAGE_FORMAT_UNSUPPORTED", "Solo se admiten imágenes JPG, PNG y WebP");
         }
         int[] size = decode(content, format);
         return new ValidatedImage(contentType, size[0], size[1], content.length, sha256(content));
@@ -72,7 +76,7 @@ public class ImageValidator {
     private int[] decode(byte[] content, String format) {
         Iterator<ImageReader> readers = ImageIO.getImageReadersByFormatName(format);
         if (!readers.hasNext()) {
-            throw BusinessException.invalid("IMAGE_FORMAT_UNSUPPORTED", "Solo se admiten imágenes JPG y PNG");
+            throw BusinessException.invalid("IMAGE_FORMAT_UNSUPPORTED", "Solo se admiten imágenes JPG, PNG y WebP");
         }
         ImageReader reader = readers.next();
         try (ImageInputStream input = ImageIO.createImageInputStream(new ByteArrayInputStream(content))) {

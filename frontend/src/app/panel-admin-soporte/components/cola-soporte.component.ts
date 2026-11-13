@@ -98,6 +98,9 @@ const MIN_JUSTIFICACION = 10;
               · contenido: <strong>{{ caso.contentState }}</strong></p>
             @if (caso.assignedAgentId) { <p><strong>Agente:</strong> {{ caso.assignedAgentId }}</p> }
             @if (caso.content?.text) { <p>{{ caso.content?.text }}</p> }
+            @if (caso.contentType === 'MENSAJE' && caso.content?.attributes?.['imageUrl']) {
+              <p><a [href]="caso.content?.attributes?.['imageUrl']" target="_blank" rel="noopener">Imagen original del mensaje reportado</a></p>
+            }
             @if (!caso.content) {
               <p class="nota">Este tipo de contenido aún no expone su vista a soporte.</p>
             }
