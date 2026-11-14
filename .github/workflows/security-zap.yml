@@ -1,0 +1,48 @@
+name: OWASP ZAP Security Scan
+
+on:
+  push:
+    branches: [feature/rnf-seguridad-zap, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-zap-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  passive-security:
+    name: Marketplace isolated passive DAST
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Check Docker and Compose
+        run: |
+          docker info --format '{{.ServerVersion}}'
+          docker compose version
+      - name: Validate runner, policy and coverage guards
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: python3 -m unittest discover -s scripts/security/tests -v
+      - name: Build isolated app, verify fixtures, scan, report and clean up
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: python3 scripts/security/run.py
+      - name: Verify exclusive cleanup (fallback after interrupted runner)
+        if: ${{ always() }}
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: python3 scripts/security/cleanup.py
+      - name: Preserve sanitized security evidence even on findings or technical failures
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: security-zap-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/security-zap/
+          if-no-files-found: error
+          retention-days: 14
