@@ -1,4 +1,4 @@
-  {
+{
   "$schema": "./node_modules/@angular/cli/lib/config/schema.json",
   "version": 1,
   "projects": {
@@ -8,10 +8,76 @@
       "sourceRoot": "src",
       "prefix": "app",
       "architect": {
-        "build": { "builder": "@angular-devkit/build-angular:application", "options": { "outputPath": "dist", "index": "src/index.html", "browser": "src/main.ts", "polyfills": ["zone.js"], "tsConfig": "tsconfig.app.json", "assets": [{ "glob": "**/*", "input": "src/assets", "output": "assets" }], "styles": ["src/global.scss"], "serviceWorker": "ngsw-config.json", "optimization": { "fonts": { "inline": false } } } },
-        "serve": { "builder": "@angular-devkit/build-angular:dev-server", "options": { "buildTarget": "marketplace-integral:build", "proxyConfig": "proxy.conf.json" } }
+        "build": {
+          "builder": "@angular-devkit/build-angular:application",
+          "options": {
+            "outputPath": "dist",
+            "index": "src/index.html",
+            "browser": "src/main.ts",
+            "polyfills": [
+              "zone.js"
+            ],
+            "tsConfig": "tsconfig.app.json",
+            "assets": [
+              {
+                "glob": "**/*",
+                "input": "src/assets",
+                "output": "assets"
+              }
+            ],
+            "styles": [
+              "src/global.scss"
+            ],
+            "serviceWorker": "ngsw-config.json",
+            "optimization": {
+              "fonts": {
+                "inline": false
+              },
+              "styles": {
+                "inlineCritical": false
+              }
+            },
+            "subresourceIntegrity": true,
+            "outputHashing": "all"
+          }
+        },
+        "serve": {
+          "builder": "@angular-devkit/build-angular:dev-server",
+          "options": {
+            "buildTarget": "marketplace-integral:build",
+            "proxyConfig": "proxy.conf.json"
+          }
+        }
       }
     }
   },
-  "cli": { "analytics": false }
+  "cli": {
+    "analytics": false
+  },
+  "schematics": {
+    "@schematics/angular:component": {
+      "type": "component"
+    },
+    "@schematics/angular:directive": {
+      "type": "directive"
+    },
+    "@schematics/angular:service": {
+      "type": "service"
+    },
+    "@schematics/angular:guard": {
+      "typeSeparator": "."
+    },
+    "@schematics/angular:interceptor": {
+      "typeSeparator": "."
+    },
+    "@schematics/angular:module": {
+      "typeSeparator": "."
+    },
+    "@schematics/angular:pipe": {
+      "typeSeparator": "."
+    },
+    "@schematics/angular:resolver": {
+      "typeSeparator": "."
+    }
+  }
 }
