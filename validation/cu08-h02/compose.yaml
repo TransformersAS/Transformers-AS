@@ -1,0 +1,118 @@
+name: cu08-h02-20261107
+
+# Standalone manifest. Never combine with compose.yaml / compose.demo.yaml at repo root.
+services:
+  mysql:
+    image: mysql:8.4.11
+    environment:
+      MYSQL_DATABASE: cu08_h02_validation
+      MYSQL_USER: h02_fixture
+      MYSQL_PASSWORD: h02_disposable_database_only
+      MYSQL_ROOT_PASSWORD: h02_disposable_root_only
+    command: [--innodb-buffer-pool-size=128M, --max-connections=40]
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      database:
+        ipv4_address: 172.30.241.12
+    cpus: 0.75
+    mem_limit: 768m
+    healthcheck:
+      test: [CMD-SHELL, 'MYSQL_PWD="$${MYSQL_PASSWORD}" mysql --protocol=TCP -h 127.0.0.1 -u "$${MYSQL_USER}" "$${MYSQL_DATABASE}" -e "SELECT 1" >/dev/null 2>&1']
+      interval: 5s
+      timeout: 5s
+      retries: 60
+  backend:
+    image: cu08-h02-20261107-backend:validation
+    build:
+      context: ../../backend/demo
+    environment:
+      DB_HOST: mysql
+      DB_PORT: '3306'
+      DB_NAME: cu08_h02_validation
+      DB_USER: h02_fixture
+      DB_PASSWORD: h02_disposable_database_only
+      SPRING_PROFILES_ACTIVE: compose-local
+      MARKETPLACE_DEMO_DATA: 'false'
+      PAYMENTS_RECOVERY_ENABLED: 'false'
+      GEMINI_API_KEY: ''
+      LOGISTICS_TRACKING_POLLING_ENABLED: 'false'
+      SERVER_FORWARD_HEADERS_STRATEGY: native
+      SERVER_TOMCAT_REMOTEIP_INTERNAL_PROXIES: '\Q172.30.240.10\E'
+      SERVER_TOMCAT_REMOTEIP_TRUSTED_PROXIES: ''
+      SERVER_TOMCAT_REMOTEIP_REMOTE_IP_HEADER: X-Forwarded-For
+      SERVER_TOMCAT_REMOTEIP_PROTOCOL_HEADER: X-Forwarded-Proto
+      APP_AUTH_LOGIN_ATTEMPTS_TRUSTED_PROXY_ADDRESSES: 172.30.240.10
+      APP_AUTH_LOGIN_ATTEMPTS_ENABLED: 'false'
+      APP_AUTH_LOGIN_ATTEMPTS_ORIGIN_VERIFIED: 'false'
+      # No URI, request headers, cookies, credentials, or query string in access log.
+      SERVER_TOMCAT_ACCESSLOG_ENABLED: 'true'
+      SERVER_TOMCAT_ACCESSLOG_DIRECTORY: /tmp/h02-access
+      SERVER_TOMCAT_ACCESSLOG_PREFIX: origin
+      SERVER_TOMCAT_ACCESSLOG_SUFFIX: .log
+      SERVER_TOMCAT_ACCESSLOG_FILE_DATE_FORMAT: ''
+      SERVER_TOMCAT_ACCESSLOG_ROTATE: 'false'
+      SERVER_TOMCAT_ACCESSLOG_BUFFERED: 'false'
+      SERVER_TOMCAT_ACCESSLOG_REQUEST_ATTRIBUTES_ENABLED: 'true'
+      SERVER_TOMCAT_ACCESSLOG_PATTERN: 'h02-tomcat origin=%a forwarded=%{org.apache.tomcat.request.forwarded}r status=%s'
+      JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=60
+    ports:
+      - '127.0.0.1:18320:8080'
+    networks:
+      entry:
+      proxy:
+        ipv4_address: 172.30.240.11
+      database:
+        ipv4_address: 172.30.241.11
+    cpus: 1.0
+    mem_limit: 1536m
+    depends_on:
+      mysql:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, curl, --fail, --silent, http://127.0.0.1:8080/actuator/health/readiness]
+      interval: 5s
+      timeout: 5s
+      retries: 90
+  frontend:
+    image: cu08-h02-20261107-frontend:validation
+    build:
+      context: ../../frontend
+    volumes:
+      - ./nginx.conf:/etc/nginx/templates/default.conf.template:ro
+    ports:
+      - '127.0.0.1:14320:80'
+    networks:
+      entry:
+      proxy:
+        ipv4_address: 172.30.240.10
+    cpus: 0.25
+    mem_limit: 128m
+    depends_on:
+      backend:
+        condition: service_healthy
+
+networks:
+  # Solo entrada de pruebas: habilita publicación en loopback. MySQL no participa.
+  entry:
+    name: cu08-h02-20261107_entry
+    driver: bridge
+    internal: false
+    ipam:
+      config:
+        - subnet: 172.30.242.0/24
+  proxy:
+    name: cu08-h02-20261107_login_proxy
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.30.240.0/24
+  database:
+    name: cu08-h02-20261107_database
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.30.241.0/24
+volumes:
+  mysql_data:
+    name: cu08-h02-20261107_mysql_data

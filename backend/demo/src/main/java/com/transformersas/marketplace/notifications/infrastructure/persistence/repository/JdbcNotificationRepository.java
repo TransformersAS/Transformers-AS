@@ -23,6 +23,8 @@ public class JdbcNotificationRepository implements NotificationRepository {
             external_status, attempts, last_error, correlation_id, created_at""";
 
     private final JdbcClient jdbc;
+    @org.springframework.beans.factory.annotation.Value("${notifications.queue.enabled:false}")
+    private boolean queueEnabled;
 
     public JdbcNotificationRepository(JdbcClient jdbc) {
         this.jdbc = jdbc;
@@ -42,11 +44,22 @@ public class JdbcNotificationRepository implements NotificationRepository {
                             notification.attempts(), notification.lastError(), notification.correlationId(),
                             notification.createdAt(), notification.createdAt())
                     .update();
-            return new Insertion(findByEventKey(notification.eventKey()).orElseThrow(), true);
+            var saved = findByEventKey(notification.eventKey()).orElseThrow();
+            if (queueEnabled) {
+                // Same transaction as the business event and internal notification: no lost wakeups.
+                jdbc.sql("INSERT INTO notification_jobs(notification_id) VALUES (?)").param(saved.id()).update();
+            }
+            return new Insertion(saved, true);
         } catch (DuplicateKeyException duplicate) {
             // Mismo evento ya registrado (otra petición o repetición): se devuelve la existente.
             return new Insertion(findByEventKey(notification.eventKey()).orElseThrow(() -> duplicate), false);
         }
+    }
+
+    @Override
+    public java.util.List<Notification> findByRecipient(RecipientType type, Long recipientId, int offset, int limit) {
+        return jdbc.sql("SELECT " + COLUMNS + " FROM notifications WHERE recipient_type=? AND recipient_id=? ORDER BY created_at DESC,id DESC LIMIT ? OFFSET ?")
+            .params(type.name(), recipientId, limit, offset).query((rs,row) -> map(rs)).list();
     }
 
     @Override

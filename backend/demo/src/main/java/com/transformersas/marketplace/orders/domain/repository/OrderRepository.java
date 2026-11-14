@@ -9,6 +9,7 @@ import com.transformersas.marketplace.orders.domain.model.OrderSummary;
 import com.transformersas.marketplace.orders.domain.model.PageResult;
 
 import java.util.List;
+import com.transformersas.marketplace.orders.domain.model.BuyerOrderFilters;
 import java.util.Optional;
 
 public interface OrderRepository {
@@ -35,6 +36,9 @@ public interface OrderRepository {
 
     /** Pedidos del comprador, del más reciente al más antiguo. */
     List<Order> findByAccountId(Long accountId);
+
+    /** Filtros opcionales que siempre se combinan con la cuenta autenticada. */
+    List<Order> findByAccountId(Long accountId, BuyerOrderFilters filters);
 
     Optional<Order> findByIdAndAccountId(Long id, Long accountId);
 

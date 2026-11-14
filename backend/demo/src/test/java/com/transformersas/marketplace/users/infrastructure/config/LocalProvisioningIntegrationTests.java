@@ -18,9 +18,11 @@ class LocalProvisioningIntegrationTests extends AbstractIntegrationTest {
         var id=accountIdOf("demo@marketplace.local");
         assertThat(jdbc.queryForObject("SELECT owner_account_id FROM stores WHERE id=1",Long.class)).isEqualTo(id);
         assertThat(jdbc.queryForObject("SELECT stock FROM products WHERE name='Camiseta demo local'",Integer.class)).isEqualTo(100);
-        assertThat(jdbc.queryForObject("SELECT email_verified_at IS NULL FROM user_accounts WHERE id=?",Boolean.class,id)).isTrue();
+        var verifiedAt=jdbc.queryForObject("SELECT email_verified_at FROM user_accounts WHERE id=?",java.sql.Timestamp.class,id);
+        assertThat(verifiedAt).isNotNull();
         jdbc.update("UPDATE products SET stock=4,active=false WHERE name='Camiseta demo local'");
         accounts.run(args); products.run(args);
+        assertThat(jdbc.queryForObject("SELECT email_verified_at FROM user_accounts WHERE id=?",java.sql.Timestamp.class,id)).isEqualTo(verifiedAt);
         assertThat(count("products")).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT stock FROM products WHERE name='Camiseta demo local'",Integer.class)).isEqualTo(4);
         assertThat(jdbc.queryForObject("SELECT active FROM products WHERE name='Camiseta demo local'",Boolean.class)).isFalse();

@@ -30,8 +30,12 @@ public final class CurrentAccountSessionFilter extends OncePerRequestFilter {
         var authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication != null && authentication.isAuthenticated()
                 && authentication.getPrincipal() instanceof AccountPrincipal principal) {
+            var session = request.getSession(false);
+            boolean expired = session == null || LoginSessionPolicy.isAbsolutelyExpired(
+                    session.getAttribute(LoginSessionPolicy.AUTHENTICATED_AT),
+                    session.getAttribute(LoginSessionPolicy.ABSOLUTE_EXPIRES_AT), java.time.Instant.now());
             var current = accounts.findById(principal.accountId());
-            if (current.isEmpty() || current.get().status() != AccountStatus.ACTIVA) {
+            if (expired || current.isEmpty() || current.get().status() != AccountStatus.ACTIVA) {
                 var logout = new SecurityContextLogoutHandler();
                 logout.setSecurityContextRepository(contexts);
                 logout.logout(request, response, authentication);

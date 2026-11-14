@@ -6,6 +6,7 @@ import com.transformersas.marketplace.auth.infrastructure.security.CurrentAccoun
 import org.springframework.security.web.context.SecurityContextHolderFilter;
 import com.transformersas.marketplace.auth.infrastructure.security.EmailNotVerifiedException;
 import com.transformersas.marketplace.auth.infrastructure.security.LoginSessionPolicy;
+import com.transformersas.marketplace.auth.infrastructure.security.LoginAttemptGuard;
 import com.transformersas.marketplace.users.domain.repository.UserAccountRepository;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -14,6 +15,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
+import org.springframework.security.authorization.AuthorizationDecision;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -46,8 +48,13 @@ public class SecurityConfiguration {
 
     @Bean
     DaoAuthenticationProvider accountAuthenticationProvider(UserDetailsService users, PasswordEncoder encoder,
-            UserAccountRepository accounts) {
-        var provider = new DaoAuthenticationProvider(users);
+            UserAccountRepository accounts, LoginAttemptGuard loginAttempts) {
+        var provider = new DaoAuthenticationProvider(users) {
+            @Override
+            public org.springframework.security.core.Authentication authenticate(org.springframework.security.core.Authentication authentication) {
+                return loginAttempts.authenticate(authentication, () -> super.authenticate(authentication));
+            }
+        };
         provider.setPasswordEncoder(encoder);
         // Post-checks run AFTER password validation: wrong credentials never reveal verification status.
         provider.setPostAuthenticationChecks(user -> {
@@ -80,7 +87,8 @@ public class SecurityConfiguration {
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http, DaoAuthenticationProvider provider,
                                             SecurityContextRepository contexts, LoginSessionPolicy sessionPolicy,
-                                            UserAccountRepository accounts) throws Exception {
+                                            UserAccountRepository accounts, LoginAttemptGuard loginAttempts,
+                                            @Value("${monitoring.metrics.token:}") String metricsToken) throws Exception {
         return http
                 .cors(Customizer.withDefaults())
                 .authenticationProvider(provider)
@@ -90,22 +98,42 @@ public class SecurityConfiguration {
                 .authorizeHttpRequests(authorize -> authorize
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                         .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
+                        // Monitoreo: las métricas no pasan por la sesión; solo las lee quien tenga el token (Prometheus).
+                        .requestMatchers(HttpMethod.GET, "/actuator/prometheus").access((authentication, context) ->
+                                new AuthorizationDecision(MetricsToken.matches(metricsToken,
+                                        context.getRequest().getHeader("Authorization"))))
                         .requestMatchers(HttpMethod.GET, "/api/auth/csrf").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/payments/mercadopago/webhook").permitAll()
+                        .requestMatchers("/api/payments/mercadopago/checkouts", "/api/payments/mercadopago/checkouts/**").hasRole("COMPRADOR")
                         .requestMatchers(HttpMethod.POST, "/api/auth/password-recovery/request",
                                 "/api/auth/password-recovery/confirm").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/email-verification/resend",
                                 "/api/auth/email-verification/confirm").permitAll()
                         // Registro de vendedores (CU-12): un visitante lee las condiciones, se registra y confirma su
                         // correo sin sesión. Habilitar el rol con una cuenta existente sí exige sesión.
+                        .requestMatchers(HttpMethod.GET, "/api/buyers/terms").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/buyers/register").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/sellers/terms").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/sellers/register").permitAll()
+                        // Catálogo público: el visitante explora los productos y su ficha antes de iniciar sesión.
+                        // Solo la lectura; comprar, reportar o publicar siguen exigiendo sesión.
+                        .requestMatchers(HttpMethod.GET, "/api/products", "/api/products/{id}").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/reviews/products/**", "/api/reviews/images/**").permitAll()
+                        .requestMatchers(HttpMethod.HEAD, "/api/reviews/products/**", "/api/reviews/images/**").permitAll()
+                        .requestMatchers("/api/reviews", "/api/reviews/**").hasRole("COMPRADOR")
                         .requestMatchers(HttpMethod.GET, "/api/auth/validation/comprador").hasRole("COMPRADOR")
                         .requestMatchers(HttpMethod.GET, "/api/auth/validation/vendedor").hasRole("VENDEDOR")
                         .requestMatchers(HttpMethod.HEAD, "/api/auth/validation/comprador").hasRole("COMPRADOR")
                         .requestMatchers(HttpMethod.HEAD, "/api/auth/validation/vendedor").hasRole("VENDEDOR")
+                        .requestMatchers(HttpMethod.GET, "/api/notifications").hasRole("COMPRADOR")
+                        .requestMatchers(HttpMethod.HEAD, "/api/notifications").hasRole("COMPRADOR")
+                        .requestMatchers(HttpMethod.GET, "/api/seller/notifications").hasRole("VENDEDOR")
+                        .requestMatchers(HttpMethod.HEAD, "/api/seller/notifications").hasRole("VENDEDOR")
                         .requestMatchers(HttpMethod.GET, "/api/orders", "/api/orders/{id}").hasRole("COMPRADOR")
                         .requestMatchers(HttpMethod.HEAD, "/api/orders", "/api/orders/{id}").hasRole("COMPRADOR")
+                        .requestMatchers(HttpMethod.GET, "/api/orders/{id}/receipt").hasRole("COMPRADOR")
+                        .requestMatchers(HttpMethod.HEAD, "/api/orders/{id}/receipt").hasRole("COMPRADOR")
                         .requestMatchers(HttpMethod.POST, "/api/orders/{id}/cancellation").hasRole("COMPRADOR")
                         // Seguimiento logístico (CU-24/CU-25): el comprador consulta lo suyo; la tienda pasa por
                         // /api/seller/**, donde el rol activo VENDEDOR lo comprueba SessionSellerActorProvider.
@@ -125,16 +153,19 @@ public class SecurityConfiguration {
                                 "/api/checkout/preview", "/api/reservations/cart", "/api/payments/process")
                                 .hasRole("COMPRADOR")
                         .requestMatchers(HttpMethod.POST, "/api/products").hasRole("VENDEDOR")
+                        .requestMatchers("/api/favorites", "/api/favorites/**").hasRole("COMPRADOR")
+                        .requestMatchers("/api/push", "/api/push/**").hasAnyRole("COMPRADOR", "VENDEDOR")
                         .requestMatchers("/api/**").authenticated()
                         .anyRequest().denyAll())
                 // Sin sesión no hay token CSRF que enviar: el webhook se protege con la firma del cuerpo.
-                .csrf(csrf -> csrf.ignoringRequestMatchers("/api/logistics/webhooks/**"))
+                .csrf(csrf -> csrf.ignoringRequestMatchers("/api/logistics/webhooks/**", "/api/payments/mercadopago/webhook"))
                 .requestCache(AbstractHttpConfigurer::disable)
                 .exceptionHandling(errors -> errors
                         .authenticationEntryPoint((request, response, exception) -> response.setStatus(401))
                         .accessDeniedHandler((request, response, exception) -> response.setStatus(403)))
                 .formLogin(login -> login
                         .loginProcessingUrl("/api/auth/login")
+                        .authenticationDetailsSource(loginAttempts::details)
                         .usernameParameter("email")
                         .successHandler((request, response, authentication) -> {
                             var principal = (AccountPrincipal) authentication.getPrincipal();
@@ -149,7 +180,13 @@ public class SecurityConfiguration {
                             response.setStatus(204);
                         })
                         .failureHandler((request, response, exception) -> {
-                            if (exception instanceof EmailNotVerifiedException) {
+                            if (exception instanceof LoginAttemptGuard.Denied denied) {
+                                response.setStatus(denied.status);
+                                if (denied.retrySeconds > 0) response.setHeader("Retry-After", Long.toString(denied.retrySeconds));
+                                response.setContentType("application/json");
+                                response.setCharacterEncoding("UTF-8");
+                                response.getWriter().write("{\"code\":\"LOGIN_TEMPORARILY_UNAVAILABLE\",\"message\":\"No se puede iniciar sesión en este momento. Inténtalo más tarde.\"}");
+                            } else if (exception instanceof EmailNotVerifiedException) {
                                 response.setStatus(403);
                                 response.setContentType("application/json");
                                 response.setCharacterEncoding("UTF-8");

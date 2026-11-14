@@ -76,7 +76,9 @@ class SellerDispatchTests extends AbstractIntegrationTest {
     void mainFlow_steps1to17_fromAConfirmedPurchaseToReadyForDispatchWithLogisticsReference() throws Exception {
         Session buyer = sessionWithRole("buyer@example.com", "COMPRADOR");
         long order = checkoutOrder(buyer, product, 2); // CU-03: pedido creado por una compra aprobada
-        assertThat(count("notifications")).isZero();
+        // H06: ahora la compra publica ambos avisos; se siguen exigiendo exactamente los de las transiciones.
+        assertThat(jdbc.queryForList("SELECT event_key FROM notifications ORDER BY id", String.class))
+                .containsExactly("order-" + order + "-PURCHASED", "order-" + order + "-PURCHASED-STORE");
 
         // 1-3: el vendedor accede a sus pedidos, ve el confirmado y puede filtrar.
         performAsSeller(seller, 1, get("/api/seller/orders")).andExpect(status().isOk())
@@ -110,8 +112,9 @@ class SellerDispatchTests extends AbstractIntegrationTest {
                 String.class, order)).containsExactly("CONFIRMED", "IN_PREPARATION", "READY_FOR_DISPATCH");
         // RF-123: una notificación por cambio relevante, asociada al pedido correcto, y aviso externo de cada una.
         assertThat(jdbc.queryForList("SELECT event_key FROM notifications ORDER BY id", String.class))
-                .containsExactly("order-" + order + "-IN_PREPARATION", "order-" + order + "-READY_FOR_DISPATCH");
-        await().atMost(Duration.ofSeconds(10)).until(() -> notices.accepted().size() == 2);
+                .containsExactly("order-" + order + "-PURCHASED", "order-" + order + "-PURCHASED-STORE",
+                        "order-" + order + "-IN_PREPARATION", "order-" + order + "-READY_FOR_DISPATCH");
+        await().atMost(Duration.ofSeconds(10)).until(() -> notices.accepted().size() == 4);
         // RNF-009: auditoría de las dos transiciones y del resultado logístico.
         assertThat(jdbc.queryForList("SELECT action FROM audit_events ORDER BY id", String.class))
                 .containsExactly("ORDER_STATUS_CHANGED", "ORDER_STATUS_CHANGED", "SHIPMENT_REQUEST");

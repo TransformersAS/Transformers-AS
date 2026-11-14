@@ -1,6 +1,7 @@
 package com.transformersas.marketplace.auth;
 
 import com.transformersas.marketplace.support.AbstractIntegrationTest;
+import com.transformersas.marketplace.auth.infrastructure.security.LoginSessionPolicy;
 import jakarta.servlet.http.Cookie;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -55,6 +56,11 @@ class PersistentSessionIntegrationTests extends AbstractIntegrationTest {
         return new String(Base64.getDecoder().decode(cookie.getValue()), StandardCharsets.UTF_8);
     }
 
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private void save(org.springframework.session.Session session) {
+        ((org.springframework.session.SessionRepository) sessions).save(session);
+    }
+
     private void assertStoredTimeout(Cookie cookie, int seconds) {
         org.springframework.session.Session stored = sessions.findById(id(cookie));
         assertThat(stored).isNotNull();
@@ -70,6 +76,92 @@ class PersistentSessionIntegrationTests extends AbstractIntegrationTest {
         long lastAccess = Instant.now().minus(idle).toEpochMilli();
         jdbc.update("UPDATE SPRING_SESSION SET LAST_ACCESS_TIME=?, EXPIRY_TIME=? + MAX_INACTIVE_INTERVAL * 1000 WHERE SESSION_ID=?",
                 lastAccess, lastAccess, id(cookie));
+    }
+
+    @Test
+    void deviceDescriptionSurvivesJdbcRestorationAndDoesNotChangeWithReadingBrowser() throws Exception {
+        var result = mvc.perform(csrf(null).apply(post("/api/auth/login").param("email", EMAIL)
+                .param("password", PASSWORD).header("User-Agent", "Mozilla/5.0 (Windows NT 10.0) Chrome/130.0 Safari/537.36")))
+                .andExpect(status().isNoContent()).andReturn();
+        Cookie cookie = result.getResponse().getCookie("SESSION");
+        org.springframework.session.Session stored = sessions.findById(id(cookie));
+        assertThat((String) stored.getAttribute(LoginSessionPolicy.DEVICE_DESCRIPTION)).isEqualTo("Chrome · Windows");
+        mvc.perform(get("/api/auth/sessions").cookie(cookie).header("User-Agent", "Firefox/130.0 Linux"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$[0].current").value(true))
+                .andExpect(jsonPath("$[0].deviceDescription").value("Chrome · Windows"));
+        stored.removeAttribute(LoginSessionPolicy.DEVICE_DESCRIPTION);
+        save(stored);
+        mvc.perform(get("/api/auth/sessions").cookie(cookie)).andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].deviceDescription").value(LoginSessionPolicy.UNKNOWN_DEVICE));
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void absoluteLifetimeIsStoredAndActivityDoesNotRenewIt(boolean persistent) throws Exception {
+        Cookie cookie = login(persistent);
+        org.springframework.session.Session stored = sessions.findById(id(cookie));
+        Instant authenticatedAt = stored.getAttribute(LoginSessionPolicy.AUTHENTICATED_AT);
+        Instant deadline = stored.getAttribute(LoginSessionPolicy.ABSOLUTE_EXPIRES_AT);
+        assertThat(deadline).isEqualTo(authenticatedAt.plus(persistent ? Duration.ofDays(7) : Duration.ofHours(24)));
+        mvc.perform(get("/api/auth/me").cookie(cookie)).andExpect(status().isOk());
+        mvc.perform(csrf(cookie).apply(put("/api/auth/active-role").contentType("application/json")
+                .content("{\"role\":\"COMPRADOR\"}"))).andExpect(status().isOk());
+        stored = sessions.findById(id(cookie));
+        assertThat((Instant) stored.getAttribute(LoginSessionPolicy.AUTHENTICATED_AT)).isEqualTo(authenticatedAt);
+        assertThat((Instant) stored.getAttribute(LoginSessionPolicy.ABSOLUTE_EXPIRES_AT)).isEqualTo(deadline);
+        assertStoredTimeout(cookie, persistent ? PERSISTENT_SECONDS : NORMAL_SECONDS);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void recentActivityCannotKeepAbsolutelyExpiredSessionAlive(boolean persistent) throws Exception {
+        Cookie viewer = login(false);
+        Cookie expired = login(persistent);
+        org.springframework.session.Session stored = sessions.findById(id(expired));
+        stored.setAttribute(LoginSessionPolicy.AUTHENTICATED_AT, Instant.now().minus(Duration.ofDays(8)));
+        stored.setAttribute(LoginSessionPolicy.ABSOLUTE_EXPIRES_AT, Instant.now().minusSeconds(1));
+        save(stored);
+        mvc.perform(get("/api/auth/sessions").cookie(viewer)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1));
+        mvc.perform(get("/api/auth/me").cookie(expired)).andExpect(status().isUnauthorized());
+        assertThat(sessions.findById(id(expired))).isNull();
+        mvc.perform(get("/api/auth/me").cookie(expired)).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void legacySessionRequiresNewLoginWithoutReconstructingAuthenticationDate() throws Exception {
+        Cookie viewer = login(false);
+        Cookie legacy = login(true);
+        org.springframework.session.Session stored = sessions.findById(id(legacy));
+        stored.removeAttribute(LoginSessionPolicy.AUTHENTICATED_AT);
+        stored.removeAttribute(LoginSessionPolicy.ABSOLUTE_EXPIRES_AT);
+        save(stored);
+        mvc.perform(get("/api/auth/sessions").cookie(viewer)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1));
+        mvc.perform(get("/api/auth/me").cookie(legacy)).andExpect(status().isUnauthorized());
+        assertThat(sessions.findById(id(legacy))).isNull();
+        Cookie renewed = login(true);
+        mvc.perform(get("/api/auth/me").cookie(renewed)).andExpect(status().isOk());
+        assertThat((Instant) ((org.springframework.session.Session) sessions.findById(id(renewed))).getAttribute(LoginSessionPolicy.AUTHENTICATED_AT)).isNotNull();
+    }
+
+    @Test
+    void listingUsesAbsoluteDeadlineAndOnlySuccessfulReauthenticationResetsIt() throws Exception {
+        Cookie cookie = login(true);
+        org.springframework.session.Session stored = sessions.findById(id(cookie));
+        Instant original = Instant.now().minusSeconds(60).truncatedTo(java.time.temporal.ChronoUnit.MILLIS);
+        Instant deadline = original.plus(Duration.ofDays(7));
+        stored.setAttribute(LoginSessionPolicy.AUTHENTICATED_AT, original);
+        stored.setAttribute(LoginSessionPolicy.ABSOLUTE_EXPIRES_AT, deadline);
+        save(stored);
+        mvc.perform(get("/api/auth/sessions").cookie(cookie)).andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].expiresAt").value(deadline.toString()));
+        Session token = csrf(cookie);
+        mvc.perform(token.apply(post("/api/auth/login").param("email", EMAIL).param("password", "wrong")))
+                .andExpect(status().isUnauthorized());
+        assertThat((Instant) ((org.springframework.session.Session) sessions.findById(id(cookie))).getAttribute(LoginSessionPolicy.AUTHENTICATED_AT)).isEqualTo(original);
+        Cookie renewed = login(csrf(cookie), "true", false).getResponse().getCookie("SESSION");
+        assertThat((Instant) ((org.springframework.session.Session) sessions.findById(id(renewed))).getAttribute(LoginSessionPolicy.AUTHENTICATED_AT)).isAfter(original);
     }
 
     @ParameterizedTest
@@ -193,6 +285,8 @@ class PersistentSessionIntegrationTests extends AbstractIntegrationTest {
                 .param("password", scenario.equals("wrong-password") ? "WrongPassword123!" : PASSWORD);
         mvc.perform(anonymous.apply(request)).andExpect(status().is(scenario.equals("unverified") ? 403 : 401));
         assertStoredTimeout(anonymous.cookie(), NORMAL_SECONDS);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM SPRING_SESSION_ATTRIBUTES WHERE ATTRIBUTE_NAME=?",
+                Integer.class, LoginSessionPolicy.DEVICE_DESCRIPTION)).isZero();
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM SPRING_SESSION_ATTRIBUTES WHERE ATTRIBUTE_NAME='SPRING_SECURITY_CONTEXT'",
                 Integer.class)).isZero();
         mvc.perform(get("/api/auth/me").cookie(anonymous.cookie())).andExpect(status().isUnauthorized());
@@ -270,11 +364,17 @@ class PersistentSessionIntegrationTests extends AbstractIntegrationTest {
     void passwordChangeRevokesOtherPersistentSessionsAndKeepsCurrentPolicy() throws Exception {
         Cookie current = login(true);
         Cookie other = login(true);
+        org.springframework.session.Session before = sessions.findById(id(current));
+        Instant authenticatedAt = before.getAttribute(LoginSessionPolicy.AUTHENTICATED_AT);
+        Instant deadline = before.getAttribute(LoginSessionPolicy.ABSOLUTE_EXPIRES_AT);
         mvc.perform(csrf(current).apply(put("/api/auth/password").contentType("application/json")
                 .content(json.writeValueAsString(java.util.Map.of("currentPassword", PASSWORD, "newPassword", "NewPassword123!")))))
                 .andExpect(status().isNoContent());
         mvc.perform(get("/api/auth/me").cookie(other)).andExpect(status().isUnauthorized());
         mvc.perform(get("/api/auth/me").cookie(current)).andExpect(status().isOk());
         assertStoredTimeout(current, PERSISTENT_SECONDS);
+        org.springframework.session.Session after = sessions.findById(id(current));
+        assertThat((Instant) after.getAttribute(LoginSessionPolicy.AUTHENTICATED_AT)).isEqualTo(authenticatedAt);
+        assertThat((Instant) after.getAttribute(LoginSessionPolicy.ABSOLUTE_EXPIRES_AT)).isEqualTo(deadline);
     }
 }

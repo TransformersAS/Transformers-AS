@@ -14,6 +14,8 @@
   --yellow: #ffcf3f;
 
   display: block;
+  // Keep the root viewport-sized so scrolling stays inside ion-content.
+  height: 100%;
 }
 
 ion-content {
@@ -1911,23 +1913,9 @@ footer > div {
 .recommendation-button:hover {
   opacity: 0.92;
 }
-/* Moderación de reportes (solo soporte) */
-.boton-moderacion {
-  position: fixed;
-  right: 1rem;
-  bottom: 1rem;
-  z-index: 800;
-  padding: 0.75rem 1.1rem;
-  border: 0;
-  border-radius: 999px;
-  background: var(--ink);
-  color: #fff;
-  font-weight: 700;
-  box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.3);
-  cursor: pointer;
-}
-
-.panel-moderacion {
+/* Paneles a pantalla completa que abre el menú del rol. */
+.panel-moderacion,
+.panel-pedidos {
   position: fixed;
   inset: 0;
   z-index: 900;
@@ -1949,108 +1937,192 @@ footer > div {
   cursor: pointer;
 }
 
-/* Pedidos recibidos (solo vendedor) */
-.boton-pedidos {
+/* Menú del rol activo: un solo botón abajo a la izquierda, lejos del carrito (que se abre a la derecha). */
+.menu-rol {
   position: fixed;
-  right: 1rem;
-  bottom: 1rem;
-  z-index: 800;
-  padding: 0.75rem 1.1rem;
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  left: max(0.75rem, env(safe-area-inset-left));
+  z-index: 810;
+}
+
+.menu-rol-toggle {
+  position: relative;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.75rem;
+  padding: 0 1.1rem 0 0.9rem;
   border: 0;
   border-radius: 999px;
-  background: var(--ink);
+  background: var(--coral);
   color: #fff;
+  font: inherit;
   font-weight: 700;
-  box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.3);
+  box-shadow: 0 0.25rem 1rem rgba(0, 0, 0, 0.2);
   cursor: pointer;
+
+  &:focus-visible {
+    outline: 3px solid var(--ink);
+    outline-offset: 3px;
+  }
 }
 
-/* "Mis productos" (vendedor): tercer nivel de la pila, encima de "Mi tienda", para que no se tapen. */
-.boton-productos {
-  bottom: 8.5rem;
+.menu-rol-icono {
+  width: 1.1rem;
+  font-size: 1.3rem;
+  line-height: 1;
+  text-align: center;
 }
 
-/* Reclamaciones (CU-13): el comprador solo tiene este botón; soporte lo pone sobre "Moderación de reportes" y el
-   vendedor en el cuarto nivel de su pila (pedidos, tienda, productos y reclamaciones). */
-.boton-reclamaciones-soporte {
-  bottom: 4.5rem;
-}
-
-.boton-reclamaciones-vendedor {
-  bottom: 12.25rem;
-}
-
-.panel-pedidos {
+.menu-rol-fondo {
   position: fixed;
   inset: 0;
-  z-index: 900;
-  display: flex;
-  flex-direction: column;
+  border: 0;
+  background: rgba(24, 49, 57, 0.25);
+  cursor: default;
+}
+
+.menu-rol-opciones {
+  position: absolute;
+  bottom: 3.5rem;
+  left: 0;
+  z-index: 1;
+  width: min(17rem, calc(100vw - 1.5rem));
+  max-height: calc(100dvh - 6rem);
+  overflow-y: auto;
+  padding: 0.5rem;
+  border-radius: 14px;
   background: #fff;
+  box-shadow: 0 0.75rem 2rem rgba(0, 0, 0, 0.25);
 }
 
-/* "Mi tienda" (CU-18): mismo botón flotante que "Pedidos recibidos", encima de él. */
-.boton-tienda {
-  bottom: 4.75rem;
+.menu-rol-grupo + .menu-rol-grupo {
+  margin-top: 0.25rem;
+  padding-top: 0.25rem;
+  border-top: 1px solid var(--line);
 }
 
-/* "Mis reportes" (CU-20). Comprador: encima de "Mis reclamaciones" (1rem). Vendedor: quinto nivel de la pila, encima de
-   Pedidos recibidos (1rem), Mi tienda (4.75rem), Mis productos (8.5rem) y Reclamaciones (12.25rem). */
-.boton-reportes {
-  bottom: 4.75rem;
+.menu-rol-grupo h2 {
+  margin: 0.5rem 0.75rem 0.25rem;
+  color: #58717a;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
-.boton-reportes-vendedor {
-  bottom: 16rem;
+.menu-rol-grupo button {
+  display: block;
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0.6rem 0.75rem;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+
+  &:hover,
+  &:focus-visible {
+    background: #eef3f2;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--ink);
+    outline-offset: -2px;
+  }
 }
 
-/* "Inventario" (CU-15): sexto nivel de la pila del vendedor, encima de Mis reportes (16rem). */
-.boton-inventario {
-  bottom: 19.75rem;
+.catalogo-filtros {
+  display: flex; flex-wrap: wrap; gap: 1rem; align-items: end; margin: 1.5rem 0;
+  label { display: grid; gap: .4rem; }
+  input, select { max-width: 12rem; padding: .65rem; border: 1px solid #8c9b9e; background: white; color: #183139; }
+}
+.catalogo-nombre { text-align: left; background: transparent; border: 0; font: inherit; color: inherit; cursor: pointer; padding: 0; text-decoration: underline; }
+.catalogo-comparacion { margin-top: 2rem; padding: 1rem; border: 1px solid #dcd7ce; }
+.catalogo-tabla { overflow-x: auto;
+  table { border-collapse: collapse; width: 100%; }
+  th, td { padding: .75rem; border: 1px solid #dcd7ce; text-align: left; min-width: 9rem; }
+  img { width: 100px; height: 100px; object-fit: cover; }
+}
+.catalogo-detalle-fondo { position: fixed; inset: 0; z-index: 10000; background: #18313999; display: grid; place-items: center; padding: 1rem; }
+.catalogo-detalle { background: #fffdf8; color: #183139; padding: 1.5rem; border-radius: 1rem; width: min(100%, 640px); max-height: 90vh; overflow-y: auto;
+  img { display: block; width: 100%; max-height: 300px; object-fit: contain; margin: 1rem 0; }
+  button { padding: .65rem; margin: .25rem; cursor: pointer; }
+}
+.catalogo-detalle {
+  width: min(1120px, 100%); padding: 0; border: 1px solid #e1dfd7;
+  .detalle-cabecera { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 1rem 1.5rem; border-bottom: 1px solid #e5e2da; color: #58717a; }
+  .detalle-cabecera button { background: transparent; border: 1px solid #d8dedc; border-radius: 8px; }
+  .detalle-contenido { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(270px, 1fr); gap: 2rem; padding: 1.5rem; }
+  .detalle-ruta { color: #63777c; font-size: .8rem; margin: 0 0 1rem; }
+  .detalle-galeria { margin: 0; background: #f5f4ef; border-radius: 12px; padding: 1rem; }
+  img.detalle-imagen { height: 350px; max-height: 350px; margin: 0; width: 100%; object-fit: contain; }
+  figcaption { text-align: center; color: #687c80; font-size: .75rem; padding-top: .7rem; }
+  .detalle-miniaturas { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .5rem; }
+  .detalle-miniaturas button { background: white; border: 1px solid #ccd5d4; border-radius: 8px; }
+  .detalle-miniaturas button[aria-pressed="true"] { border: 2px solid #173c44; }
+  .detalle-miniaturas img { width: 55px; height: 55px; margin: 0; object-fit: contain; }
+  .detalle-compra { border: 1px solid #deded4; border-radius: 12px; padding: 1.4rem; align-self: start; }
+  .detalle-categoria { color: #677d81; font-size: .8rem; }
+  h2 { font-size: 1.6rem; line-height: 1.2; margin: .8rem 0; }
+  .detalle-marca { color: #577478; font-size: .85rem; }
+  .detalle-precio { display: block; font-size: 2.2rem; margin: 1.5rem 0; font-weight: 500; }
+  .detalle-disponibilidad { color: #247455; font-weight: 600; }
+  .detalle-disponibilidad span { display: block; font-weight: 400; color: #607379; font-size: .85rem; margin-top: .4rem; }
+  button.detalle-agregar, button.detalle-comparar { display: block; width: 100%; margin: .7rem 0; border-radius: 8px; padding: .9rem; font-weight: 600; }
+  .detalle-agregar { background: #193b43; color: white; border: 1px solid #193b43; }
+  .detalle-agregar:disabled { opacity: .5; cursor: not-allowed; }
+  .detalle-comparar { background: #e8eee7; color: #193b43; border: 1px solid #d4dfd4; }
+  .detalle-seccion, .detalle-tienda { border-top: 1px solid #e1e3dc; margin-top: 1.5rem; padding-top: 1rem; }
+  h3 { font-size: 1.1rem; margin: .5rem 0 1rem; }
+  .detalle-caracteristicas { margin: 0; }
+  .detalle-caracteristicas > div { display: grid; grid-template-columns: 1fr 1fr; padding: .8rem; gap: 1rem; }
+  .detalle-caracteristicas > div:nth-child(odd) { background: #f0f1eb; }
+  dt { font-weight: 600; } dd { margin: 0; overflow-wrap: anywhere; }
+  .detalle-descripcion { white-space: pre-line; line-height: 1.7; }
+  .detalle-ayuda { font-size: .8rem; line-height: 1.6; color: #607479; }
+  .detalle-variantes { padding: 0; list-style: none; } .detalle-variantes li { display: grid; gap: .4rem; padding: .7rem; border-bottom: 1px solid #e1e3dc; }
+}
+@media (max-width: 720px) {
+  .catalogo-detalle .detalle-contenido { grid-template-columns: 1fr; gap: 1rem; padding: 1rem; }
+  .catalogo-detalle img.detalle-imagen { height: 240px; }
+  .catalogo-detalle .detalle-compra { grid-row: 1; }
+  .catalogo-detalle .detalle-cabecera > span { display: none; }
+}
+// Return from the hosted checkout; status is always verified by the backend.
+.payment-return {
+  margin: 1rem;
+  padding: 1.25rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  background: #f0f9ff;
+  color: #173039;
+  button { padding: .75rem 1rem; border-radius: 8px; cursor: pointer; }
 }
 
-/* "Mis devoluciones" (CU-19). Comprador: encima de "Mis reportes" (4.75rem). Vendedor: séptimo nivel de la pila, encima de
-   Inventario (19.75rem). */
-.boton-devoluciones {
-  bottom: 8.5rem;
+
+/* La navegación flotante vive fuera del contexto de apilamiento del carrito de Ionic.
+   Durante la compra se retira también del foco y del hit testing, sin cambiar permisos. */
+.compra-abierta .menu-rol,
+.compra-abierta .acceso-avisos,
+.compra-abierta .acceso-pedidos {
+  visibility: hidden;
+  pointer-events: none;
 }
 
-.boton-devoluciones-vendedor {
-  bottom: 23.5rem;
-}
-
-/* Ventanas bajas (por ejemplo un teléfono en horizontal): la pila de botones flotantes se compacta para que los siete
-   del vendedor quepan sin salirse de la pantalla ni tapar la pantalla completa. */
-@media (max-height: 27rem) {
-  .boton-pedidos {
-    bottom: 0.5rem;
-    padding: 0.3rem 0.8rem;
-    font-size: 0.8rem;
-  }
-
-  .boton-tienda,
-  .boton-reportes {
-    bottom: 2.5rem;
-  }
-
-  .boton-productos,
-  .boton-devoluciones {
-    bottom: 4.5rem;
-  }
-
-  .boton-reclamaciones-vendedor {
-    bottom: 6.5rem;
-  }
-
-  .boton-reportes-vendedor {
-    bottom: 8.5rem;
-  }
-
-  .boton-inventario {
-    bottom: 10.5rem;
-  }
-
-  .boton-devoluciones-vendedor {
-    bottom: 12.5rem;
-  }
+.registro-comprador-trigger {
+  display: block;
+  margin: 0.75rem auto;
+  padding: 0.65rem 1rem;
+  border: 1px solid currentColor;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
 }

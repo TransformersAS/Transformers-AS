@@ -1,0 +1,23 @@
+# Applied last, after the real root manifest(s). Values supplied only by control.py.
+services:
+  frontend:
+    image: '${TOPOLOGY_PROJECT:?Use control.py}-frontend:validation'
+    cpus: 0.25
+    mem_limit: 128m
+  backend:
+    image: '${TOPOLOGY_PROJECT:?Use control.py}-backend:validation'
+    cpus: 1.0
+    mem_limit: 1536m
+    environment:
+      APP_AUTH_LOGIN_ATTEMPTS_ENABLED: 'false'
+      APP_AUTH_LOGIN_ATTEMPTS_ORIGIN_VERIFIED: 'false'
+      JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=60
+    healthcheck:
+      test: [CMD, curl, --fail, --silent, http://127.0.0.1:8080/actuator/health/readiness]
+      interval: 5s
+      timeout: 5s
+      retries: 90
+      start_period: 60s
+  mysql:
+    cpus: 0.75
+    mem_limit: 768m

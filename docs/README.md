@@ -1,5 +1,7 @@
 # Documentación del proyecto
 
+- [CU-05: reseñas de productos comprados](casos-de-uso/cu-05-resenas.md): implementación, pruebas automáticas, cobertura y consultas SQL.
+
 Este es el punto de entrada a las guías de Marketplace. Los documentos están agrupados por tema y sus nombres están en español, en minúsculas y separados por guiones. **CU** significa **caso de uso**; se conserva su número para relacionar las guías con los requisitos.
 
 ## Por dónde empezar
@@ -10,6 +12,12 @@ Este es el punto de entrada a las guías de Marketplace. Los documentos están a
 - **Para instalar y desarrollar el proyecto completo:** [README principal](../README.md).
 
 ## Ejecución y entrega
+
+- [Pruebas automatizadas del CU-04](pruebas/cu04-automatizado.md): ejecutar favoritos, alertas, cola y push con un comando y conservar evidencias.
+
+- [Web Push y RabbitMQ](ejecucion/notificaciones-push-rabbitmq.md): activar el canal push, levantar la cola y demostrar entrega y recuperación.
+
+- [Perfil de demostración de pagos](ejecucion/perfil-pagos-demo.md): acortar el vencimiento de nuevas reservas mediante configuración, sin editar Java.
 
 | Documento | Para qué sirve |
 | --- | --- |
@@ -37,6 +45,8 @@ Este es el punto de entrada a las guías de Marketplace. Los documentos están a
 
 ## Casos de uso
 
+- [CU-04: favoritos y alertas](casos-de-uso/cu-04-favoritos-y-alertas.md): funcionamiento, contratos, configuración, trazabilidad y pruebas de seguimiento de productos.
+
 | Documento | Para qué sirve |
 | --- | --- |
 | [CU-19: devolución de compra](casos-de-uso/cu-19-devolucion-compra.md) | Consultar el flujo de devoluciones, sus contratos y limitaciones. |
@@ -44,11 +54,14 @@ Este es el punto de entrada a las guías de Marketplace. Los documentos están a
 
 ## Pruebas
 
+- [CU-03: checkout con Mercado Pago](pruebas/cu03-mercadopago.md): configuración de sandbox, flujos, límites y pruebas.
+
 | Documento | Para qué sirve |
 | --- | --- |
 | [Pruebas de autenticación y sesiones — CU-08](pruebas/cu-08-autenticacion-y-sesiones.md) | Localizar pruebas de backend, interfaz y extremo a extremo, con sus alcances. |
 | [Cobertura de integración del backend](pruebas/cobertura-integracion-backend.md) | Ejecutar y auditar las pruebas de integración y su cobertura. |
 | [Datos de demostración y rendimiento](pruebas/datos-demostracion-y-rendimiento.md) | Preparar datos reproducibles para demostraciones y pruebas de carga. |
+| [Mediciones de ASR-005 y ASR-006](pruebas/mediciones-asr-005-asr-006.md) | Consultar los tiempos medidos de rendimiento, despliegue y rollback, y qué falta medir con dos computadores. |
 
 ## Despliegue e integración continua
 
@@ -61,6 +74,7 @@ Este es el punto de entrada a las guías de Marketplace. Los documentos están a
 
 | Documento | Para qué sirve |
 | --- | --- |
+| [CU-03: pasarela de pagos](sustentacion/cu-03-pasarela-de-pagos.md) | Explicar la integración con Mercado Pago, levantar la demostración y consultar pagos y productos en MySQL. |
 | [CU-08: autenticación y CU-11: cancelación](sustentacion/cu-08-autenticacion-cu-11-cancelacion.md) | Consultar trazabilidad, diagramas, referencias al código y preguntas para la exposición. |
 
 ## Organización del repositorio

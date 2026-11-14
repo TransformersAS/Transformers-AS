@@ -1,0 +1,26 @@
+# Entorno desechable CU-09; SMTP sin TLS únicamente en su red local de pruebas.
+services:
+  mysql:
+    environment:
+      MYSQL_DATABASE: cu09_e2e
+      MYSQL_USER: cu09_test
+      MYSQL_PASSWORD: cu09_test_only
+      MYSQL_ROOT_PASSWORD: cu09_root_test_only
+  mailpit:
+    image: axllent/mailpit:v1.27
+    ports:
+      - "127.0.0.1:${CU09_MAIL_PORT:-18039}:8025"
+  backend:
+    environment:
+      DB_NAME: cu09_e2e
+      DB_USER: cu09_test
+      DB_PASSWORD: cu09_test_only
+      SPRING_MAIL_HOST: mailpit
+      SPRING_MAIL_PORT: 1025
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH: "false"
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE: "false"
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_REQUIRED: "false"
+      EMAIL_VERIFICATION_FROM: marketplace@example.test
+    depends_on:
+      mailpit:
+        condition: service_started

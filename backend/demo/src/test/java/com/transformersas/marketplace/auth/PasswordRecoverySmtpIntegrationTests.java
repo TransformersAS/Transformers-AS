@@ -70,6 +70,7 @@ class PasswordRecoverySmtpIntegrationTests extends AbstractIntegrationTest {
 
     private String request(String email) throws Exception {
         return publicPost(REQUEST, Map.of("email", email)).andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.message").value("Si la cuenta está activa, intentaremos enviar las instrucciones de recuperación. Si no las recibes, puedes volver a solicitarlas. Utiliza el último código recibido"))
                 .andExpect(jsonPath("$.token").doesNotExist()).andReturn().getResponse().getContentAsString();
     }
 

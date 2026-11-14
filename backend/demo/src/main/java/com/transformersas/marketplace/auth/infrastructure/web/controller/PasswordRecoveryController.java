@@ -19,7 +19,7 @@ public class PasswordRecoveryController {
     @ResponseStatus(HttpStatus.ACCEPTED)
     public RecoveryResponse request(@RequestBody RecoveryRequest request) {
         recovery.request(request.email());
-        return new RecoveryResponse("Si la cuenta está activa, recibirás instrucciones para recuperar la contraseña");
+        return new RecoveryResponse("Si la cuenta está activa, intentaremos enviar las instrucciones de recuperación. Si no las recibes, puedes volver a solicitarlas. Utiliza el último código recibido");
     }
 
     @PostMapping("/confirm")

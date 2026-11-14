@@ -12,6 +12,9 @@ public interface NotificationRepository {
      */
     Insertion insertIfAbsent(Notification notification);
 
+    java.util.List<Notification> findByRecipient(com.transformersas.marketplace.notifications.domain.model.RecipientType type,
+            Long recipientId, int offset, int limit);
+
     Optional<Notification> findById(Long id);
 
     /** Marca el aviso externo como enviado y cuenta el intento. */

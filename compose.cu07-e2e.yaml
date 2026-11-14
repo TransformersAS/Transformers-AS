@@ -1,0 +1,17 @@
+# Only for disposable local tests. SMTP is plaintext solely inside this isolated test network.
+services:
+  mailpit:
+    image: axllent/mailpit:v1.27
+    ports:
+      - "127.0.0.1:${CU07_MAIL_PORT:-18025}:8025"
+  backend:
+    environment:
+      SPRING_MAIL_HOST: mailpit
+      SPRING_MAIL_PORT: 1025
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH: "false"
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE: "false"
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_REQUIRED: "false"
+      EMAIL_VERIFICATION_FROM: marketplace@example.test
+    depends_on:
+      mailpit:
+        condition: service_started

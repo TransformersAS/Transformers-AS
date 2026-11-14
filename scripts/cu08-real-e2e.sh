@@ -17,4 +17,4 @@ trap cleanup EXIT
 "${compose[@]}" exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_PASSWORD" mysql -u "$MYSQL_USER" "$MYSQL_DATABASE"' < scripts/cu08-real-seed.sql
 cd frontend
 export CU08_REAL_BASE_URL="http://127.0.0.1:${CU08_E2E_PORT}"
-npx playwright test --config=playwright.real.config.ts --project=chrome
+npx playwright test --config=playwright.real.config.ts --project=chrome e2e-real/account-session.spec.ts

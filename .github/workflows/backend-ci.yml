@@ -30,6 +30,21 @@ jobs:
           cache-dependency-path: backend/demo/pom.xml
       - name: Check Docker for Testcontainers
         run: docker info
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+      - name: Install Chrome for CU10 Playwright
+        working-directory: frontend
+        run: ./node_modules/.bin/playwright install --with-deps chrome
+      - name: Build frontend for CU10 E2E
+        working-directory: frontend
+        run: npm run build
       - name: Verify backend
         working-directory: backend/demo
         run: ./mvnw clean verify
@@ -158,9 +173,15 @@ jobs:
       - name: Run Playwright E2E
         working-directory: frontend
         run: npx playwright test --project=chrome --reporter=html
+      - name: Verify production Web Push browser integration
+        working-directory: frontend
+        run: npx playwright test --config=playwright.push.config.ts --project=chrome --reporter=list
 
       - name: Run real CU-08 browser/backend/MySQL E2E
         run: bash scripts/cu08-real-e2e.sh
+
+      - name: Ejecutar E2E real de CU-09 con MySQL y Mailpit
+        run: bash scripts/cu09-real-e2e.sh
 
       - name: Upload Playwright report
         if: ${{ always() }}
@@ -169,6 +190,7 @@ jobs:
           name: playwright-report-${{ github.sha }}
           path: |
             frontend/playwright-report/
+            frontend/test-results/
             frontend/playwright-report-real/
             frontend/test-results-real/
           if-no-files-found: warn
@@ -192,6 +214,7 @@ jobs:
           DB_PASSWORD_SECRET: validation-db
           MYSQL_ROOT_PASSWORD_SECRET: validation-root
           LOGISTICS_WEBHOOK_SECRET: validation-logistics
+          METRICS_TOKEN_SECRET: validation-metrics
         run: docker stack config -c stack.yml > /dev/null
 
   deploy:

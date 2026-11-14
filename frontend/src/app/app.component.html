@@ -1,7 +1,8 @@
-<ion-app>
+<ion-app [class.compra-abierta]="mostrarCarrito || mostrarCheckout">
 
   <ion-content [fullscreen]="true">
 
+    <app-checkout-status></app-checkout-status>
 
     <!-- ===================================================== -->
     <!-- BARRA SUPERIOR -->
@@ -47,7 +48,9 @@
         <!-- Mensajes -->
         <button
           type="button"
-          aria-label="Abrir mensajes"
+          aria-label="Abrir notificaciones"
+          class="acceso-avisos"
+          (click)="(esComprador || esVendedor) ? mostrarNotificaciones = true : mostrarAcceso = true"
         >
 
           <ion-icon
@@ -77,7 +80,7 @@
         </button>
 
 
-        <button *ngIf="esComprador" type="button" (click)="mostrarPedidos = true">Mis pedidos</button>
+        <button *ngIf="esComprador" class="acceso-pedidos" type="button" (click)="mostrarPedidos = true">Mis pedidos</button>
 
         <!-- Cuenta -->
         <button
@@ -96,6 +99,10 @@
 
     </header>
 
+    @if (avisoSesionFinalizada) {
+      <p role="alert" style="position: fixed; bottom: 0; left: 0; right: 0; z-index: 100; background: var(--ion-background-color, white)">Tu sesión ha finalizado. Inicia sesión de nuevo para continuar.</p>
+    }
+
 
 
     <!-- ===================================================== -->
@@ -103,8 +110,17 @@
     <!-- ===================================================== -->
 
     <app-mis-pedidos *ngIf="esComprador && mostrarPedidos"
-      (cerrar)="mostrarPedidos = false"></app-mis-pedidos>
+      (cerrar)="mostrarPedidos = false" (resenasCambio)="actualizarResenas()"></app-mis-pedidos>
 
+    <button class="registro-comprador-trigger" type="button" (click)="mostrarRegistroComprador = true; mostrarAcceso = false">Crear cuenta de comprador / Habilitar COMPRADOR</button>
+<div class="panel-pedidos" role="dialog" aria-modal="true" aria-labelledby="titulo-registro-comprador" *ngIf="mostrarRegistroComprador">
+  <app-registro-comprador (cerrar)="mostrarRegistroComprador = false" (acceso)="mostrarAcceso = true"></app-registro-comprador>
+</div>
+    <button *ngIf="autenticada" class="registro-comprador-trigger" type="button" (click)="mostrarPerfilPersonal = true; mostrarAcceso = false">Mi perfil y preferencias</button>
+    <p *ngIf="avisoPerfilPersonal" role="status">{{avisoPerfilPersonal}}</p>
+    <div class="panel-pedidos" *ngIf="mostrarPerfilPersonal && autenticada">
+      <app-perfil-personal (cerrar)="mostrarPerfilPersonal=false" (finalizado)="finalizarPerfilPersonal($event)"></app-perfil-personal>
+    </div>
     <app-acceso
       *ngIf="mostrarAcceso"
       (cerrar)="mostrarAcceso = false"
@@ -647,35 +663,9 @@
           </h3>
 
 
-          <select
-            [(ngModel)]="paymentMethod"
-            class="payment-select"
-          >
-
-            <!-- Flujo normal -->
-            <option value="CARD">
-              Tarjeta
-            </option>
-
-
-            <!-- Alterno A5 -->
-            <option value="TEST_REJECT">
-              Simular pago rechazado
-            </option>
-
-
-            <!-- Alterno A6 -->
-            <option value="TEST_PENDING">
-              Simular pago pendiente
-            </option>
-
-
-            <!-- Alterno A8 -->
-            <option value="TEST_UNAVAILABLE">
-              Simular pasarela no disponible
-            </option>
-
-          </select>
+          <p><strong>Mercado Pago</strong></p>
+          <p>Seleccionarás el medio de pago y completarás los datos en el checkout seguro de Mercado Pago.</p>
+          <p>Entorno de pruebas: utiliza las cuentas y tarjetas de prueba del proveedor. No se realizan cobros reales.</p>
 
         </div>
 
@@ -694,8 +684,8 @@
 
           {{
             procesandoCompra
-            ? 'Procesando compra...'
-            : 'Confirmar compra'
+            ? 'Abriendo Mercado Pago...'
+            : 'Continuar a Mercado Pago'
           }}
 
 
@@ -1004,6 +994,7 @@
             class="category"
             *ngFor="let categoria of categorias"
             href="#catalogo"
+            (click)="categoriaFiltro = categoria.nombre"
           >
 
 
@@ -1134,30 +1125,46 @@
           </div>
 
 
-          <button
-            class="filter"
-            type="button"
-          >
-
-            Ordenar por
-            <b>relevancia</b>
-            ⌄
-
-          </button>
+          <label>Ordenar por
+            <select [(ngModel)]="ordenCatalogo" aria-label="Ordenar productos">
+              <option value="relevancia">Relevancia</option>
+              <option value="precio-asc">Menor precio</option>
+              <option value="precio-desc">Mayor precio</option>
+              <option value="nombre">Nombre</option>
+              <option value="recientes">Más recientes</option>
+            </select>
+          </label>
 
         </div>
 
 
 
-        <div
-          class="product-grid"
-          *ngIf="destacados$ | async as productos"
-        >
+        <ng-container *ngIf="destacados$ | async as productos">
+          <p *ngIf="!autenticada">Inicia sesión para comprar.
+            <button *ngIf="!mostrarAcceso" type="button" (click)="mostrarAcceso = true">Iniciar sesión</button>
+          </p>
+          <p *ngIf="cargandoCatalogo" role="status">Cargando productos...</p>
+          <p *ngIf="errorCatalogo" role="alert">{{ errorCatalogo }}</p>
+          <div class="catalogo-filtros">
+            <label>Categoría
+              <select [(ngModel)]="categoriaFiltro" aria-label="Categoría">
+                <option value="">Todas las categorías</option>
+                <option *ngFor="let categoria of categoriasDisponibles(productos)" [value]="categoria">{{ categoria }}</option>
+              </select>
+            </label>
+            <label>Precio mínimo <input type="number" min="0" [(ngModel)]="precioMinimo"></label>
+            <label>Precio máximo <input type="number" min="0" [(ngModel)]="precioMaximo"></label>
+            <button type="button" (click)="limpiarFiltros()">Limpiar filtros</button>
+          </div>
+          <p *ngIf="preciosInvalidos" role="alert">Los precios deben ser positivos o cero y el mínimo no puede superar el máximo.</p>
+          <p *ngIf="!cargandoCatalogo && !errorCatalogo" role="status">{{ filtrarProductos(productos).length }} productos encontrados</p>
+          <p *ngIf="!cargandoCatalogo && !errorCatalogo && !preciosInvalidos && !filtrarProductos(productos).length">No hay productos que coincidan. Prueba otra búsqueda o limpia los filtros.</p>
+          <div class="product-grid">
 
 
           <article
             class="product-card"
-            *ngFor="let producto of productos"
+            *ngFor="let producto of filtrarProductos(productos)"
           >
 
 
@@ -1178,11 +1185,14 @@
 
               <button
                 type="button"
-                [attr.aria-label]="'Guardar ' + producto.nombre"
+                [attr.aria-label]="(favoritos.ids().includes(producto.id) ? 'Retirar de favoritos ' : 'Guardar ') + producto.nombre"
+                [attr.aria-pressed]="favoritos.ids().includes(producto.id)"
+                [disabled]="favoritos.ocupados().includes(producto.id)"
+                (click)="guardarFavorito(producto.id)"
               >
 
                 <ion-icon
-                  name="heart-outline"
+                  name="heart-outline" [style.color]="favoritos.ids().includes(producto.id) ? '#ef6d4e' : null"
                 ></ion-icon>
 
               </button>
@@ -1200,9 +1210,12 @@
               </p>
 
 
-              <h3>
-                {{ producto.nombre }}
-              </h3>
+              <h3><button type="button" class="catalogo-nombre" (click)="abrirDetalle(producto)">{{ producto.nombre }}</button></h3>
+              <p>{{ producto.categoria }}</p>
+              <button type="button" (click)="abrirDetalle(producto)">Ver detalle</button>
+              <button type="button" [attr.aria-pressed]="estaComparado(producto.id)" (click)="comparar(producto)">
+                {{ estaComparado(producto.id) ? 'Quitar de comparación' : 'Comparar' }}
+              </button>
 
 
 
@@ -1274,7 +1287,7 @@
 
               </button>
 
-              <app-reportar-contenido tipo="PUBLICACION" [contenidoId]="producto.id"></app-reportar-contenido>
+              <app-reportar-contenido *ngIf="autenticada" tipo="PUBLICACION" [contenidoId]="producto.id"></app-reportar-contenido>
 
             </div>
 
@@ -1282,6 +1295,25 @@
 
         </div>
 
+        </ng-container>
+        <p *ngIf="errorComparacion" role="alert">{{ errorComparacion }}</p>
+        <p role="alert" *ngIf="favoritos.error()">{{ favoritos.error() }}</p>
+        <section class="catalogo-comparacion" *ngIf="comparados.length" aria-label="Comparación de productos">
+          <h3>Comparar productos ({{ comparados.length }}/3)</h3>
+          <p *ngIf="comparados.length < 2">Selecciona otro producto de la misma categoría.</p>
+          <button type="button" (click)="comparados = []; errorComparacion = ''">Vaciar comparación</button>
+          <div class="catalogo-tabla"><table>
+            <caption>Características de los productos seleccionados</caption>
+            <thead><tr><th scope="col">Característica</th><th scope="col" *ngFor="let p of comparados">{{ p.nombre }} <button type="button" (click)="comparar(p)" [attr.aria-label]="'Quitar ' + p.nombre">Quitar</button></th></tr></thead>
+            <tbody>
+              <tr><th scope="row">Imagen</th><td *ngFor="let p of comparados"><img [src]="p.imagen" [alt]="p.nombre"></td></tr>
+              <tr><th scope="row">Precio</th><td *ngFor="let p of comparados">{{ p.precio | currency:'COP':'symbol-narrow':'1.0-0' }}</td></tr>
+              <tr><th scope="row">Categoría</th><td *ngFor="let p of comparados">{{ p.categoria }}</td></tr>
+              <tr><th scope="row">Descripción</th><td *ngFor="let p of comparados">{{ p.descripcion || 'Sin descripción' }}</td></tr>
+              <tr><th scope="row">Disponibilidad</th><td *ngFor="let p of comparados">{{ p.stock }} unidades</td></tr>
+            </tbody>
+          </table></div>
+        </section>
       </section>
 
 
@@ -1378,15 +1410,6 @@
   </ion-content>
 
 <!-- Moderación de reportes (CU-21): solo con el rol activo SOPORTE -->
-<button
-  *ngIf="esSoporte && !mostrarModeracion"
-  type="button"
-  class="boton-moderacion"
-  (click)="mostrarModeracion = true"
->
-  Moderación de reportes
-</button>
-
 <div class="panel-moderacion" *ngIf="esSoporte && mostrarModeracion">
   <button
     type="button"
@@ -1400,130 +1423,85 @@
 </div>
 
 <!-- Pedidos recibidos (CU-23): solo con el rol activo VENDEDOR -->
-<button
-  *ngIf="esVendedor && !mostrarPedidosRecibidos"
-  type="button"
-  class="boton-pedidos"
-  (click)="mostrarPedidosRecibidos = true"
->
-  Pedidos recibidos
-</button>
-
 <div class="panel-pedidos" *ngIf="esVendedor && mostrarPedidosRecibidos">
   <app-pedidos-recibidos (cerrar)="mostrarPedidosRecibidos = false"></app-pedidos-recibidos>
 </div>
 
 <!-- Mis productos (CU-14): solo con el rol activo VENDEDOR -->
-<button
-  *ngIf="esVendedor && !mostrarMisProductos"
-  type="button"
-  class="boton-pedidos boton-productos"
-  (click)="mostrarMisProductos = true"
->
-  Mis productos
-</button>
-
 <div class="panel-pedidos" *ngIf="esVendedor && mostrarMisProductos">
   <app-mis-productos (cerrar)="mostrarMisProductos = false"></app-mis-productos>
 </div>
 
 <!-- Inventario (CU-15): solo con el rol activo VENDEDOR -->
-<button
-  *ngIf="esVendedor && !mostrarInventario"
-  type="button"
-  class="boton-pedidos boton-inventario"
-  (click)="mostrarInventario = true"
->
-  Inventario
-</button>
-
 <div class="panel-pedidos" *ngIf="esVendedor && mostrarInventario">
   <app-inventario (cerrar)="mostrarInventario = false"></app-inventario>
 </div>
 
-<!-- Estructura del catálogo (CU-17): solo con el rol activo ADMIN -->
-<button
-  *ngIf="esAdmin && !mostrarCatalogoAdmin"
-  type="button"
-  class="boton-pedidos"
-  (click)="mostrarCatalogoAdmin = true"
->
-  Configurar catálogo
-</button>
+<!-- Analítica de ventas y rentabilidad (CU-26): solo con el rol activo VENDEDOR -->
+<div class="panel-pedidos" *ngIf="esVendedor && mostrarAnalitica">
+  <app-analitica-ventas (cerrar)="mostrarAnalitica = false"></app-analitica-ventas>
+</div>
 
+<!-- Estado de mi tienda (CU-27): suspensiones y aclaraciones; solo con el rol activo VENDEDOR -->
+<div class="panel-pedidos" *ngIf="esVendedor && mostrarEstadoTienda">
+  <app-estado-tienda (cerrar)="mostrarEstadoTienda = false"></app-estado-tienda>
+</div>
+
+<!-- Evaluar tiendas (CU-27): solo con el rol activo ADMIN -->
+<div class="panel-pedidos" *ngIf="esAdmin && mostrarEvaluacionTiendas">
+  <app-evaluacion-tiendas (cerrar)="mostrarEvaluacionTiendas = false"></app-evaluacion-tiendas>
+</div>
+
+<!-- Estructura del catálogo (CU-17): solo con el rol activo ADMIN -->
 <div class="panel-pedidos" *ngIf="esAdmin && mostrarCatalogoAdmin">
   <app-catalogo-admin (cerrar)="mostrarCatalogoAdmin = false"></app-catalogo-admin>
 </div>
 
 <!-- Mi tienda (CU-18): solo con el rol activo VENDEDOR -->
-<button
-  *ngIf="esVendedor && !mostrarMiTienda"
-  type="button"
-  class="boton-pedidos boton-tienda"
-  (click)="mostrarMiTienda = true"
->
-  Mi tienda
-</button>
-
 <div class="panel-pedidos" *ngIf="esVendedor && mostrarMiTienda">
   <app-mi-tienda (cerrar)="mostrarMiTienda = false"></app-mi-tienda>
 </div>
 
-<!-- Reclamaciones de compra (CU-13): comprador, vendedor y soporte -->
-<button
-  *ngIf="(esComprador || esVendedor || esSoporte) && !mostrarReclamaciones"
-  type="button"
-  class="boton-pedidos"
-  [class.boton-reclamaciones-soporte]="esSoporte"
-  [class.boton-reclamaciones-vendedor]="esVendedor"
-  (click)="mostrarReclamaciones = true"
->
-  {{ esVendedor ? 'Reclamaciones' : esSoporte ? 'Reclamaciones escaladas' : 'Mis reclamaciones' }}
-</button>
+<!-- Accesos del rol activo en un solo menú abajo a la izquierda (el carrito se abre a la derecha). -->
+<div class="menu-rol" *ngIf="menuRol as menu"
+  (keydown.escape)="mostrarMenu = false; botonMenu.focus()">
+  <button #botonMenu type="button" class="menu-rol-toggle"
+    [attr.aria-label]="'Opciones de ' + menu.titulo.toLowerCase()" aria-controls="opciones-rol"
+    [attr.aria-expanded]="mostrarMenu" (click)="mostrarMenu = !mostrarMenu">
+    <span class="menu-rol-icono" aria-hidden="true">{{ mostrarMenu ? '×' : '☰' }}</span>
+    <span aria-hidden="true">{{ menu.titulo }}</span>
+  </button>
+  <ng-container *ngIf="mostrarMenu">
+    <button type="button" class="menu-rol-fondo" tabindex="-1"
+      [attr.aria-label]="'Cerrar opciones de ' + menu.titulo.toLowerCase()" (click)="mostrarMenu = false"></button>
+    <nav id="opciones-rol" class="menu-rol-opciones" [attr.aria-label]="menu.titulo">
+      <section *ngFor="let grupo of menu.grupos" class="menu-rol-grupo">
+        <h2 *ngIf="menu.grupos.length > 1">{{ grupo.titulo }}</h2>
+        <button *ngFor="let opcion of grupo.opciones" type="button" (click)="abrirDesdeMenu(opcion.id)">
+          {{ opcion.etiqueta }}
+        </button>
+      </section>
+    </nav>
+  </ng-container>
+</div>
 
+<!-- Reclamaciones de compra (CU-13): vendedor y soporte; comprador desde el menú -->
 <div class="panel-pedidos" *ngIf="(esComprador || esVendedor || esSoporte) && mostrarReclamaciones">
   <app-reclamaciones (cerrar)="mostrarReclamaciones = false"></app-reclamaciones>
 </div>
 
 <!-- Mis reportes (CU-20): con el rol activo COMPRADOR o VENDEDOR -->
-<button
-  *ngIf="(esComprador || esVendedor) && !reportes.panelAbierto()"
-  type="button"
-  class="boton-pedidos boton-reportes"
-  [class.boton-reportes-vendedor]="esVendedor"
-  (click)="reportes.abrirPanel()"
->
-  Mis reportes
-</button>
-
 <div class="panel-pedidos" *ngIf="(esComprador || esVendedor) && reportes.panelAbierto()">
   <app-mis-reportes (cerrar)="reportes.cerrarPanel()"></app-mis-reportes>
 </div>
 
 <!-- Mis devoluciones (CU-19): con el rol activo COMPRADOR -->
-<button
-  *ngIf="esComprador && !devoluciones.panelCompradorAbierto()"
-  type="button"
-  class="boton-pedidos boton-devoluciones"
-  (click)="devoluciones.abrirPanelComprador()"
->
-  Mis devoluciones
-</button>
 
 <div class="panel-pedidos" *ngIf="esComprador && devoluciones.panelCompradorAbierto()">
   <app-mis-devoluciones (cerrar)="devoluciones.cerrarPanelComprador()"></app-mis-devoluciones>
 </div>
 
 <!-- Devoluciones recibidas (CU-19): con el rol activo VENDEDOR -->
-<button
-  *ngIf="esVendedor && !devoluciones.panelVendedorAbierto()"
-  type="button"
-  class="boton-pedidos boton-devoluciones-vendedor"
-  (click)="devoluciones.abrirPanelVendedor()"
->
-  Devoluciones recibidas
-</button>
-
 <div class="panel-pedidos" *ngIf="esVendedor && devoluciones.panelVendedorAbierto()">
   <app-devoluciones-recibidas (cerrar)="devoluciones.cerrarPanelVendedor()"></app-devoluciones-recibidas>
 </div>
@@ -1533,4 +1511,78 @@
   <app-registro-vendedor (cerrar)="mostrarRegistroVendedor = false"></app-registro-vendedor>
 </div>
 
+<div class="catalogo-detalle-fondo" *ngIf="detalle || cargandoDetalle || errorDetalle" (keydown)="tecladoDetalle($event)">
+  <section class="catalogo-detalle" role="dialog" aria-modal="true" aria-label="Detalle del producto" tabindex="0">
+    <header class="detalle-cabecera">
+      <span>Conoce todos los detalles</span>
+      <button type="button" (click)="cerrarDetalle()" aria-label="Cerrar detalle">Cerrar detalle ×</button>
+    </header>
+    <p *ngIf="cargandoDetalle" role="status">Consultando producto...</p>
+    <p *ngIf="errorDetalle" role="alert">{{ errorDetalle }}</p>
+    <ng-container *ngIf="detalle as p">
+      <div class="detalle-contenido">
+        <div class="detalle-principal">
+          <p class="detalle-ruta">Catálogo / {{ p.categoria }} / {{ p.nombre }}</p>
+          <figure class="detalle-galeria">
+            <img class="detalle-imagen" [src]="imagenDetalle || p.imagen" [alt]="p.nombre">
+            <figcaption *ngIf="p.imagenIlustrativa">Imagen ilustrativa del producto</figcaption>
+          </figure>
+          <div class="detalle-miniaturas" *ngIf="(p.imagenes?.length || 0) > 1" aria-label="Galería del producto">
+            <button type="button" *ngFor="let imagen of p.imagenes; let i = index"
+              [attr.aria-label]="'Ver imagen ' + (i + 1)" [attr.aria-pressed]="imagenDetalle === imagen"
+              (click)="imagenDetalle = imagen"><img [src]="imagen" [alt]="'Vista ' + (i + 1) + ' de ' + p.nombre"></button>
+          </div>
+          <section class="detalle-seccion" aria-label="Características del producto">
+            <h3>Características del producto</h3>
+            <dl class="detalle-caracteristicas">
+              <div><dt>Marca</dt><dd>{{ p.marca || 'Sin especificar' }}</dd></div>
+              <div><dt>Categoría</dt><dd>{{ p.categoria }}</dd></div>
+              <div><dt>Referencia de publicación</dt><dd>#{{ p.id }}</dd></div>
+              <div *ngFor="let caracteristica of p.caracteristicas"><dt>{{ caracteristica.nombre }}</dt><dd>{{ caracteristica.valor }}</dd></div>
+            </dl>
+            <p class="detalle-ayuda" *ngIf="!p.caracteristicas?.length">El vendedor aún no ha añadido características adicionales.</p>
+          </section>
+          <section class="detalle-seccion">
+            <h3>Descripción</h3>
+            <p class="detalle-descripcion">{{ p.descripcion || 'El vendedor aún no ha añadido una descripción.' }}</p>
+          </section>
+          <app-contactar-vendedor *ngIf="esComprador" [productId]="p.id"></app-contactar-vendedor>
+          <app-resenas-producto [productId]="p.id"></app-resenas-producto>
+          <section class="detalle-seccion" *ngIf="p.variantes?.length">
+            <h3>Opciones publicadas</h3>
+            <p class="detalle-ayuda">Consulta las opciones y sus existencias. El botón de compra agrega el producto base.</p>
+            <ul class="detalle-variantes"><li *ngFor="let variante of p.variantes"><strong>{{ variante.nombre }}</strong><span>{{ variante.precio | currency:'COP':'symbol-narrow':'1.0-0' }} · {{ variante.stock }} unidades</span></li></ul>
+          </section>
+        </div>
+        <aside class="detalle-compra" aria-label="Información de compra">
+          <span class="detalle-categoria">{{ p.categoria }}</span>
+          <h2>{{ p.nombre }}</h2>
+          <p class="detalle-marca" *ngIf="p.marca">Marca: {{ p.marca }}</p>
+          <strong class="detalle-precio">{{ p.precio | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
+          <p class="detalle-disponibilidad" *ngIf="p.disponible && p.stock">Stock disponible <span>{{ p.stock }} unidades</span></p>
+          <p *ngIf="!p.disponible || !p.stock">No disponible para comprar</p>
+          <button class="detalle-agregar" type="button" [disabled]="cargandoDetalle || !p.stock || !p.disponible" (click)="agregarAlCarrito(p.id)">Agregar al carrito</button>
+          <button class="detalle-comparar" type="button" [disabled]="cargandoDetalle" [attr.aria-pressed]="estaComparado(p.id)" (click)="comparar(p)">{{ estaComparado(p.id) ? 'Quitar de comparación' : 'Comparar' }}</button>
+          <p *ngIf="errorComparacion" role="alert">{{ errorComparacion }}</p>
+          <div class="detalle-tienda"><h3>Vendido por {{ p.tienda }}</h3><p *ngIf="p.descripcionTienda">{{ p.descripcionTienda }}</p></div>
+          <p class="detalle-ayuda">El método y el costo de envío se consultan al calcular el checkout con tu dirección.</p>
+        </aside>
+      </div>
+    </ng-container>
+  </section>
+</div>
+
+<div class="panel-pedidos" *ngIf="mostrarResenas && (esComprador || esVendedor)">
+  <app-mis-resenas [seller]="esVendedor" (cerrar)="mostrarResenas=false" (changed)="actualizarResenas()"></app-mis-resenas>
+</div>
+
 </ion-app>
+
+<app-notificaciones *ngIf="(esComprador || esVendedor) && mostrarNotificaciones" (cerrar)="mostrarNotificaciones = false" (abrirProducto)="abrirProductoGuardado($event)"></app-notificaciones>
+<div class="panel-pedidos" *ngIf="esComprador && mostrarFavoritos">
+  <app-mis-favoritos (cerrar)="mostrarFavoritos = false" (abrir)="abrirProductoGuardado($event)"
+    (agregar)="agregarAlCarrito($event)" (comparar)="abrirProductoGuardado($event, true)"></app-mis-favoritos>
+</div>
+
+
+<app-conversaciones *ngIf="(esComprador || esVendedor) && mensajeria.abierta()"></app-conversaciones>

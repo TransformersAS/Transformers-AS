@@ -25,6 +25,8 @@ public class LocalDemoAccountConfiguration {
             String email = "demo@marketplace.local";
             UserAccount demo = accounts.findByEmail(email).orElseGet(() -> accounts.save(new UserAccount(null, email,
                     encoder.encode("MarketplaceDemo123!"), AccountStatus.ACTIVA, Set.of(Role.COMPRADOR, Role.VENDEDOR))));
+            // La cuenta de desarrollo debe poder iniciar sesion sin un servicio SMTP.
+            accounts.markEmailVerified(demo.id());
             if (demo.roles().contains(Role.VENDEDOR)) {
                 // No reemplaza a una dueña existente: en reinicios posteriores no hace nada.
                 assignStoreOwner.execute(DEMO_STORE_ID, demo.id());

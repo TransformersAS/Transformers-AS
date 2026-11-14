@@ -1,4 +1,4 @@
-import { Component, EventEmitter, OnInit, Output, ViewChild, inject } from '@angular/core';
+import { Component, EventEmitter, OnInit, Input, Output, ViewChild, inject } from '@angular/core';
 import { CurrencyPipe, DatePipe } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
@@ -341,6 +341,7 @@ const TODOS_LOS_ESTADOS = Object.keys(ETIQUETA_ESTADO) as EstadoPedido[];
 export class PedidosRecibidosComponent implements OnInit {
     private readonly servicio = inject(PedidosVendedorService);
 
+    @Input() pedidoInicial: number | null = null;
     @Output() cerrar = new EventEmitter<void>();
     @ViewChild(IonContent) private contenido?: IonContent;
 
@@ -369,6 +370,7 @@ export class PedidosRecibidosComponent implements OnInit {
     detalleCancelacion = '';
 
     ngOnInit(): void {
+        if (this.pedidoInicial != null) { this.verDetalle(this.pedidoInicial); return; }
         this.cargarLista();
     }
 

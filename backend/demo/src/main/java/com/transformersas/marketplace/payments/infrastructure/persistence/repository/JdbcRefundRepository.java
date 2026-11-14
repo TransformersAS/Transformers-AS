@@ -93,7 +93,9 @@ public class JdbcRefundRepository implements RefundRepository {
         String truncated = error == null ? null : error.substring(0, Math.min(error.length(), MAX_ERROR));
         jdbc.sql("""
                         UPDATE refunds SET status = 'FAILED', attempts = attempts + 1, last_error = ?, updated_at = ?
-                        WHERE id = ? AND status <> 'COMPLETED'""")
+                        WHERE id = ? AND status <> 'COMPLETED'
+                          AND NOT EXISTS (SELECT 1 FROM external_payment_refunds e WHERE e.legacy_refund_id=refunds.id
+                              AND (e.externally_confirmed=TRUE OR (e.submission_started=TRUE AND e.status<>'FAILED')))""")
                 .params(truncated, LocalDateTime.now(), id).update();
     }
 

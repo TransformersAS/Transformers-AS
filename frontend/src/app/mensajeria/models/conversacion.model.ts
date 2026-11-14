@@ -1,2 +1,6 @@
-/** Conversación entre comprador y una tienda; la fecha se mantiene ISO para la API. */
-export interface Conversacion { id: string; tienda: string; ultimoMensaje: string; actualizadoEn: string; sinLeer: number; }
+export interface Conversacion {
+  id: number; buyerId: number; sellerId: number; storeId: number; productId: number; orderId: number | null;
+  productName: string; storeName: string; closed: boolean; archived: boolean;
+  unread: number; readThrough: number; updatedAt: string;
+}
+export interface Mensaje { id: number; conversationId: number; senderId: number; text: string; createdAt: string; image: boolean; }

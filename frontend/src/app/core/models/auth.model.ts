@@ -19,6 +19,7 @@ export interface CambioRol {
 }
 
 export interface SesionActiva {
+  deviceDescription?: string;
   /** Identificador público de gestión, no la cookie de autenticación. */
   id: string;
   createdAt: string;

@@ -2,6 +2,15 @@
 export interface Producto {
   id: number;
   nombre: string;
+  descripcion?: string;
+  stock?: number;
+  disponible?: boolean;
+  marca?: string;
+  imagenes?: string[];
+  imagenIlustrativa?: boolean;
+  caracteristicas?: { nombre: string; valor: string }[];
+  variantes?: { nombre: string; precio: number; stock: number }[];
+  descripcionTienda?: string;
   precio: number;
   precioAnterior?: number;
   imagen: string;

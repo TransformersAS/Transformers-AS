@@ -1,7 +1,7 @@
 import { API_BASE } from '../../core/config/api.config';
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { Observable, map, of } from 'rxjs';
+import { Observable, map, of, BehaviorSubject } from 'rxjs';
 import { Categoria, Producto } from '../models/producto.model';
 
 interface ProductoApi {
@@ -12,10 +12,19 @@ interface ProductoApi {
   stock: number;
   category: string;
   active: boolean;
+  ratingAverage?: number;
+  reviewCount?: number;
+  brand?: string;
+  store?: { id: number; name: string; description?: string };
+  imageUrls?: string[];
+  specifications?: { name: string; value: string }[];
+  variants?: { name: string; price: number; stock: number }[];
 }
 
 @Injectable({ providedIn: 'root' })
 export class CatalogoService {
+  readonly actualizaciones = new BehaviorSubject(0);
+  refrescarValoraciones(){this.actualizaciones.next(this.actualizaciones.value+1);}
 
   private readonly http = inject(HttpClient);
 
@@ -30,36 +39,38 @@ export class CatalogoService {
         productos
           .filter((producto) => producto.active)
 
-          .map((producto) => ({
-            id: producto.id,
-
-            nombre: producto.name,
-
-            precio: producto.price,
-
-            imagen:
-              this.obtenerImagen(
-                producto.name,
-                producto.category
-              ),
-
-            categoria:
-              producto.category,
-
-            tienda:
-              'Marketplace',
-
-            calificacion:
-              5,
-
-            cantidadResenas:
-              0,
-
-            envioGratis:
-              true
-          }))
+          .map(producto => this.convertirProducto(producto))
       )
     );
+  }
+
+  obtenerDetalle(id: number): Observable<Producto> {
+    return this.http.get<ProductoApi>(`${this.apiUrl}/${id}`).pipe(
+      map(producto => this.convertirProducto(producto))
+    );
+  }
+
+  private convertirProducto(producto: ProductoApi): Producto {
+    return {
+      id: producto.id,
+      nombre: producto.name,
+      descripcion: producto.description,
+      stock: producto.stock,
+      disponible: producto.active,
+      precio: producto.price,
+      imagen: producto.imageUrls?.[0] || this.obtenerImagen(producto.name, producto.category),
+      imagenes: producto.imageUrls?.length ? producto.imageUrls : [this.obtenerImagen(producto.name, producto.category)],
+      imagenIlustrativa: !producto.imageUrls?.length,
+      marca: producto.brand,
+      caracteristicas: (producto.specifications ?? []).map(s => ({ nombre: s.name, valor: s.value })),
+      variantes: (producto.variants ?? []).map(v => ({ nombre: v.name, precio: v.price, stock: v.stock })),
+      descripcionTienda: producto.store?.description,
+      categoria: producto.category,
+      tienda: producto.store?.name || 'Marketplace',
+      calificacion: producto.ratingAverage ?? 0,
+      cantidadResenas: producto.reviewCount ?? 0,
+      envioGratis: true
+    };
   }
 
   obtenerCategorias(): Observable<Categoria[]> {
@@ -67,7 +78,7 @@ export class CatalogoService {
     return of([
       {
         nombre: 'Tecnología',
-        icono: 'headset-outline',
+        icono: 'laptop-outline',
         color: '#ffd86b'
       },
       {
@@ -107,6 +118,26 @@ export class CatalogoService {
       .toLowerCase()
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '');
+
+    if (producto.includes('camiseta')) {
+      return 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=700&q=85';
+    }
+
+    if (producto.includes('jean')) {
+      return 'https://images.unsplash.com/photo-1542272604-787c3835535d?auto=format&fit=crop&w=700&q=85';
+    }
+
+    if (producto.includes('chaqueta')) {
+      return 'https://images.unsplash.com/photo-1551028719-00167b16eac5?auto=format&fit=crop&w=700&q=85';
+    }
+
+    if (producto.includes('mochila')) {
+      return 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&w=700&q=85';
+    }
+
+    if (producto.includes('reloj') || producto.includes('smartwatch')) {
+      return 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=700&q=85';
+    }
 
     if (producto.includes('audifonos')) {
       return 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=700&q=85';
@@ -148,6 +179,18 @@ export class CatalogoService {
       return 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=700&q=85';
     }
 
+    if (producto.includes('taza')) {
+      return 'https://images.unsplash.com/photo-1514228742587-6b1558fcca3d?auto=format&fit=crop&w=700&q=85';
+    }
+
+    if (producto.includes('libreta') || producto.includes('cuaderno')) {
+      return 'https://images.unsplash.com/photo-1531346878377-a5be20888e57?auto=format&fit=crop&w=700&q=85';
+    }
+
+    if (producto.includes('gorra')) {
+      return 'https://images.unsplash.com/photo-1521369909029-2afed882baee?auto=format&fit=crop&w=700&q=85';
+    }
+
     if (
       producto.includes('facial') ||
       producto.includes('cuidado')
@@ -165,8 +208,16 @@ export class CatalogoService {
       return 'https://images.unsplash.com/photo-1484101403633-562f891dc89a?auto=format&fit=crop&w=700&q=85';
     }
 
-    if (categoriaNormalizada === 'moda') {
+    if (categoriaNormalizada === 'moda' || categoriaNormalizada === 'ropa') {
       return 'https://images.unsplash.com/photo-1445205170230-053b83016050?auto=format&fit=crop&w=700&q=85';
+    }
+
+    if (categoriaNormalizada === 'papeleria') {
+      return 'https://images.unsplash.com/photo-1531346878377-a5be20888e57?auto=format&fit=crop&w=700&q=85';
+    }
+
+    if (categoriaNormalizada === 'accesorios') {
+      return 'https://images.unsplash.com/photo-1521369909029-2afed882baee?auto=format&fit=crop&w=700&q=85';
     }
 
     if (categoriaNormalizada === 'deportes') {
@@ -178,6 +229,11 @@ export class CatalogoService {
     }
 
     // Imagen genérica final
-    return 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=700&q=85';
+    return 'data:image/svg+xml,' + encodeURIComponent(
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 700">' +
+      '<rect width="700" height="700" fill="#f3eee5"/>' +
+      '<text x="350" y="350" text-anchor="middle" font-family="sans-serif" font-size="28" fill="#53676b">Imagen no disponible</text>' +
+      '</svg>'
+    );
   }
 }

@@ -8,7 +8,7 @@ local_mode=false
 case "${1:-}" in
   --local) local_mode=true ;;
   '') ;;
-  *) fail 'Uso: ./deploy.sh [--local]. Consultar docs/swarm.md.' ;;
+  *) fail 'Uso: bash deploy.sh [--local]. Consultar docs/despliegue/docker-swarm.md.' ;;
 esac
 [[ $# -le 1 ]] || fail 'Demasiados argumentos.'
 
@@ -21,6 +21,7 @@ export DB_USER="${DB_USER:-marketplace_app}"
 export DB_PASSWORD_SECRET="${DB_PASSWORD_SECRET:-${STACK_NAME}_db_password_v1}"
 export MYSQL_ROOT_PASSWORD_SECRET="${MYSQL_ROOT_PASSWORD_SECRET:-${STACK_NAME}_mysql_root_password_v1}"
 export LOGISTICS_WEBHOOK_SECRET="${LOGISTICS_WEBHOOK_SECRET:-${STACK_NAME}_logistics_webhook_secret_v1}"
+export METRICS_TOKEN_SECRET="${METRICS_TOKEN_SECRET:-${STACK_NAME}_metrics_token_v1}"
 if "$local_mode"; then
   export APP_MAX_REPLICAS_PER_NODE=2
   export BACKEND_HOST_PORT="${BACKEND_HOST_PORT:-18080}"
@@ -31,6 +32,7 @@ else
   export FRONTEND_HOST_PORT="${FRONTEND_HOST_PORT:-80}"
 fi
 deploy_timeout="${DEPLOY_TIMEOUT_SECONDS:-600}"
+evidence_dir="${DEPLOY_EVIDENCE_DIR:-$script_dir/artifacts/deploy-$(date -u +%Y%m%dT%H%M%SZ)-$$}"
 [[ "$STACK_NAME" =~ ^[a-z][a-z0-9_-]*$ ]] || fail 'STACK_NAME no válido.'
 [[ "$BACKEND_IMAGE_TAG" =~ ^[a-zA-Z0-9_][a-zA-Z0-9_.-]{0,127}$ ]] || fail 'BACKEND_IMAGE_TAG no válido.'
 [[ "$FRONTEND_IMAGE_TAG" =~ ^[a-zA-Z0-9_][a-zA-Z0-9_.-]{0,127}$ ]] || fail 'FRONTEND_IMAGE_TAG no válido.'
@@ -42,7 +44,7 @@ deploy_timeout="${DEPLOY_TIMEOUT_SECONDS:-600}"
 (( FRONTEND_HOST_PORT <= 65535 )) || fail 'FRONTEND_HOST_PORT fuera de rango.'
 [[ "$BACKEND_HOST_PORT" != "$FRONTEND_HOST_PORT" ]] || fail 'Los puertos publicados de frontend y backend deben ser distintos.'
 [[ "$deploy_timeout" =~ ^[1-9][0-9]{0,3}$ ]] || fail 'DEPLOY_TIMEOUT_SECONDS debe estar entre 1 y 9999.'
-for secret_name in "$DB_PASSWORD_SECRET" "$MYSQL_ROOT_PASSWORD_SECRET" "$LOGISTICS_WEBHOOK_SECRET"; do
+for secret_name in "$DB_PASSWORD_SECRET" "$MYSQL_ROOT_PASSWORD_SECRET" "$LOGISTICS_WEBHOOK_SECRET" "$METRICS_TOKEN_SECRET"; do
   [[ "$secret_name" =~ ^[a-zA-Z0-9][a-zA-Z0-9_.-]*$ ]] || fail 'Nombre de secret no válido.'
 done
 [[ "$DB_PASSWORD_SECRET" != "$MYSQL_ROOT_PASSWORD_SECRET" ]] || fail 'Usa secrets distintos para aplicación y root.'
@@ -154,6 +156,17 @@ else
   unset generated
 fi
 
+# Token con el que Prometheus lee las métricas del backend (monitoreo.sh). Tampoco lo escribe una persona.
+if docker secret inspect "$METRICS_TOKEN_SECRET" >/dev/null 2>&1; then
+  printf 'Reutilizando secret %s (no se cambia su contenido).\n' "$METRICS_TOKEN_SECRET"
+else
+  printf 'Generando secret aleatorio %s para las métricas.\n' "$METRICS_TOKEN_SECRET"
+  generated="$(od -An -tx1 -N 24 /dev/urandom | tr -d ' \n')"
+  [[ ${#generated} -eq 48 ]] || fail 'No se pudo generar el token de métricas.'
+  printf '%s' "$generated" | docker secret create "$METRICS_TOKEN_SECRET" - >/dev/null
+  unset generated
+fi
+
 if "$local_mode"; then
   # El Swarm de un nodo usa las imágenes locales recién construidas, sin consultar GHCR.
   docker stack deploy --resolve-image never -c "$script_dir/stack.yml" "$STACK_NAME"
@@ -196,6 +209,29 @@ while (( SECONDS < deadline )); do
     && curl --fail --silent --max-time 5 "$frontend_readiness_url" | grep -Eq '"status"[[:space:]]*:[[:space:]]*"UP"'; then
     stable=$((stable + 1))
     if (( stable >= 3 )); then
+      # Solo campos seleccionados: nunca exportar inspect completo, Env o secrets.
+      mkdir -p "$evidence_dir"
+      {
+        printf 'Fecha UTC: %s\nStack: %s\nEnsayo local: %s\n' "$(date -u +%FT%TZ)" "$STACK_NAME" "$local_mode"
+        printf 'Backend solicitado: %s\nFrontend solicitado: %s\n' "$backend_image" "$frontend_image"
+        printf 'Revision del checkout: '
+        git -C "$script_dir" rev-parse HEAD 2>/dev/null || printf 'no disponible\n'
+        printf 'Verificar manualmente que los NodeID corresponden a computadores distintos.\n'
+      } > "$evidence_dir/resumen.txt"
+      docker node ls > "$evidence_dir/nodos.txt"
+      docker stack services "$STACK_NAME" > "$evidence_dir/servicios.txt"
+      docker stack ps --no-trunc "$STACK_NAME" > "$evidence_dir/tareas.txt"
+      for service in frontend backend mysql; do
+        docker service inspect --format '{{.Spec.Name}} imagen={{.Spec.TaskTemplate.ContainerSpec.Image}}' \
+          "${STACK_NAME}_${service}" >> "$evidence_dir/imagenes.txt"
+        for task_id in $(docker service ps --filter desired-state=running -q "${STACK_NAME}_${service}"); do
+          docker inspect --type task --format '{{.ID}} nodo={{.NodeID}} estado={{.Status.State}}' "$task_id"
+        done > "$evidence_dir/${service}-nodos.txt"
+      done
+      curl --fail --silent --show-error --max-time 5 "$health_url" > "$evidence_dir/backend-readiness.json"
+      curl --fail --silent --show-error --max-time 5 "$frontend_url" > "$evidence_dir/frontend-health.json"
+      curl --fail --silent --show-error --max-time 5 "$frontend_readiness_url" > "$evidence_dir/frontend-readiness.json"
+      printf 'Evidencia tecnica guardada en %s\n' "$evidence_dir"
       docker stack services "$STACK_NAME"
       printf '\nFrontend y API disponibles; réplicas convergidas y readiness accesible. Revisar también la salud de cada task en su nodo.\n'
       printf 'docker stack services %s\ndocker stack ps --no-trunc %s\ndocker service ls\n' "$STACK_NAME" "$STACK_NAME"

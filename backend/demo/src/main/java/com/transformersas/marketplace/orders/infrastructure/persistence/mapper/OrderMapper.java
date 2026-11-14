@@ -22,9 +22,13 @@ public final class OrderMapper {
     public static OrderEntity newEntity(Order order) {
         OrderEntity entity = new OrderEntity();
         entity.setAccountId(order.accountId());
+        entity.provenance(order.provenance());
         entity.setStatus(order.status());
         entity.setPaymentStatus(order.paymentStatus());
         entity.setTotal(order.total());
+        entity.setDiscountAmount(order.discountAmount());
+        entity.setShippingCost(order.shippingCost());
+        entity.setSellerNameSnapshot(order.sellerNameSnapshot());
         entity.setStoreId(order.storeId());
         entity.setAddressId(order.addressId());
         entity.setShippingMethod(order.shippingMethod());
@@ -45,6 +49,7 @@ public final class OrderMapper {
             itemEntity.setQuantity(item.quantity());
             itemEntity.setUnitPrice(item.unitPrice());
             itemEntity.setSubtotal(item.subtotal());
+            itemEntity.setUnitCost(item.unitCost());
             entity.addItem(itemEntity);
         }
         return entity;
@@ -58,7 +63,7 @@ public final class OrderMapper {
     public static Order toDomain(OrderEntity entity) {
         List<OrderItem> items = entity.getItems().stream()
                 .map(item -> new OrderItem(item.getProductId(), item.getProductName(), item.getQuantity(),
-                        item.getUnitPrice(), item.getSubtotal()))
+                        item.getUnitPrice(), item.getSubtotal(), item.getUnitCost()))
                 .toList();
 
         DeliverySnapshot delivery = new DeliverySnapshot(entity.getDeliveryRecipientName(),
@@ -67,6 +72,7 @@ public final class OrderMapper {
 
         return new Order(entity.getId(), entity.getAccountId(), entity.getStatus(), entity.getPaymentStatus(),
                 entity.getTotal(), entity.getStoreId(), entity.getAddressId(), entity.getShippingMethod(),
-                delivery, entity.getTransactionId(), entity.getCreatedAt(), items);
+                delivery, entity.getTransactionId(), entity.getCreatedAt(), items, entity.getDiscountAmount(),
+                entity.getShippingCost(), entity.getSellerNameSnapshot(), entity.provenance());
     }
 }

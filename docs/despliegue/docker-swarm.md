@@ -190,6 +190,7 @@ asume emulación en Swarm ni se sustituye GHCR por una imagen local.
 
 `backend-ci.yml` agrega un job `deploy` que corre solo en push a `main`, después de que
 `publish` suba las imágenes a GHCR (`needs: publish`, `if: github.ref == 'refs/heads/main'`).
+Requiere habilitar `ENABLE_SWARM_DEPLOY=true` en las variables del repositorio.
 Se ejecuta en un self-hosted runner (`[self-hosted, swarm-manager]`) con Docker, bash y
 acceso directo al manager del Swarm, bajo el Environment de GitHub `production`.
 
@@ -215,6 +216,7 @@ Desde la raíz:
 MYSQL_NODE_ID=validation-node \
 DB_PASSWORD_SECRET=validation-app \
 MYSQL_ROOT_PASSWORD_SECRET=validation-root \
+LOGISTICS_WEBHOOK_SECRET=validation-logistics \
 docker stack config -c stack.yml
 
 bash -n deploy.sh
@@ -302,30 +304,31 @@ hasta que la base acepta conexiones. Es esperado y se recupera solo. Distinto es
 después de la convergencia: eso ya es un fallo real, y se mira con
 `docker service logs --tail 100 transformers-local_backend`.
 
-### Paso 4. Cargar datos de demostración
+### Paso 4. Los datos de demostración ya están
 
-El stack arranca **vacío**: sin cuentas y sin productos. Se puede crear una cuenta desde la propia
-aplicación, porque el registro de vendedor es público, pero el catálogo seguiría vacío y no habría
-nada que demostrar.
+La base arranca **con datos**, sin ejecutar nada más: el backend los carga al iniciar porque `stack.yml`
+enciende `MARKETPLACE_DEMO_DATA`. Todas las cuentas usan la contraseña `MarketplaceDemo123!` y tienen el
+correo ya verificado.
 
-Los guiones del repositorio funcionan contra el MySQL del stack; solo hay que apuntarles al
-contenedor, cuyo nombre lo pone Swarm:
+| Cuenta | Rol | Para qué |
+| --- | --- | --- |
+| `demo@marketplace.local` | Comprador y vendedor, dueño de la tienda principal | Atender pedidos (CU-23), devoluciones y reclamaciones de la tienda |
+| `comprador.demo@example.com` | Comprador | Sus nueve pedidos, devoluciones y la reclamación |
+| `vendedor.demo@example.com` | Vendedor de «Tienda vendedor demo» | Una segunda tienda, con tres productos |
+| `soporte.demo@example.com` | Soporte | Moderación y reclamaciones escaladas |
+| `admin.demo@example.com` | Administrador | Configuración del catálogo |
 
-```bash
-MYSQLC=$(docker ps --filter "label=com.docker.swarm.service.name=transformers-local_mysql" \
-  --format '{{.Names}}' | head -1)
+Además: los diez productos del catálogo de ejemplo con sus fichas, y pedidos del comprador en cada
+estado (confirmado, en preparación, listo para despacho con su envío, en camino, cuatro entregados y uno
+cancelado). De los entregados, uno queda libre para solicitar una devolución en vivo, otro tiene una
+devolución aprobada con el retorno en curso (CU-25), otro una devolución recién solicitada y otro una
+reclamación abierta (CU-13).
 
-DB_PASSWORD='UnaClaveLocalApp' DEMO_PASSWORD='UnaClaveDemo2026!' MYSQL_CONTAINER="$MYSQLC" \
-  ./scripts/cu23-demo-seed.sh
-DB_PASSWORD='UnaClaveLocalApp' DEMO_PASSWORD='UnaClaveDemo2026!' MYSQL_CONTAINER="$MYSQLC" \
-  ./scripts/cu24-25-demo-seed.sh
-```
+Es repetible: cada arranque solo completa lo que falta, nunca duplica ni cambia lo que ya hay. Para
+arrancar con la base vacía, `MARKETPLACE_DEMO_DATA=false bash deploy.sh --local`.
 
-`DB_PASSWORD` es la del archivo del paso 1. Eso deja las cuentas `vendedor.demo@example.com` y
-`comprador.demo@example.com`, el catálogo con productos y los pedidos de demostración.
-
-La primera cuenta con rol VENDEDOR recibe la tienda principal, así que puede gestionar sus pedidos.
-Si se prefiere asignarla a otra cuenta, está `MAIN_STORE_OWNER_EMAIL` (ver más abajo).
+La tienda principal queda a nombre de `demo@marketplace.local`. Por eso `MAIN_STORE_OWNER_EMAIL` ya no
+la reasigna: solo actúa sobre una tienda sin dueña.
 
 ### Paso 5. Usarlo
 
@@ -371,11 +374,50 @@ al nombre de uno nuevo, no reescribir el que hay.
 Volver a ejecutar el mismo comando reutiliza secrets, volumen y datos. Para retirarlo, la sección
 **Retirada explícita** al final de este documento.
 
-## Futuro cluster con dos computadores
+## Despliegue real con dos computadores
 
 Usar motores Docker Linux con IPs alcanzables entre sí. La VM de Docker Desktop,
 NAT, VPN y firewalls pueden impedir que dos Macs formen una overlay funcional.
 No reutilizar la dirección loopback del ensayo local como dirección de cluster.
+
+### Red y Docker con dos PCs Windows
+
+Preparación para dos PCs con Windows 11. Lo de la red se comprobó con ping entre
+dos equipos; los pasos de Docker y firewall son los previstos y quedan por confirmar
+en la prueba con los dos computadores:
+
+- **Red.** JaverRED pone a los equipos en segmentos distintos y no deja que se
+  hablen: el ping entre ellos se pierde. Conectar ambos al hotspot de un celular y
+  confirmar `ping` en los dos sentidos. Windows bloquea el ping en redes públicas;
+  para permitirlo, en PowerShell como administrador:
+  `New-NetFirewallRule -DisplayName "Ping Swarm" -Protocol ICMPv4 -IcmpType 8 -Direction Inbound -Action Allow`.
+- **Docker.** Docker Desktop queda detrás de su propia red interna y no sirve como
+  nodo. Usar Docker Engine dentro de WSL (Ubuntu) con la red en espejo, para que WSL
+  tenga la IP real del PC. Cerrar antes Docker Desktop. En cada PC:
+
+  ```powershell
+  Set-Content -Path "$env:USERPROFILE\.wslconfig" -Value "[wsl2]`nnetworkingMode=mirrored"
+  wsl --shutdown
+  ```
+
+  En un PC sin Docker en WSL: `wsl --install -d Ubuntu`, y dentro de Ubuntu
+  `curl -fsSL https://get.docker.com | sudo sh` y `sudo usermod -aG docker $USER`.
+  En Ubuntu, `ip -4 addr` debe mostrar la IP del PC en el hotspot.
+- **Firewall.** En cada PC, PowerShell como administrador:
+
+  ```powershell
+  New-NetFirewallRule -DisplayName "Swarm TCP" -Direction Inbound -Protocol TCP -LocalPort 2377,7946,80,8080 -Action Allow
+  New-NetFirewallRule -DisplayName "Swarm UDP" -Direction Inbound -Protocol UDP -LocalPort 7946,4789 -Action Allow
+  Set-NetFirewallHyperVVMSetting -Name '{40E0AC32-46A5-438A-A0B2-2B479E8F2E90}' -DefaultInboundAction Allow
+  ```
+
+  La última línea deja entrar el tráfico de la red a WSL.
+- **Repositorio.** En el manager, clonar el repositorio dentro de Ubuntu
+  (`git clone https://github.com/TransformersAS/Transformers-AS.git ~/Transformers-AS`):
+  en la copia de `C:\` los guiones tienen fin de línea de Windows y Bash los rechaza.
+- **Un Swarm anterior.** Si `docker info --format '{{.Swarm.LocalNodeState}}'` dice
+  `active` en un nodo que no es el del cluster nuevo, salir antes con
+  `docker swarm leave --force` (borra los stacks de ensayo de ese motor).
 
 En un entorno nuevo, planificado y sin workloads que deban preservarse:
 
@@ -413,14 +455,71 @@ Manager: backend réplica 1 + MySQL (volumen local)
 Worker:  backend réplica 2
 ```
 
-Es una preferencia, no una restricción de una réplica por nodo. Nodos sin etiqueta
-forman otro grupo y siguen siendo elegibles. Si cae un worker, ambas réplicas
-pueden ejecutarse en el manager si hay capacidad. Por eso no se usa
-`max_replicas_per_node: 1`, que impediría dos réplicas en el ensayo local y podría
-impedir recuperación con un único nodo disponible.
+La preferencia de etiquetas ayuda al reparto, pero la restriccion efectiva es
+`max_replicas_per_node: 1` en modo real. Frontend y backend tienen dos replicas
+cada uno y deben ocupar dos nodos distintos. Si solo queda un nodo elegible,
+la segunda replica queda pendiente; no se promete recuperar 2/2 en ese caso.
+`--local` permite dos replicas por nodo exclusivamente para ensayo.
 
 Referencias: [placement](https://docs.docker.com/engine/swarm/services/),
 [routing mesh](https://docs.docker.com/engine/swarm/ingress/).
+
+## Balanceo de carga
+
+El reparto ocurre en dos niveles:
+
+```text
+Navegador → IP de cualquier nodo:80 → [routing mesh de Swarm] → frontend (réplica 1 o 2)
+                                                                   │ nginx /api
+                                       [nginx, round robin] → backend (réplica 1 o 2) → MySQL
+```
+
+1. **Entrada.** El puerto publicado (`mode: ingress`) abre el 80 en todos los nodos y Swarm reparte cada
+   conexión entre las réplicas del frontend, estén en el nodo que estén.
+2. **Frontend → backend.** nginx no apunta a la IP virtual del servicio (`backend`), que le mostraría una sola
+   dirección, sino a `tasks.backend` (variable `BACKEND_UPSTREAM_HOST` en `stack.yml`), que devuelve la IP de
+   cada réplica. Con eso nginx:
+   - reparte **petición por petición** (round robin) entre las réplicas;
+   - vuelve a consultar el DNS de Docker cada 5 s, así que una réplica nueva recibe tráfico sin reiniciar nginx;
+   - si una réplica no acepta la conexión en 2 s, repite la petición en la otra (`proxy_next_upstream`, como
+     máximo 2 intentos). Solo repite errores de conexión: ni un 5xx de la aplicación ni un POST ya enviado.
+
+Las sesiones se guardan en MySQL (Spring Session JDBC), no en la memoria de una réplica: cualquier réplica
+atiende a un usuario con sesión iniciada. En Compose el mismo nginx usa `backend`, que allí ya devuelve la IP
+del contenedor. MySQL no se balancea: hay una sola instancia, en el manager.
+
+### Verificarlo
+
+Cada respuesta dice quién la atendió: `X-Served-By-Frontend` (contenedor del frontend) y `X-Served-By-Backend`
+(IP de la réplica del backend; dos IP separadas por coma significan que la primera falló y respondió la
+segunda). Para verlo a mano: `curl -sD - -o /dev/null http://<IP_MANAGER>/api/products | grep X-Served`.
+
+La medición completa, en el manager y con la cuenta de demostración:
+
+```bash
+export CATALOG_EMAIL=comprador.demo@example.com
+export CATALOG_PASSWORD='MarketplaceDemo123!'
+python3 scripts/quality/run.py balancing --base-url http://<IP_MANAGER> --stack transformers
+```
+
+Hace 200 peticiones al catálogo sin sesión y 200 con una sesión iniciada, cada una en una conexión nueva, y
+cuenta qué réplica atendió cada una. Pasa si todas responden 200 y cada réplica del backend atiende al menos el
+30 % (`--minimum-share`). Que la misma sesión la atiendan las dos réplicas demuestra que la sesión no depende de
+una de ellas. En el manager asocia cada IP a su task y su nodo; guarda `balancing-result.json` en
+`artifacts/quality/`.
+
+### Medición hecha
+
+En un Swarm de un nodo (`--local`, dos réplicas por nodo), midiendo desde la red del frontend:
+
+| Prueba | `tasks.backend` (actual) | `backend` (IP virtual, antes) |
+| --- | --- | --- |
+| 200 peticiones sin sesión | 100 / 100 entre las dos réplicas | una sola dirección visible: no se puede saber qué réplica atendió |
+| 200 peticiones con sesión | 100 / 100, todas 200 | igual que arriba |
+| 1500 peticiones matando una réplica a los 2 s | 0 fallidas; 1 reintentada en la otra réplica | 1 fallida |
+| Réplica de reemplazo (IP nueva) | recibe tráfico sola en segundos | — |
+
+Falta repetirla con los dos computadores: el reparto entre nodos y la routing mesh solo se acreditan ahí.
 
 ## Prueba de disponibilidad: tráfico, caída y recuperación
 
@@ -591,6 +690,95 @@ Salir destruye el estado Swarm de este manager y no es parte del despliegue ni
 una limpieza automática. No ejecutarlo sobre un cluster real.
 
 ## Evidencia
+
+### Procedimiento de aceptacion para dos computadores
+
+Esta prueba sigue pendiente hasta ejecutarse en dos equipos reales. Un ensayo
+con `--local`, pruebas simuladas o dos nodos en el mismo computador no la acredita.
+Para evitar problemas de NAT de Docker Desktop, preparar motores Docker Linux
+con direcciones de red alcanzables entre ambos equipos. Si se usan maquinas
+virtuales, alojar una en cada computador y comprobar la conectividad entre ellas.
+
+1. Preparar el manager y unir el segundo computador como worker siguiendo la
+   seccion **Despliegue real con dos computadores**. Esta preparacion del cluster
+   es previa al comando unico de despliegue; no se repite en cada arranque.
+2. En el manager, comprobar `docker node ls`: dos nodos Linux Ready/Active.
+   Registrar que computador fisico corresponde a cada NodeID y su IP privada.
+3. Autenticar el manager en GHCR y elegir un tag `sha-<SHA_PUBLICADO>` existente
+   para ambas imagenes. El codigo local sin publicar no se incluye en ese tag.
+   Preparar los archivos de claves fuera del repositorio como en el paso local;
+   usar claves propias y conservarlas junto con los secrets existentes.
+4. Desde la raiz del checkout, en Bash del manager, ejecutar un unico comando
+   (sustituir los valores de ejemplo):
+
+   ```bash
+   STACK_NAME=marketplace-prueba \
+   MYSQL_NODE_ID=ID_REAL_MANAGER \
+   BACKEND_IMAGE_TAG=sha-SHA_PUBLICADO \
+   FRONTEND_IMAGE_TAG=sha-SHA_PUBLICADO \
+   DB_PASSWORD_SECRET_FILE="$HOME/swarm-secrets/db.txt" \
+   MYSQL_ROOT_PASSWORD_SECRET_FILE="$HOME/swarm-secrets/root.txt" \
+   bash deploy.sh
+   ```
+
+5. Esperar salida cero, frontend/backend 2/2 y MySQL 1/1. El script valida
+   NodeID distintos para las replicas de cada servicio de aplicacion y tres
+   comprobaciones consecutivas UP. MySQL permanece en el manager seleccionado.
+6. Desde el segundo computador, comprobar el frontend a traves del manager:
+
+   ```bash
+   curl --fail http://IP_REAL_MANAGER/healthz
+   curl --fail http://IP_REAL_MANAGER/api/actuator/health/readiness
+   ```
+
+   Abrir tambien `http://IP_REAL_MANAGER` en su navegador. Permitir TCP 80 entre
+   el cliente y el manager, ademas de los puertos Swarm indicados anteriormente.
+   El stack arranca con los datos de demostración (cuentas de cada rol con
+   `MarketplaceDemo123!`, catálogo y pedidos; ver **Paso 4** del despliegue local):
+   no hay que crear cuentas ni cargar datos a mano.
+
+7. Medir el balanceo entre los dos computadores (ver **Balanceo de carga**), en el
+   manager. Cada IP del resultado debe aparecer asociada a un nodo distinto:
+
+   ```bash
+   export CATALOG_EMAIL=comprador.demo@example.com
+   export CATALOG_PASSWORD='MarketplaceDemo123!'
+   python3 scripts/quality/run.py balancing --base-url http://IP_REAL_MANAGER --stack STACK_NAME
+   ```
+
+8. Medir la disponibilidad matando la réplica del backend del worker, con
+   `python3 scripts/quality/run.py availability --base-url http://IP_REAL_MANAGER --stack STACK_NAME`
+   y el procedimiento de `docs/sustentacion/PRUEBAS-ATRIBUTOS-CALIDAD.md`. Matar
+   siempre la del worker: MySQL vive en el manager y no tiene réplica.
+
+9. Adjuntar las salidas anteriores y capturas de la aplicacion y de los dos
+   computadores. No ejecutar el script Compose `desplegar-local.ps1` como
+   sustituto de esta prueba.
+
+Al finalizar correctamente, `deploy.sh` guarda evidencia tecnica en
+`artifacts/deploy-<fecha UTC>-<proceso>/` (ignorada por Git). Se puede elegir otra
+carpeta mediante `DEPLOY_EVIDENCE_DIR`; usar una nueva en cada ejecucion.
+Incluye nodos, servicios, tareas, NodeID, referencias de imagen y respuestas
+de salud. No recoge el contenido de secrets ni variables de los contenedores.
+La revision del checkout identifica el script usado, no necesariamente el codigo
+de las imagenes: conservar tambien sus referencias y digests en `imagenes.txt`.
+
+Copiar las evidencias revisadas a la entrega y completar este registro:
+
+| Comprobacion | Resultado que se debe adjuntar |
+| --- | --- |
+| Fecha, responsable y comando | Registro de la ejecucion, sin claves |
+| Dos computadores | Nombre/IP privada y NodeID de cada equipo |
+| Servicios completos | Frontend 2/2, backend 2/2 y MySQL 1/1 |
+| Distribucion | Tasks frontend/backend con NodeID distintos |
+| Conectividad | Readiness UP consultado desde el segundo equipo |
+| Balanceo | `balancing-result.json`: las dos réplicas, una por nodo, atienden peticiones |
+| Disponibilidad | `availability-result.json`: caída de la réplica del worker y su reemplazo |
+| Uso del sistema | Capturas y operacion funcional observada |
+| Repeticion | Segunda ejecucion, estado final y persistencia de datos |
+
+Si falla, conservar la salida y revisar `docker stack ps --no-trunc <stack>` y
+`docker service logs --tail 100 <stack>_backend`. No borrar volumen ni secrets.
 
 Guardar validación estática, commit/tag/digest de imagen, `docker node ls`, servicios
 1/1 y 2/2, tasks/nodos, estados healthy, respuestas Actuator y logs de conexión a

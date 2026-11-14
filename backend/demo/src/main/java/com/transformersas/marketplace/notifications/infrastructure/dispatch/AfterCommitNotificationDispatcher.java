@@ -24,6 +24,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * aviso no se pierde, la notificación queda external_status=PENDING para un barrido posterior y la petición no falla.
  */
 @Component
+@org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(name="notifications.queue.enabled",havingValue="false",matchIfMissing=true)
 public class AfterCommitNotificationDispatcher {
 
     private static final Logger log = LoggerFactory.getLogger(AfterCommitNotificationDispatcher.class);

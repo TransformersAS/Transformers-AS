@@ -44,6 +44,7 @@ public abstract class AbstractIntegrationTest {
 
     /** Tablas de negocio en orden de borrado seguro para las claves foráneas (hijas primero). */
     private static final List<String> TABLES_TO_CLEAR = List.of(
+            "store_suspension_changes", "store_reviews", "store_clarification_requests", "store_suspensions",
             "seller_terms_acceptances", "stock_movements",
             "claim_messages", "claim_evidences", "claims", "audit_events", "notifications", "refunds", "order_cancellations", "return_tracking_events", "return_shipments",
             "shipment_tracking_events", "shipments", "order_issues", "order_status_history", "order_items", "orders",
@@ -63,6 +64,11 @@ public abstract class AbstractIntegrationTest {
 
     @BeforeEach
     protected void resetDatabase() {
+        jdbc.update("DELETE FROM external_refund_events");
+        jdbc.update("DELETE FROM external_payment_refunds");
+        jdbc.update("DELETE FROM payment_recovery_attempts");
+        jdbc.update("DELETE FROM external_payment_observations");
+        jdbc.update("DELETE FROM payment_checkouts");
         TABLES_TO_CLEAR.forEach(table -> jdbc.update("DELETE FROM " + table));
         jdbc.update("DELETE FROM stores WHERE id <> 1");
         // La tienda 1 vuelve al estado que deja la migración; sin dueña antes de borrar las cuentas (FK).

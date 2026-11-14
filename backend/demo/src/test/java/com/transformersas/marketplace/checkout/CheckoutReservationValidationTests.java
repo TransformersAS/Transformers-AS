@@ -34,7 +34,8 @@ class CheckoutReservationValidationTests {
         var items = mock(CartItemRepository.class);
         var addresses = mock(AddressRepository.class);
         reservations = new InventoryReservationService(repository, carts, items, products);
-        checkout = new CheckoutService(carts, items, addresses);
+        checkout = new CheckoutService(carts, items, addresses,
+                mock(com.transformersas.marketplace.stores.application.usecase.CheckStoreCommercialOperationUseCase.class));
         var cart = new Cart();
         cart.setId(1L);
         product = new Product(1L, "Producto", null, new BigDecimal("10"), 5, "Test", true);
@@ -45,6 +46,25 @@ class CheckoutReservationValidationTests {
         when(items.findByCartId(1L)).thenReturn(List.of(item));
         when(addresses.existsByIdAndAccountId(1L, 1L)).thenReturn(true);
     }
+    @Test
+    void configurableDurationIsUsedForNewReservations() {
+        reservations.configureReservationTtl(java.time.Duration.ofSeconds(60));
+        when(repository.save(any())).thenAnswer(call -> call.getArgument(0));
+        reservations.reserveCart(1L);
+        var captured = org.mockito.ArgumentCaptor.forClass(InventoryReservation.class);
+        verify(repository).save(captured.capture());
+        assertThat(captured.getValue().getExpiresAt())
+                .isEqualTo(captured.getValue().getCreatedAt().plusSeconds(60));
+    }
+
+    @Test
+    void invalidReservationDurationIsRejected() {
+        for (var duration : List.of(java.time.Duration.ZERO, java.time.Duration.ofSeconds(-1))) {
+            assertThatIllegalArgumentException().isThrownBy(() -> reservations.configureReservationTtl(duration));
+        }
+        assertThatIllegalArgumentException().isThrownBy(() -> reservations.configureReservationTtl(null));
+    }
+
     @Test
     void missingProductIsRejectedByBothServices() {
         item.setProduct(null);

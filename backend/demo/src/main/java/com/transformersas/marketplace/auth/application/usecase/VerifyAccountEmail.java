@@ -27,6 +27,7 @@ public class VerifyAccountEmail {
     private final PasswordEncoder encoder;
     private final TransactionTemplate transaction;
     private final ApplicationEventPublisher events;
+    private static final java.util.concurrent.ExecutorService MAIL_DELIVERY = java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor();
     private final SecureRandom random = new SecureRandom();
     private final String missingAccountHash;
 
@@ -70,10 +71,17 @@ public class VerifyAccountEmail {
             return secret;
         });
         if (token == null) return true;
+        // Bound the complete external call, not each SMTP socket phase separately.
+        var delivery = MAIL_DELIVERY.submit(() -> notifier.notifyVerification(account.email(), token));
         try {
-            notifier.notifyVerification(account.email(), token);
+            delivery.get(10, java.util.concurrent.TimeUnit.SECONDS);
             return true;
-        } catch (RuntimeException exception) {
+        } catch (InterruptedException exception) {
+            delivery.cancel(true);
+            Thread.currentThread().interrupt();
+            return false;
+        } catch (java.util.concurrent.ExecutionException | java.util.concurrent.TimeoutException exception) {
+            delivery.cancel(true);
             // SMTP exceptions may contain recipients, credentials or the message: do not log them.
             org.slf4j.LoggerFactory.getLogger(VerifyAccountEmail.class).warn("Email verification delivery failed");
             return false;

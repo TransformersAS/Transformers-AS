@@ -121,7 +121,9 @@ public class ProcessPaymentUseCase {
                             addressId,
                             shippingMethod,
                             payment.transactionId(),
-                            preview.total()
+                            preview.total(),
+                            preview.discount(),
+                            preview.shippingCost()
                     );
         }
 

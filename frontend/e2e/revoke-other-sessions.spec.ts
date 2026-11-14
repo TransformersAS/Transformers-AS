@@ -6,7 +6,7 @@ for (const scenario of ['success', 'backend', 'network', 'csrf', 'refresh'] as c
   test(`close other sessions: ${scenario}`, async ({ page }) => {
     const account = { accountId: 1, email: 'person@example.com', roles: ['COMPRADOR'], activeRole: 'COMPRADOR' };
     const current = { id: 'current-public-id', current: true, createdAt: '2026-01-01T00:00:00Z', lastAccessedAt: '2026-01-01T00:00:00Z', expiresAt: null };
-    let sessions = [current, { ...current, id: 'other-normal', current: false }, { ...current, id: 'other-persistent', current: false }];
+    let sessions = [{ ...current, deviceDescription: 'Chrome · Windows' }, { ...current, id: 'other-normal', current: false, deviceDescription: 'Firefox · Linux' }, { ...current, id: 'other-persistent', current: false }];
     let attempts = 0;
     let csrfRequests = 0;
     let failRefresh = false;
@@ -35,7 +35,7 @@ for (const scenario of ['success', 'backend', 'network', 'csrf', 'refresh'] as c
           if (scenario === 'network') return route.abort('failed');
           if (scenario === 'csrf') return route.fulfill({ status: 403 });
         }
-        sessions = [current];
+        sessions = [{ ...current, deviceDescription: 'Chrome · Windows' }];
         failRefresh = scenario === 'refresh';
         return route.fulfill({ status: 204 });
       }
@@ -49,6 +49,11 @@ for (const scenario of ['success', 'backend', 'network', 'csrf', 'refresh'] as c
     await expect(page.getByRole('heading', { name: 'Seguridad de tu cuenta' })).toBeVisible();
     await page.getByRole('button', { name: 'Sesiones activas', exact: true }).click();
     await expect(page.locator('.sesiones li')).toHaveCount(3);
+    await expect(page.locator('.sesiones li').nth(0)).toContainText('Chrome · Windows');
+    await expect(page.locator('.sesiones li').nth(0)).toContainText('Esta es tu sesión actual');
+    await expect(page.locator('.sesiones li').nth(1)).toContainText('Firefox · Linux');
+    await expect(page.locator('.sesiones li').nth(1)).toContainText('Otra sesión');
+    await expect(page.locator('.sesiones li').nth(2)).toContainText('Dispositivo o navegador no identificado');
     const closeOthers = page.getByRole('button', { name: 'Cerrar las demás sesiones', exact: true });
     const success = page.getByRole('status').filter({ hasText: /^Las demás sesiones se cerraron\. Esta sesión continúa activa\.$/ });
     await closeOthers.click();
@@ -82,5 +87,6 @@ for (const scenario of ['success', 'backend', 'network', 'csrf', 'refresh'] as c
     await expect(page.getByRole('heading', { name: 'Seguridad de tu cuenta' })).toBeVisible();
     await page.getByRole('button', { name: 'Sesiones activas', exact: true }).click();
     await expect(page.locator('.sesiones li')).toHaveCount(1);
+    await expect(page.locator('.sesiones li')).toContainText('Chrome · Windows');
   });
 }

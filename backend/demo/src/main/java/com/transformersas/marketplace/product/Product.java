@@ -55,6 +55,7 @@ public class Product {
     // El orden importa: la primera imagen es la principal.
     @ElementCollection
     @CollectionTable(name = "product_images", joinColumns = @JoinColumn(name = "product_id"))
+    @org.hibernate.annotations.BatchSize(size = 50)
     @OrderColumn(name = "position")
     @Column(name = "url", nullable = false, length = 500)
     private List<String> imageUrls = new ArrayList<>();
@@ -66,6 +67,7 @@ public class Product {
 
     @ElementCollection
     @CollectionTable(name = "product_variants", joinColumns = @JoinColumn(name = "product_id"))
+    @org.hibernate.annotations.BatchSize(size = 50)
     @OrderColumn(name = "position")
     private List<ProductVariant> variants = new ArrayList<>();
 
@@ -78,6 +80,12 @@ public class Product {
     /** Ya se avisó de stock bajo; se apaga cuando el stock vuelve a superar el mínimo. */
     @Column(name = "low_stock_alerted", nullable = false)
     private Boolean lowStockAlerted = false;
+
+    // ---------- CU-26: rentabilidad ----------
+
+    /** Costo unitario interno; solo lo ve su vendedor. Nulo si no lo ha registrado. Cada compra copia el vigente. */
+    @Column(name = "unit_cost", precision = 19, scale = 2)
+    private BigDecimal unitCost;
 
     /** Constructor previo a CU-23 (sin tienda): el producto queda en la tienda 1, igual que el valor por defecto. */
     public Product(Long id, String name, String description, BigDecimal price, Integer stock, String category,

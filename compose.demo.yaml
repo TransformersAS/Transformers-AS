@@ -1,8 +1,17 @@
 # Usar siempre con -p marketplace-demo --env-file .env.demo -f compose.yaml -f compose.demo.yaml.
 # El volumen queda separado del Compose de desarrollo y de Swarm.
 services:
+  frontend:
+    networks:
+      login_proxy:
+        ipv4_address: 172.30.239.10
   backend:
+    networks:
+      login_proxy:
+        ipv4_address: 172.30.239.11
     environment:
+      SERVER_TOMCAT_REMOTEIP_INTERNAL_PROXIES: '\Q172.30.239.10\E'
+      APP_AUTH_LOGIN_ATTEMPTS_TRUSTED_PROXY_ADDRESSES: 172.30.239.10
       SPRING_PROFILES_ACTIVE: demo
       GEMINI_API_KEY: ""
       SPRING_MAIL_HOST: ""
@@ -15,3 +24,9 @@ services:
       timeout: 5s
       retries: 60
       start_period: 60s
+
+networks:
+  login_proxy:
+    ipam:
+      config: !override
+        - subnet: 172.30.239.0/24

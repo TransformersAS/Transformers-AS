@@ -1,0 +1,8 @@
+# Only use after reviewing origin logs in this project's observation phase.
+# No defaults: both confirmations must be supplied explicitly to control.sh.
+services:
+  backend:
+    environment:
+      APP_AUTH_LOGIN_ATTEMPTS_ENABLED: 'true'
+      APP_AUTH_LOGIN_ATTEMPTS_ORIGIN_VERIFIED: '${H02_ORIGIN_CONFIRMED:?Observe and verify the proxy chain first}'
+      APP_AUTH_LOGIN_ATTEMPTS_ALLOWED_LOCAL_ORIGINS: '${H02_VERIFIED_ORIGIN:?Supply the exact observed local origin}'

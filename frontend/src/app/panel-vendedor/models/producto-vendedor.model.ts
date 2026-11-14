@@ -24,6 +24,8 @@ export interface ProductoVendedor {
   imageUrls: string[];
   attributeValueIds: number[];
   variants: VarianteProducto[];
+  /** Costo unitario interno (CU-26); nulo si no se ha registrado. Solo lo ve el vendedor. */
+  unitCost: number | null;
 }
 
 /** Datos que se envían para crear o editar (el estado lo decide el backend). */
@@ -37,4 +39,5 @@ export interface SolicitudProducto {
   imageUrls: string[];
   attributeValueIds: number[];
   variants: VarianteProducto[];
+  unitCost: number | null;
 }

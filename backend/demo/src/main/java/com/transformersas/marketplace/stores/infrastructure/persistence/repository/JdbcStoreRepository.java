@@ -20,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Adaptador JDBC de tiendas. La unicidad del nombre y de la dueña la garantiza la BD (UNIQUE, sin distinguir
@@ -173,6 +174,18 @@ public class JdbcStoreRepository implements StoreRepository {
         } catch (DuplicateKeyException accountAlreadyOwnsAStore) {
             return false;
         }
+    }
+
+    @Override
+    public boolean changeStatus(Long storeId, StoreStatus expected, StoreStatus target, String reason) {
+        return jdbc.sql("UPDATE stores SET status = ?, status_reason = ? WHERE id = ? AND status = ?")
+                .params(target.name(), target == StoreStatus.ACTIVE ? null : reason, storeId, expected.name())
+                .update() == 1;
+    }
+
+    @Override
+    public Set<Long> findNonActiveIds() {
+        return Set.copyOf(jdbc.sql("SELECT id FROM stores WHERE status <> 'ACTIVE'").query(Long.class).list());
     }
 
     private Store toStore(java.sql.ResultSet rs, int row) throws java.sql.SQLException {

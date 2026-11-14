@@ -91,9 +91,14 @@ class SessionAuthenticationTests {
 
     @Test
     void protectedEndpointsRejectAnonymousRequests() throws Exception {
-        for (String path : new String[]{"/api/auth/me", "/api/products", "/api/cart", "/api/addresses"}) {
+        for (String path : new String[]{"/api/auth/me", "/api/cart", "/api/addresses", "/api/orders"}) {
             mvc.perform(get(path)).andExpect(status().isUnauthorized());
         }
+        // Solo la lectura del catálogo es pública; publicar un producto sigue exigiendo sesión.
+        mvc.perform(get("/api/products")).andExpect(status().isOk());
+        Csrf anonymous = csrf(null);
+        mvc.perform(post("/api/products").cookie(anonymous.cookie()).header(anonymous.header(), anonymous.token())
+                .contentType("application/json").content("{}")).andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -229,7 +234,8 @@ class SessionAuthenticationTests {
             var expires = java.time.Instant.parse(session.get("expiresAt").asText());
             assertThat(accessed).isAfterOrEqualTo(created);
             assertThat(expires).isAfter(accessed);
-            assertThat(session.size()).isEqualTo(5);
+            assertThat(session.size()).isEqualTo(6);
+            assertThat(session.get("deviceDescription").asText()).isEqualTo("Dispositivo o navegador no identificado");
             if (session.get("current").asBoolean()) {
                 assertThat(currentId).isNull();
                 currentId = session.get("id").asText();

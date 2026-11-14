@@ -140,8 +140,9 @@ class SupportApiIntegrationTests {
             return new FakeNotificationClient();
         }
 
-        /** Las reseñas aún no existen como módulo: este proveedor simula que exponen a su autor como dueño. */
+        /** Sustituto explícito para aislar soporte con sus IDs ficticios, sin depender de compras del CU-05. */
         @Bean
+        @org.springframework.core.annotation.Order(org.springframework.core.Ordered.HIGHEST_PRECEDENCE)
         ContentSnapshotProvider reviewSnapshotProvider() {
             return new ContentSnapshotProvider() {
                 @Override

@@ -6,6 +6,9 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import com.transformersas.marketplace.product.dto.ProductResponse;
+
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -18,6 +21,22 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
     /** ¿Algún producto usa este valor de atributo (por ejemplo, Color: Rojo)? */
     @Query("select count(p) > 0 from Product p join p.attributeValueIds v where v = :valueId")
     boolean existsByAttributeValueId(@Param("valueId") Long valueId);
+
+    /**
+     * Catálogo que ven los compradores, filtrado en MySQL: sin borradores ni retirados, sin publicaciones ocultas por
+     * moderación y sin tiendas que no pueden vender. Devuelve solo las columnas del listado (no carga la entidad ni
+     * sus colecciones). Las dos listas de exclusión no pueden ir vacías: quien llama pasa un id imposible.
+     */
+    @Query("""
+            select new com.transformersas.marketplace.product.dto.ProductResponse(
+                p.id, p.name, p.description, p.price, p.stock, p.category, p.active)
+            from Product p
+            where p.status in :statuses and p.id not in :hiddenIds and p.storeId not in :closedStoreIds
+            order by p.id
+            """)
+    List<ProductResponse> findCatalog(@Param("statuses") Collection<ProductStatus> statuses,
+                                      @Param("hiddenIds") Collection<Long> hiddenIds,
+                                      @Param("closedStoreIds") Collection<Long> closedStoreIds);
 
     List<Product> findByStoreId(Long storeId);
 

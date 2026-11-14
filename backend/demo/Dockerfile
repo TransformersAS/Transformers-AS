@@ -1,10 +1,14 @@
+
+# syntax=docker/dockerfile:1
 FROM eclipse-temurin:21-jdk-jammy AS build
 WORKDIR /workspace
 COPY .mvn/ .mvn/
 COPY mvnw pom.xml ./
 COPY src/ src/
 # Run integration tests separately against Testcontainers before building the image.
-RUN chmod +x mvnw && ./mvnw -B -ntp -DskipTests package
+# Preserve completed dependency downloads even when a build fails or is cancelled.
+RUN --mount=type=cache,id=marketplace-maven,target=/root/.m2,sharing=locked \
+    chmod +x mvnw && ./mvnw -B -DskipTests package
 
 FROM eclipse-temurin:21-jre-jammy AS runtime
 RUN apt-get update \

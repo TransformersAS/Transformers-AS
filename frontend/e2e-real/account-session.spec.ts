@@ -21,12 +21,11 @@ test('verified account logs in through the UI and logout invalidates its real JD
     && response.request().method() === 'POST');
   await page.getByRole('button', { name: 'Cerrar sesión', exact: true }).click();
   expect((await logout).status()).toBe(204);
-  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.getByRole('dialog', { name: 'Acceso a tu cuenta', exact: true })).toBeVisible();
   await expect(page.locator('.welcome-strip')).toContainText('Hola, visitante');
   expect((await page.request.get('/api/auth/me')).status()).toBe(401);
   // A separate client replays the OLD cookie: server invalidation, not only browser cookie deletion.
   expect((await request.get('/api/auth/me', { headers: { Cookie: `SESSION=${cookie!.value}` } })).status()).toBe(401);
-  await page.getByRole('button', { name: 'Ver cuenta', exact: true }).click();
   await expect(page.getByRole('dialog', { name: 'Acceso a tu cuenta', exact: true })
     .getByRole('button', { name: 'Iniciar sesión', exact: true })).toBeVisible();
 });

@@ -2,7 +2,9 @@ import { test, expect } from '@playwright/test';
 
 test('guion CU-08 y CU-11 con cuentas y pedido provisionados por el backend real', async ({ page, request }) => {
   const login = async (email: string) => {
-    await page.getByRole('button', { name: 'Ver cuenta', exact: true }).click();
+    if (!(await page.getByRole('dialog', { name: 'Acceso a tu cuenta', exact: true }).isVisible())) {
+      await page.getByRole('button', { name: 'Ver cuenta', exact: true }).click();
+    }
     await page.locator('ion-input[name="correo"] input').fill(email);
     await page.locator('ion-input[name="clave"] input').fill('MarketplaceDemo123!');
     await page.getByRole('button', { name: 'Iniciar sesión', exact: true }).click();

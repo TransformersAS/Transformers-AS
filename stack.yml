@@ -3,6 +3,10 @@ version: "3.8"
 services:
   frontend:
     image: ghcr.io/transformersas/transformers-as-frontend:${FRONTEND_IMAGE_TAG:-latest}
+    environment:
+      # nginx reparte /api entre las IP de cada réplica del backend (no la IP virtual) y reintenta en otra si
+      # una cae. Ver frontend/nginx.conf.
+      BACKEND_UPSTREAM_HOST: tasks.backend
     networks:
       - internal
     ports:
@@ -41,6 +45,9 @@ services:
       DB_USER: ${DB_USER:-marketplace_app}
       # Opcional: correo de la cuenta VENDEDOR que será dueña de la tienda principal (ver docs/swarm.md).
       MAIN_STORE_OWNER_EMAIL: ${MAIN_STORE_OWNER_EMAIL:-}
+      # Datos de demostración al arrancar (ver docs/despliegue/docker-swarm.md). Encendido por defecto porque este
+      # stack es el entorno de demostración y de pruebas de carga; MARKETPLACE_DEMO_DATA=false lo apaga.
+      MARKETPLACE_DEMO_DATA: ${MARKETPLACE_DEMO_DATA:-true}
       SPRING_CONFIG_IMPORT: configtree:/run/secrets/
     secrets:
       - source: db_password
@@ -52,6 +59,12 @@ services:
       # servicio logistico queda cerrado y CU-24/CU-25 no reciben novedades (401 WEBHOOK_NOT_CONFIGURED).
       - source: logistics_webhook_secret
         target: logistics.webhook.secret
+        uid: "10001"
+        gid: "10001"
+        mode: 0400
+      # Token con el que Prometheus lee /actuator/prometheus (stack.monitoreo.yml). Sin él las métricas quedan cerradas.
+      - source: metrics_token
+        target: monitoring.metrics.token
         uid: "10001"
         gid: "10001"
         mode: 0400
@@ -146,3 +159,6 @@ secrets:
   logistics_webhook_secret:
     external: true
     name: ${LOGISTICS_WEBHOOK_SECRET:?Set LOGISTICS_WEBHOOK_SECRET}
+  metrics_token:
+    external: true
+    name: ${METRICS_TOKEN_SECRET:?Set METRICS_TOKEN_SECRET}

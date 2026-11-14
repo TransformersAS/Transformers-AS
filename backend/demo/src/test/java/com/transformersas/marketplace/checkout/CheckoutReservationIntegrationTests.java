@@ -23,6 +23,9 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import org.springframework.test.web.servlet.result.MockMvcResultMatchers;
 
 @SpringBootTest
 @org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
@@ -33,6 +36,7 @@ class CheckoutReservationIntegrationTests {
             .withDatabaseName("checkout_reservation_test").withUsername("test").withPassword("test");
     @Autowired JdbcTemplate jdbc;
     @Autowired org.springframework.test.web.servlet.MockMvc mvc;
+    @Autowired tools.jackson.databind.ObjectMapper json;
     @Autowired CheckoutService checkout;
     @Autowired InventoryReservationService reservations;
     @Autowired com.transformersas.marketplace.reservation.InventoryReservationRepository reservationRepository;
@@ -299,13 +303,22 @@ void checkoutRejectsCartWithProductsFromDifferentStores() {
     @Test
     void reservationEndpointPersistsCartReservationsAndReturnsTheirPublicDetails() throws Exception {
         long product = item("Reservable", "10", 3, 2);
-        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/reservations/cart")
-                        .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user(new com.transformersas.marketplace.auth.infrastructure.security.AccountPrincipal(
-                                new com.transformersas.marketplace.users.domain.model.UserAccount(accountId, "buyer@example.com", PASSWORD_HASH,
-                                        com.transformersas.marketplace.users.domain.model.AccountStatus.ACTIVA,
-                                        java.util.Set.of(com.transformersas.marketplace.users.domain.model.Role.COMPRADOR)))))
-                        .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf()))
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk())
+        // Exercise the actual login policy, including JDBC session lifetime metadata and rotated CSRF.
+        var anonymous = mvc.perform(get("/api/auth/csrf")).andExpect(MockMvcResultMatchers.status().isOk()).andReturn();
+        var csrf = json.readTree(anonymous.getResponse().getContentAsString());
+        var login = mvc.perform(post("/api/auth/login")
+                        .cookie(anonymous.getResponse().getCookie("SESSION"))
+                        .param("email", "buyer@example.com").param("password", "TestPassword!123")
+                        .header(csrf.get("headerName").asString(), csrf.get("token").asString()))
+                .andExpect(MockMvcResultMatchers.status().isNoContent()).andReturn();
+        var session = login.getResponse().getCookie("SESSION");
+        assertThat(session).isNotNull();
+        var authenticated = mvc.perform(get("/api/auth/csrf").cookie(session))
+                .andExpect(MockMvcResultMatchers.status().isOk()).andReturn();
+        var authenticatedCsrf = json.readTree(authenticated.getResponse().getContentAsString());
+        mvc.perform(post("/api/reservations/cart").cookie(session)
+                        .header(authenticatedCsrf.get("headerName").asString(), authenticatedCsrf.get("token").asString()))
+                .andExpect(MockMvcResultMatchers.status().isOk())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$[0].productId").value(product))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$[0].quantity").value(2))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$[0].status").value("ACTIVE"));
