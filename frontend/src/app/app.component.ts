@@ -82,6 +82,7 @@ import { ColaSoporteComponent } from './panel-admin-soporte/components/cola-sopo
 import { PedidosRecibidosComponent } from './panel-vendedor/components/pedidos-recibidos.component';
 import { CatalogoAdminComponent } from './panel-admin-catalogo/components/catalogo-admin.component';
 import { InventarioComponent } from './panel-vendedor/components/inventario.component';
+import { PromocionesComponent } from './panel-vendedor/components/promociones.component';
 import { AnaliticaVentasComponent } from './analitica/components/analitica-ventas.component';
 import { EstadoTiendaComponent } from './suspensiones/components/estado-tienda.component';
 import { EvaluacionTiendasComponent } from './suspensiones/components/evaluacion-tiendas.component';
@@ -126,7 +127,7 @@ import {
 } from './recomendaciones/services/interaction.service';
 
 type OpcionMenu =
-  | 'pedidos-recibidos' | 'devoluciones-recibidas' | 'reclamaciones' | 'mis-productos' | 'inventario' | 'mi-tienda'
+  | 'pedidos-recibidos' | 'devoluciones-recibidas' | 'reclamaciones' | 'mis-productos' | 'inventario' | 'promociones' | 'mi-tienda'
   | 'estado-tienda' | 'analitica' | 'mis-reportes' | 'mis-devoluciones' | 'favoritos' | 'moderacion'
   | 'mensajeria' | 'evaluar-tiendas' | 'catalogo-admin' | 'resenas' | 'direcciones';
 
@@ -165,7 +166,8 @@ const MENUS_POR_ROL: Record<string, MenuRol> = {
       ] },
       { titulo: 'Catálogo', opciones: [
         { id: 'mis-productos', etiqueta: 'Mis productos' },
-        { id: 'inventario', etiqueta: 'Inventario' }
+        { id: 'inventario', etiqueta: 'Inventario' },
+        { id: 'promociones', etiqueta: 'Promociones y cupones' }
       ] },
       { titulo: 'Tienda', opciones: [
         { id: 'mi-tienda', etiqueta: 'Mi tienda' },
@@ -213,6 +215,7 @@ const MENUS_POR_ROL: Record<string, MenuRol> = {
     CatalogoAdminComponent,
     MisProductosComponent,
     InventarioComponent,
+    PromocionesComponent,
     AnaliticaVentasComponent,
     EstadoTiendaComponent,
     EvaluacionTiendasComponent,
@@ -486,6 +489,9 @@ export class AppComponent {
 
   /** Panel del vendedor para controlar su inventario (CU-15). */
   mostrarInventario = false;
+
+  /** Panel del vendedor para diseñar promociones y cupones (CU-16). */
+  mostrarPromociones = false;
   /** Analítica de ventas y rentabilidad (CU-26), solo con el rol activo VENDEDOR. */
   mostrarAnalitica = false;
   /** Estado de la tienda y aclaraciones de la administración (CU-27), solo con el rol activo VENDEDOR. */
@@ -540,6 +546,7 @@ export class AppComponent {
       case 'reclamaciones': this.mostrarReclamaciones = true; break;
       case 'mis-productos': this.mostrarMisProductos = true; break;
       case 'inventario': this.mostrarInventario = true; break;
+      case 'promociones': this.mostrarPromociones = true; break;
       case 'mi-tienda': this.mostrarMiTienda = true; break;
       case 'estado-tienda': this.mostrarEstadoTienda = true; break;
       case 'analitica': this.mostrarAnalitica = true; break;

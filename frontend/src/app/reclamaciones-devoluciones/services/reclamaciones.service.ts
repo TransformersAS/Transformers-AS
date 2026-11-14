@@ -1,9 +1,8 @@
-import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
 import { API_BASE } from '../../core/config/api.config';
-import { TIENDA_PROVISIONAL_ID } from '../../panel-vendedor/services/pedidos-vendedor.service';
 import {
   DecisionSoporte,
   EstadoReclamacion,
@@ -13,7 +12,7 @@ import {
 
 /**
  * Reclamaciones de compra (CU-13). Cada rol usa su propia entrada del backend: el comprador /api/claims, el
- * vendedor /api/seller/claims (con la tienda provisional, igual que sus pedidos) y soporte /api/support/claims.
+ * vendedor /api/seller/claims (la tienda la resuelve el backend desde la cuenta, CU-18) y soporte /api/support/claims.
  * La sesión y el CSRF los aporta sessionInterceptor.
  */
 @Injectable({ providedIn: 'root' })
@@ -22,7 +21,6 @@ export class ReclamacionesService {
   private readonly comprador = `${API_BASE}/claims`;
   private readonly vendedor = `${API_BASE}/seller/claims`;
   private readonly soporte = `${API_BASE}/support/claims`;
-  private readonly cabeceraTienda = new HttpHeaders({ 'X-Store-Id': String(TIENDA_PROVISIONAL_ID) });
 
   // ---------- Comprador ----------
 
@@ -49,17 +47,15 @@ export class ReclamacionesService {
   // ---------- Vendedor ----------
 
   listarDeLaTienda(): Observable<Reclamacion[]> {
-    return this.http.get<Reclamacion[]>(this.vendedor, { headers: this.cabeceraTienda });
+    return this.http.get<Reclamacion[]>(this.vendedor);
   }
 
   pedirInformacion(id: number, message: string): Observable<Reclamacion> {
-    return this.http.post<Reclamacion>(`${this.vendedor}/${id}/request-info`, { message },
-      { headers: this.cabeceraTienda });
+    return this.http.post<Reclamacion>(`${this.vendedor}/${id}/request-info`, { message });
   }
 
   proponerSolucion(id: number, message: string, refundAmount: number | null): Observable<Reclamacion> {
-    return this.http.post<Reclamacion>(`${this.vendedor}/${id}/propose`, { message, refundAmount },
-      { headers: this.cabeceraTienda });
+    return this.http.post<Reclamacion>(`${this.vendedor}/${id}/propose`, { message, refundAmount });
   }
 
   // ---------- Soporte ----------
