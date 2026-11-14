@@ -1,0 +1,24 @@
+# Override exclusivo para scripts/rnf020/run.py; mantiene Compose k6 intacto.
+services:
+  backend:
+    cpus: 1.5
+    environment:
+      APP_CORS_ALLOWED_ORIGINS: https://frontend
+  frontend:
+    volumes:
+      - ${RNF020_TLS_DIR:?Runner requerido}/frontend.conf:/etc/nginx/conf.d/rnf020-tls.conf:ro
+      - ${RNF020_TLS_DIR:?Runner requerido}:/etc/nginx/rnf020tls:ro
+  browser:
+    build: ./scripts/rnf020/browser
+    profiles: [e2e]
+    networks: [target]
+    volumes:
+      - ./scripts/rnf020:/scripts:ro
+      - ${PERF_RESULTS_DIR:?Runner requerido}:/results
+    cpus: 1.5
+    mem_limit: 1g
+    shm_size: 256m
+    init: true
+    environment:
+      NODE_PATH: /opt/rnf020/node_modules
+    entrypoint: [node]
