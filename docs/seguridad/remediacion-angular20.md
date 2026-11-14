@@ -1,3 +1,5 @@
+> **Actualización final de dependencias — 2026-11-14:** con el alcance web/PWA confirmado, Capacitor core/cli se actualizaron a 7.6.10. Ambas auditorías npm quedaron en cero, incluidas las dependencias de desarrollo. Se aprobaron 159 Playwright, 4 Web Push, 31 pruebas de Seguridad y ambas construcciones Docker. Se conservan 54 fallos unitarios de fixtures preexistentes. Véase el [informe final y lista completa de archivos](auditoria-dependencias-desarrollo.md). Las cifras y estados de las secciones siguientes son evidencia histórica de etapas anteriores.
+
 # Remediación de seguridad Angular 20 — 14 de noviembre de 2026
 
 Estado real: **Parcial**. Se corrigieron los hallazgos altos y medios del DAST y las dependencias de producción evaluadas; quedan vulnerabilidades en herramientas de desarrollo. No se certifica ausencia absoluta de vulnerabilidades.

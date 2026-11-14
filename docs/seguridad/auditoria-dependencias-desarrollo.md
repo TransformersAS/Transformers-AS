@@ -1,3 +1,101 @@
+# Cierre de auditorías npm — Marketplace web/PWA
+
+Actualización final: **14 de noviembre de 2026**. El equipo confirmó que esta entrega es exclusivamente web/PWA y no existen proyectos Android/iOS ni plugins nativos externos en uso. Se autorizó y aplicó la candidata Capacitor 7.6.10.
+
+**La auditoría completa y la de producción quedaron en cero entradas vulnerables conocidas por npm audit en esta ejecución.** Ambas terminaron con exit 0. Esto cierra los hallazgos npm de esta intervención; no equivale a ausencia absoluta de vulnerabilidades ni a tener todas las suites del repositorio en verde.
+
+## Resultado final
+
+| Severidad | Inicial | Paso conservador | Final aplicado |
+|---|---:|---:|---:|
+| Crítica | 1 | 1 | **0** |
+| Alta | 1 | 1 | **0** |
+| Moderada | 22 | 0 | **0** |
+| Baja / informativa | 0 | 0 | **0** |
+| Total, auditoría completa | 24 | 2 | **0** |
+| Total, producción | 0 | 0 | **0** |
+
+Se resolvieron también tar crítica y la alta propagada a Capacitor CLI. Son 24 entradas afectadas de paquetes, no 24 CVE distintas. Los 15 avisos originales y sus rangos completos se conservan en la evidencia anterior. No quedan excepciones npm añadidas ni umbrales relajados.
+
+## Versiones y alcance del cambio
+
+- @capacitor/core y @capacitor/cli: **6.2.2 → 7.6.10**, fijados a la misma versión.
+- tar: la copia vulnerable 6.2.1 requerida por CLI 6 desaparece; la resolución final usa **7.5.23**.
+- Se mantienen los overrides anteriores: **glob 14.0.6**, **minimatch 11.0.8**, **uuid 11.1.1 sólo para sockjs**. Se conserva su prueba de contratos con consumidores reales.
+- Angular runtime/compiler **20.3.35**, CLI/build-angular **20.3.43**, Ionic **8.8.19**, TypeScript **5.9.3**, Zone.js **0.15.1** y RxJS **7.8.2** permanecen iguales.
+
+Capacitor 7 admite Node 20+, dentro del rango Node existente del frontend. npm ls --all no reportó conflictos. La configuración mínima capacitor.config.ts continúa siendo válida. No se implementaron funcionalidades móviles ni se generaron plataformas; una futura entrega nativa requerirá su propia validación de SDK, plugins y herramientas según https://capacitorjs.com/docs/updating/7-0. Los overrides transitivos cruzan versiones mayores: se verifican las APIs usadas y deben revisarse cuando sus consumidores publiquen rangos corregidos.
+
+Se reutilizaron exactamente los package.json/package-lock.json de la candidata aislada ya probada. Se repitieron las verificaciones sobre el frontend de trabajo. No se usó --force, --legacy-peer-deps, exclusiones de auditoría, modificaciones manuales de node_modules ni eliminación de herramientas.
+
+## Verificaciones repetidas
+
+| Comprobación | Resultado final |
+|---|---|
+| npm ci --strict-peer-deps | Aprobado |
+| npm ls --all --json | Exit 0 |
+| npm run build | Aprobado |
+| npm audit --json | **0 vulnerabilidades; exit 0** |
+| npm audit --omit=dev --json | **0 vulnerabilidades; exit 0** |
+| Playwright Chrome, 2 workers | **159/159**, 73,03 s; cero omitidas, fallidas o flaky |
+| Web Push | **4/4**, 3,0 s; sin repetir la suite en esta ejecución |
+| Contratos de dependencias | **5/5 Node 24 y 5/5 Node 22/Linux** |
+| Tooling de Seguridad/reportes | **31/31** |
+| Docker frontend y backend | Ambas imágenes construidas correctamente |
+| Navegador contra imagen Nginx real | Bootstrap, CSP, integridad y cabeceras correctos |
+| Suite unitaria Node completa | **29/83 aprobadas; 54 fallos preexistentes** |
+
+La comprobación Docker usó el frontend real con Chromium en el mismo namespace de red, sin red externa, puertos publicados, base compartida ni proveedor real. Verificó SHA-384 de **13 recursos**, nonce diferente entre respuestas y concordante con HTML, no-store, X-Frame-Options DENY, nosniff y bloqueo efectivo de scripts sin nonce. Las APIs de esta comprobación de frontend se simularon en navegador; no se presenta como una nueva prueba end-to-end contra backend/MySQL. El contenedor de frontend se eliminó al terminar; el navegador y el verificador Node 22 se ejecutaron con --rm.
+
+Las imágenes locales para revisión son transformers-rnf-cap7-final-20261114:frontend y transformers-rnf-cap7-final-20261114:backend. No se publicaron ni desplegaron.
+
+## Limitaciones que permanecen
+
+1. **No todas las pruebas del repositorio están verdes.** Los 54 fallos unitarios de fixtures se reprodujeron con el lock original durante la auditoría anterior y esta ejecución conserva exactamente los mismos nombres de fallos. Omiten colaboradores de mensajería en sus mocks. No se modificaron sus expectativas ni código de negocio. Los cinco contratos nuevos pasan y explican el aumento de 24 a 29 aprobadas.
+2. npm test sigue sin tener un target ng test configurado; se ejecutaron directamente las suites Node existentes y Playwright. No se afirma que npm test haya pasado.
+3. La incidencia intermitente de Web Push registrada antes conserva su traza y causa no confirmada. La ejecución final actual pasó las cuatro pruebas al primer recorrido; ese resultado no demuestra por sí solo que la incidencia histórica esté corregida.
+4. Auditorías npm son una comprobación de avisos conocidos del árbol de dependencias a la fecha; no sustituyen revisión de código ni DAST completo. No se ejecutó otro workflow remoto ni un nuevo escaneo ZAP. Los controles y política OWASP se conservaron; ZAP #4 y CI #235 son antecedentes proporcionados por el equipo, no ejecuciones de esta actualización.
+5. El HTML con nonce sigue obteniéndose de red: se mantiene la limitación ya documentada del arranque del app shell sin conexión. No se probaron Edge ni una distribución nativa, pagos reales o proveedores externos.
+
+No se ejecutaron operaciones Git, cambios de rama, commit/push/merge ni modificaciones a main, CU-06, CU-12 o RNF de Desempeño. La comparación de hashes de **1186 archivos protegidos** confirma que no cambió código de negocio, backend, scripts ni workflows durante esta actualización.
+
+## Evidencia final y reproducción
+
+Directorio: `artifacts/dependency-security/capacitor7-final-20261114T201737Z`. Contiene audit.json, audit-production.json, checks.json, tree.json, logs de instalación/build, resultados JSON y HTML Playwright, Web Push, contratos, pruebas de Seguridad, logs Docker y docker-security/security-check.json con captura del frontend real. La evidencia de las etapas anteriores se conserva en sus directorios originales.
+
+```sh
+cd frontend
+npm ci --strict-peer-deps
+npm run build
+npm ls --all
+npm audit --json
+npm audit --omit=dev --json
+node --test tests/dependency-security.test.cjs
+node --test tests/*.test.cjs
+CI=1 PLAYWRIGHT_PORT=45993 npx playwright test --project=chrome
+CI=1 PUSH_TEST_PORT=45994 npx playwright test --config=playwright.push.config.ts --project=chrome --reporter=list
+cd ..
+python3 -m unittest discover -s scripts/security/tests -v
+docker build -t transformers-rnf-cap7-final:frontend frontend
+docker build -t transformers-rnf-cap7-final:backend backend/demo
+```
+
+La suite Node completa debe informar los 54 fallos preexistentes hasta que se corrijan esos fixtures en su tarea correspondiente; no se transforma su exit 1 en éxito.
+
+## Lista completa para commit manual
+
+Incluye los cambios pendientes de la auditoría anterior y esta actualización. Sin Git no se inspeccionó el estado del índice; esta es la lista del conjunto de cambios realizado para dependencias, no una afirmación sobre qué archivos ya fueron incorporados manualmente.
+
+- `frontend/package.json`
+- `frontend/package-lock.json`
+- `frontend/tests/dependency-security.test.cjs`
+- `docs/seguridad/auditoria-dependencias-desarrollo.md`
+- `docs/seguridad/remediacion-angular20.md`
+
+---
+
+## Historial anterior conservado — queda reemplazado por el resultado final anterior
+
 # Auditoría de dependencias de desarrollo — 2026-11-14
 
 **Estado: parcial; el cierre definitivo de Seguridad no está alcanzado.** La corrección aplicada elimina las 22 entradas moderadas. Permanecen dos entradas afectadas: tar crítica y @capacitor/cli alta. No se cambiaron los umbrales ni se ocultaron alertas. npm audit completo sigue terminando con exit 1; producción termina con exit 0.
