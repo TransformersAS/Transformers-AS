@@ -13,7 +13,7 @@ async function fixture(page: Page, delayed = false) {
     if (path === '/api/auth/login') { account = { accountId: 2, email: 'b@example.test', roles: ['COMPRADOR'], activeRole: 'COMPRADOR' }; return route.fulfill({ status: 204 }); }
     if (path === '/api/auth/active-role') { account = { ...account, activeRole: req.postDataJSON().role }; return reply(account); }
     if (path === '/api/cart') return reply({ cartId: 1, items: [{ id: 1, productId: 2, productName: 'Jean', quantity: 1, unitPrice: 95000, subtotal: 95000 }], total: 95000 });
-    if (path === '/api/addresses') return reply({ id: 8 });
+    if (path === '/api/addresses') return reply([{ id: account?.accountId===2?9:8, recipientName: account.email, street: account?.accountId===2?'Calle de B':'Calle de A', city: 'Bogota', department: 'Cundinamarca', phone: '3001234567', postalCode: '', defaultAddress: true }]);
     if (path === '/api/checkout/preview') return reply({ subtotal: 95000, discount: 0, shippingCost: 10000, total: 105000, couponValid: false });
     if (path === '/api/payments/mercadopago/checkouts') {
       expect(req.headers()['x-csrf-token']).toBe('csrf'); entered(); if (delayed) await waiting;
@@ -27,7 +27,7 @@ async function fixture(page: Page, delayed = false) {
   await expect(page.locator('.welcome-strip')).toContainText('Hola, a');
   await page.getByRole('button', { name: 'Abrir carrito', exact: true }).click();
   await page.getByRole('button', { name: 'Continuar compra', exact: true }).click();
-  await page.getByPlaceholder('Escribe tu dirección de entrega').fill('Calle 1 # 2-3');
+  await expect(page.getByRole('radio', { name: /Usar esta/ })).toBeChecked();
   await page.getByRole('button', { name: 'Calcular total', exact: true }).click();
   await page.getByRole('button', { name: 'Continuar a Mercado Pago', exact: true }).click(); await started;
   if (!delayed) await expect(page.getByText('Error de compra de A', { exact: true })).toBeVisible();
@@ -52,7 +52,7 @@ async function logoutAndLoginB(page: Page, checkLogout = true) {
   // A fresh checkout for B keeps the original late-response/error isolation assertions meaningful.
   await page.getByRole('button', { name: 'Abrir carrito', exact: true }).click();
   await page.getByRole('button', { name: 'Continuar compra', exact: true }).click();
-  await page.getByPlaceholder('Escribe tu dirección de entrega').fill('Dirección de B');
+  await expect(page.getByRole('radio', { name: /Usar esta/ })).toBeChecked();
   await page.getByRole('button', { name: 'Calcular total', exact: true }).click();
 }
 test('logout y comprador B no conservan el error visible de A', async ({ page }) => {
