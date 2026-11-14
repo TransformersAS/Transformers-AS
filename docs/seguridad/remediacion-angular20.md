@@ -146,3 +146,7 @@ No se ejecutó commit. Esta lista corresponde únicamente a la remediación; no 
 - `frontend/src/assets/fonts/dmsans-OFL.txt`
 - `frontend/src/assets/fonts/e1b454f5469f3d0d.ttf`
 - `frontend/src/assets/fonts/fonts.css`
+
+## Seguimiento de dependencias — 2026-11-14
+
+La auditoría posterior conservadora redujo las 24 entradas de desarrollo a dos: tar crítica y @capacitor/cli alta; producción sigue en cero. El cierre definitivo no se alcanzó. Se preservan los resultados anteriores como evidencia histórica. Véanse [rangos, cambios transitivos, pruebas, limitaciones y alternativa Capacitor 7 evaluada](auditoria-dependencias-desarrollo.md).
