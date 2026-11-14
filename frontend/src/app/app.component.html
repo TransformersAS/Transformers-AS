@@ -1433,6 +1433,11 @@
   <app-inventario (cerrar)="mostrarInventario = false"></app-inventario>
 </div>
 
+<!-- Promociones y cupones (CU-16): solo con el rol activo VENDEDOR -->
+<div class="panel-pedidos" *ngIf="esVendedor && mostrarPromociones">
+  <app-promociones (cerrar)="mostrarPromociones = false"></app-promociones>
+</div>
+
 <!-- Analítica de ventas y rentabilidad (CU-26): solo con el rol activo VENDEDOR -->
 <div class="panel-pedidos" *ngIf="esVendedor && mostrarAnalitica">
   <app-analitica-ventas (cerrar)="mostrarAnalitica = false"></app-analitica-ventas>
