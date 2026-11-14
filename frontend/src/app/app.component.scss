@@ -2126,3 +2126,13 @@ footer > div {
   font: inherit;
   cursor: pointer;
 }
+
+/* El aviso conserva su posición sin atributos style bloqueados por CSP. */
+.aviso-sesion-finalizada {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  background: var(--ion-background-color, white);
+}

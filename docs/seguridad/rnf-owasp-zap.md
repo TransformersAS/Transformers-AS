@@ -7,7 +7,7 @@ un ambiente descartable. Respaldar parcialmente RNF-008 y observaciones de
 ASR-001 (identidad/acceso), ASR-002 (datos sensibles) y ASR-003 (auditoría).
 No certifica esos ASR completos ni los casos de uso pendientes del equipo.
 
-ZAP no sustituye SCA: esta implementación **no analiza CVE de dependencias**.
+ZAP no sustituye SCA: puede reconocer bibliotecas JavaScript vulnerables, pero no inventaría todas las dependencias ni sus CVE. Se complementa con una auditoría de dependencias de producción.
 Tampoco sustituye las suites funcionales de roles, propiedad, sesiones y CSRF.
 El requisito de no dejar vulnerabilidades críticas conocidas sin justificar
 necesita además SCA, revisión y seguimiento antes de cada entrega.
@@ -387,3 +387,7 @@ terminará dentro de ocho minutos. Si no hay alertas, mostrarlo sin inventarlas.
 - [Automatización de ZAP](https://www.zaproxy.org/docs/automate/automation-framework/).
 - [Regla pasiva 10003](https://www.zaproxy.org/docs/alerts/10003/).
 - [GitHub: workflow_dispatch y rama predeterminada](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#workflow_dispatch).
+
+## Remediación Angular 20 — 2026-11-14
+
+Se conserva la evidencia histórica. El nuevo análisis real pasó de 48 a 6 alertas (0 altas, 0 medias, 5 bajas por IDs públicos de imágenes y 1 informativa SPA). Producción: npm audit sin hallazgos; herramientas de desarrollo: 24 entradas afectadas pendientes. El cumplimiento general sigue siendo parcial. Véanse [cambios, pruebas, limitaciones y lista de archivos](remediacion-angular20.md) y el [informe ejecutivo](../../artifacts/security-remediation/angular20-caa13b0b78/remediation-executive.html). El runner local terminó con exit 0 y cobertura aprobada; no se ejecutó GitHub Actions remoto.
