@@ -39,13 +39,19 @@ def fixture():
                        f"INSERT INTO account_profile_settings(account_id) VALUES({i});"]
     statements += ["UPDATE stores SET owner_account_id=2,name='Tienda RNF020',status='ACTIVE' WHERE id=1;",
                    "INSERT INTO products(id,name,description,price,stock,category,active,store_id,status) VALUES(1,'Producto RNF020','Fixture de mensajería',15000,100,'Pruebas',TRUE,1,'ACTIVE');",
+                   "INSERT INTO products(id,name,description,price,stock,category,active,store_id,status) VALUES(2,'Producto alterno RNF020','Fixture de regresión',15000,100,'Pruebas',TRUE,1,'ACTIVE');",
                    "INSERT INTO product_images VALUES(1,0,'/performance/small.png');",'COMMIT;']
     return '\n'.join(statements)
 
+def mysql(statement):
+    # El respaldo incluye texto real Unicode; no depender del locale del cliente mysql.
+    return cmd(COMPOSE+['exec','-T','mysql','sh','-c',
+        'MYSQL_PWD="$MYSQL_PASSWORD" mysql --default-character-set=utf8mb4 --batch --skip-column-names -u "$MYSQL_USER" "$MYSQL_DATABASE"'],input=statement).stdout.strip()
+
 def backing():
-    rows=infra.mysql('SELECT id,conversation_id,sender_id,text FROM conversation_messages ORDER BY id;')
+    rows=mysql('SELECT id,conversation_id,sender_id,text FROM conversation_messages ORDER BY id;')
     messages=[dict(zip(['message_id','conversation_id','sender_id','text'],[int(v) if i<3 else v for i,v in enumerate(line.split('\t'))])) for line in rows.splitlines() if line]
-    rows=infra.mysql("SELECT id,recipient_type,recipient_id,event_key FROM notifications WHERE type='CONVERSATION_MESSAGE' ORDER BY id;")
+    rows=mysql("SELECT id,recipient_type,recipient_id,event_key FROM notifications WHERE type='CONVERSATION_MESSAGE' ORDER BY id;")
     notices=[dict(zip(['notification_id','recipient_type','recipient_id','event_key'],[int(v) if i in (0,2) else v for i,v in enumerate(line.split('\t'))])) for line in rows.splitlines() if line]
     save('backing.json',{'messages':messages,'notifications':notices})
 
@@ -89,9 +95,9 @@ def main():
     if args.events<100 or args.events>1000:parser.error('La medición principal exige entre 100 y 1000 eventos por dirección')
     OUT.mkdir(parents=True);(OUT/'results').mkdir(mode=0o777);os.chmod(OUT/'results',0o777);assets(OUT/'assets')
     metadata={'project':PROJECT,'started_utc':now(),'expected_per_direction':args.events,'complete':False,'problems':[],
-              'send_mode':SEND_MODE,'known_concurrent_issue':'En el smoke simultáneo rnf020-0806b5c9a17d se detectaron mensajes persistidos omitidos por el cursor de recepción. El resultado con turnos alternos no acredita envío simultáneo; requiere corrección funcional fuera de este alcance.',
+              'send_mode':SEND_MODE,'known_concurrent_issue':'Hallazgo histórico rnf020-0806b5c9a17d: mensajes omitidos con envío simultáneo. Se aplica reconciliación del historial; el requisito general requiere comparar ambos modelos completos y la regresión funcional, sin eliminar la evidencia anterior.',
               'revision':'local-no-verificada-sin-git','measurement':'acción real del emisor a elemento visible en panel del destinatario',
-              'polling_ms':{'messages':3000,'notifications':2000},'resource_model':'backend 1.5CPU/1GiB, MySQL 1CPU/1GiB tmpfs, nginx .25CPU/128MiB, Chromium 1.5CPU/1GiB; shm 256MiB',
+              'polling_ms':{'messages':3000,'notifications':2000},'resource_model':'backend .75CPU/1GiB, MySQL .5CPU/1GiB tmpfs, nginx .125CPU/128MiB, Chromium .75CPU/1GiB; shm 256MiB',
               'push':'No evaluado','smoke_only':args.smoke_only,'browser_origin':'https://frontend con TLS local y certificado autofirmado efímero; ignoreHTTPSErrors en contextos aislados sin salida de red externa'}
     tls=tempfile.TemporaryDirectory(prefix=PROJECT+'-tls-')
     infra.ENV['RNF020_TLS_DIR']=tls.name
@@ -100,7 +106,7 @@ def main():
         context=json.loads(cmd(['docker','context','inspect']).stdout)[0]
         if not context['Endpoints']['docker']['Host'].startswith('unix://'):raise RuntimeError('REMOTE_DOCKER_FORBIDDEN')
         cap=infra.capacity();save('capacity-before.json',cap)
-        if not infra.safe_capacity(cap,True):raise RuntimeError('INSUFFICIENT_RESOURCES')
+        if not infra.safe_capacity(cap,True) or cap['cpu_percent_of_one_core']+212.5>=cap['docker_cpus']*70:raise RuntimeError('INSUFFICIENT_RESOURCES_FOR_CPU_BUDGET')
         if any(infra.ids(k) for k in ('container','network','volume')):raise RuntimeError('PROJECT_ALREADY_EXISTS')
         cmd(['openssl','req','-x509','-newkey','rsa:2048','-nodes','-days','2','-subj','/CN=frontend',
              '-addext','subjectAltName=DNS:frontend','-keyout',tls.name+'/key.pem','-out',tls.name+'/cert.pem'])
@@ -125,17 +131,21 @@ def main():
         owned=True;print('Construyendo '+PROJECT,flush=True)
         cmd(COMPOSE+['--profile','e2e','build','backend','frontend','browser'],timeout=1800)
         cmd(COMPOSE+['up','-d','--wait','--wait-timeout','300','mysql','backend','frontend'],timeout=360);infra.verify_runtime()
-        versions=[int(v) for v in infra.mysql('SELECT version FROM flyway_schema_history WHERE success=1 AND version IS NOT NULL ORDER BY installed_rank;').splitlines()]
+        versions=[int(v) for v in mysql('SELECT version FROM flyway_schema_history WHERE success=1 AND version IS NOT NULL ORDER BY installed_rank;').splitlines()]
         expected=sorted(int(p.name.split('__')[0][1:]) for p in (ROOT/'backend/demo/src/main/resources/db/migration').glob('V*__*.sql'))
-        if versions!=expected or infra.mysql('SELECT COUNT(*) FROM user_accounts;')!='0' or infra.mysql('SELECT COUNT(*) FROM products;')!='0':raise RuntimeError('FRESH_DATABASE_OR_FLYWAY_INVALID')
-        infra.mysql(fixture())
-        counts=infra.mysql('SELECT (SELECT COUNT(*) FROM user_accounts),(SELECT COUNT(*) FROM products),(SELECT owner_account_id FROM stores WHERE id=1),(SELECT COUNT(*) FROM conversation_messages),(SELECT COUNT(*) FROM notifications);')
-        if counts!='3\t1\t2\t0\t0':raise RuntimeError('FIXTURE_INVALID')
-        metadata['fixtures']={'verified':True,'accounts':3,'buyers':2,'sellers':1,'products':1,'store_owner':2,'flyway_versions':versions};save('metadata.json',metadata)
+        if versions!=expected or mysql('SELECT COUNT(*) FROM user_accounts;')!='0' or mysql('SELECT COUNT(*) FROM products;')!='0':raise RuntimeError('FRESH_DATABASE_OR_FLYWAY_INVALID')
+        mysql(fixture())
+        counts=mysql('SELECT (SELECT COUNT(*) FROM user_accounts),(SELECT COUNT(*) FROM products),(SELECT owner_account_id FROM stores WHERE id=1),(SELECT COUNT(*) FROM conversation_messages),(SELECT COUNT(*) FROM notifications);')
+        if counts!='3\t2\t2\t0\t0':raise RuntimeError('FIXTURE_INVALID')
+        metadata['fixtures']={'verified':True,'accounts':3,'buyers':2,'sellers':1,'products':2,'store_owner':2,'flyway_versions':versions};save('metadata.json',metadata)
         # Tests del instrumento usan DOM sintético; no son evidencia principal.
         test=cmd(COMPOSE+['--profile','e2e','run','--rm','--no-deps','browser','--test','/scripts/tests/instrument.test.cjs'],timeout=120,check=False)
         (OUT/'instrument-tests.log').write_text(test.stdout+test.stderr)
         if test.returncode:raise RuntimeError('INSTRUMENT_TESTS_FAILED')
+        functional=cmd(COMPOSE+['--profile','e2e','run','--rm','--no-deps','-e','FIXTURE_PASSWORD='+PASSWORD,'browser','/scripts/functional.cjs'],timeout=180,check=False)
+        (OUT/'functional.log').write_text((functional.stdout+functional.stderr).replace(PASSWORD,'[REDACTED]'))
+        if functional.returncode:raise RuntimeError('FUNCTIONAL_REGRESSION_FAILED')
+        metadata['functional_regression_passed']=True
         print('Smoke: 5 eventos por dirección',flush=True)
         metadata['smoke_exit_code']=browser('smoke',5);backing();save('metadata.json',metadata)
         if metadata['smoke_exit_code'] or not final_report()['smoke_ok']:raise RuntimeError('SMOKE_INVALID_FULL_RUN_BLOCKED')

@@ -51,7 +51,7 @@ async function observeMessage(page,token,t0,timeout=12000) {
     await panelReady(page,'app-conversaciones main');
     if(await row.count()===1 && await row.textContent()===token && await inPanel(row,panel))
       return {latency:performance.now()-t0,verified:true};
-    await new Promise(r=>setTimeout(r,50));
+    await new Promise(r=>setTimeout(r,100));
   }
   return {latency:null,verified:false,error:'MESSAGE_DOM_TIMEOUT'};
 }
@@ -75,7 +75,7 @@ async function observeNotification(page,feed,baseline,conversation,t0,timeout=12
         return {latency:performance.now()-t0,verified:true,id:item.id,dom:row,count};
     }
     if(count>baseline.count+1 || fresh.length>1)return {latency:null,verified:false,error:'AMBIGUOUS_NOTIFICATION_DELTA'};
-    await new Promise(r=>setTimeout(r,50));
+    await new Promise(r=>setTimeout(r,100));
   }
   return {latency:null,verified:false,error:'NOTIFICATION_DOM_TIMEOUT'};
 }

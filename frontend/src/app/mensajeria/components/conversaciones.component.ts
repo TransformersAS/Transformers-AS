@@ -1,7 +1,7 @@
 import { Component, OnDestroy, effect, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Subscription, finalize, forkJoin } from 'rxjs';
+import { Observable, Subscription, finalize, forkJoin, map, of, switchMap } from 'rxjs';
 import { AuthService } from '../../core/services/auth.service';
 import { MensajeriaService } from '../services/mensajeria.service';
 import { Conversacion, Mensaje } from '../models/conversacion.model';
@@ -43,6 +43,10 @@ export class ConversacionesComponent implements OnDestroy {
   private readonly auth = inject(AuthService);
   private subs = new Subscription();
   private consulta?: Subscription;
+  private refresco?: Subscription;
+  private generacion = 0;
+  private inicioHistorial = 0;
+  private confirmado = 0;
   private timer = window.setInterval(() => { if (!document.hidden && !this.enviando) this.actualizar(); }, 3000);
   lista: Conversacion[] = []; actual: Conversacion | null = null; mensajes: Mensaje[] = [];
   texto = ''; archivo: File | null = null; clave: string | null = null; error = ''; enviando = false;
@@ -63,26 +67,43 @@ export class ConversacionesComponent implements OnDestroy {
   abrir(id: number) {
     if(this.enviando) return;
     if(this.actual) this.borradores.set(this.actual.id,{texto:this.texto,archivo:this.archivo,clave:this.clave,claveTexto:this.claveTexto,claveArchivo:this.claveArchivo});
-    this.consulta?.unsubscribe(); this.error=''; this.actual=null;this.mensajes=[];
+    const generacion=++this.generacion;
+    this.consulta?.unsubscribe();this.refresco?.unsubscribe();this.actualizando=false;
+    this.inicioHistorial=0;this.confirmado=0;
+    this.error=''; this.actual=null;this.mensajes=[];
     const draft=this.borradores.get(id);this.texto=draft?.texto||'';this.archivo=draft?.archivo||null;this.clave=draft?.clave||null;this.claveTexto=draft?.claveTexto||'';this.claveArchivo=draft?.claveArchivo||null;
     this.consulta=forkJoin({c:this.servicio.detalle(id),m:this.servicio.historial(id)}).subscribe({next:({c,m})=>{
-      this.actual=c;this.mensajes=m;this.hayAnteriores=m.length===50;this.marcar();
+      if(this.generacion!==generacion)return;
+      this.actual=c;this.mezclar(m);this.hayAnteriores=m.length===50;
+      this.inicioHistorial=m.length===50?m[0].id:0;this.confirmado=m.at(-1)?.id||0;this.marcar();
     },error:e=>this.fallo(e)});
   }
   private marcar() {
-    const c=this.actual,last=this.mensajes.at(-1)?.id;
-    if(c && last && last>c.readThrough && !document.hidden) this.subs.add(this.servicio.leer(c.id,last).subscribe({next:()=>{c.readThrough=last;c.unread=0;this.cargarLista();},error:e=>this.fallo(e)}));
+    const c=this.actual,last=this.confirmado,generacion=this.generacion;
+    if(c && last && last>c.readThrough && !document.hidden) this.subs.add(this.servicio.leer(c.id,last).subscribe({next:()=>{if(this.generacion!==generacion||this.actual?.id!==c.id)return;this.actual.readThrough=Math.max(this.actual.readThrough,last);this.actual.unread=0;this.cargarLista();},error:e=>this.fallo(e)}));
+  }
+  // Reconciliar la ventana abierta desde el servidor. El ID del envío propio no es un cursor
+  // de recepción. Releer con solapamiento también recupera IDs menores confirmados tarde.
+  private recuperar(id:number,inicio:number,before=Number.MAX_SAFE_INTEGER):Observable<Mensaje[]> {
+    return this.servicio.historial(id,0,before).pipe(switchMap(m=>
+      m.length===50 && m[0].id>inicio
+        ? this.recuperar(id,inicio,m[0].id).pipe(map(anteriores=>[...anteriores,...m]))
+        : of(m.filter(mensaje=>mensaje.id>=inicio))));
   }
   actualizar() {
     if(this.actualizando) return;
     this.cargarLista();const c=this.actual;if(!c) return;this.actualizando=true;
-    this.subs.add(forkJoin({c:this.servicio.detalle(c.id),m:this.servicio.historial(c.id,this.mensajes.at(-1)?.id||0)})
-      .pipe(finalize(()=>this.actualizando=false)).subscribe({next:({c:next,m})=>{
-        if(this.actual?.id!==c.id) return;this.actual=next;this.mezclar(m);this.marcar();
-      },error:e=>this.fallo(e)}));
+    const generacion=this.generacion;
+    this.refresco=forkJoin({c:this.servicio.detalle(c.id),m:this.recuperar(c.id,this.inicioHistorial)})
+      .pipe(finalize(()=>{if(this.generacion===generacion)this.actualizando=false;})).subscribe({next:({c:next,m})=>{
+        if(this.generacion!==generacion || this.actual?.id!==c.id) return;
+        next.readThrough=Math.max(next.readThrough,this.actual.readThrough);
+        this.actual=next;this.mezclar(m);this.confirmado=Math.max(this.confirmado,m.at(-1)?.id||0);this.marcar();
+      },error:e=>{if(this.generacion===generacion)this.fallo(e);}});
+    this.subs.add(this.refresco);
   }
   private mezclar(nuevos: Mensaje[]) {const all=new Map(this.mensajes.map(m=>[m.id,m]));nuevos.forEach(m=>all.set(m.id,m));this.mensajes=[...all.values()].sort((a,b)=>a.id-b.id);}
-  anteriores() { const id=this.actual?.id;if(!id) return;this.subs.add(this.servicio.historial(id,0,this.mensajes[0]?.id).subscribe({next:m=>{if(this.actual?.id===id){this.mezclar(m);this.hayAnteriores=m.length===50;}},error:e=>this.fallo(e)})); }
+  anteriores() { const id=this.actual?.id,generacion=this.generacion;if(!id) return;this.subs.add(this.servicio.historial(id,0,this.mensajes[0]?.id).subscribe({next:m=>{if(this.generacion===generacion && this.actual?.id===id){this.mezclar(m);this.hayAnteriores=m.length===50;this.inicioHistorial=m.length===50?Math.min(this.inicioHistorial,m[0].id):0;}},error:e=>this.fallo(e)})); }
   adjuntar(event: Event) {
     const input=event.target as HTMLInputElement;const f=input.files?.[0];this.error='';this.archivo=null;this.clave=null;
     if(!f) return;
@@ -101,5 +122,5 @@ export class ConversacionesComponent implements OnDestroy {
   }
   estado(action: 'archive'|'closed',value:boolean) {const id=this.actual?.id;if(id)this.subs.add(this.servicio.estado(id,action,value).subscribe({next:()=>{if(this.actual?.id===id){if(action==='closed')this.actual.closed=value;else this.actual.archived=value;}this.cargarLista();},error:e=>this.fallo(e)}));}
   porId(_:number,m:Mensaje) {return m.id;}
-  ngOnDestroy() {window.clearInterval(this.timer);this.subs.unsubscribe();this.consulta?.unsubscribe();this.borradores.clear();}
+  ngOnDestroy() {++this.generacion;window.clearInterval(this.timer);this.subs.unsubscribe();this.consulta?.unsubscribe();this.borradores.clear();}
 }
