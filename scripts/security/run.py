@@ -11,6 +11,7 @@ import subprocess
 import sys
 import time
 import uuid
+from report import write_executive_report
 
 ROOT = Path(__file__).resolve().parents[2]
 PROJECT = 'rnf-zap-' + uuid.uuid4().hex[:12]
@@ -110,6 +111,16 @@ def source_manifest():
     return {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(set(files)) if p.exists()}
 
 
+def finalize_executive_report(directory, metadata):
+    """Añade trazabilidad final sin reescribir los resultados técnicos del scanner."""
+    directory = Path(directory)
+    report_path = directory / 'zap-report.json'
+    status_path = directory / 'scanner-status.json'
+    data = json.loads(report_path.read_text()) if report_path.exists() else {'alerts': [], 'result': {}}
+    status = json.loads(status_path.read_text()) if status_path.exists() else {}
+    write_executive_report(directory, data, metadata, status)
+
+
 def main():
     OUT.mkdir(parents=True, exist_ok=False)
     active_marker = OUT / '.runner-active'
@@ -176,6 +187,8 @@ def main():
         data = json.loads((OUT / 'zap-report.json').read_text())
         if not (OUT / 'zap-report.html').read_text().startswith('<!doctype html>'):
             raise RuntimeError('HTML inválido')
+        if not (OUT / 'zap-resumen-ejecutivo.html').read_text().startswith('<!doctype html>'):
+            raise RuntimeError('Resumen ejecutivo ausente o inválido')
         if scanner.returncode not in (0, 1) or scanner.returncode != data['result']['exit_code']:
             raise RuntimeError('Código del scanner inconsistente')
         metadata['result'] = data['result']
@@ -207,6 +220,14 @@ def main():
         metadata['finished_utc'] = dt.datetime.now(dt.timezone.utc).isoformat()
         metadata['exit_code'] = code
         write('metadata.json', metadata)
+        try:
+            finalize_executive_report(OUT, metadata)
+        except Exception:
+            code = 3
+            metadata['exit_code'] = code
+            metadata['executive_report_error'] = 'No se pudo generar el resumen ejecutivo'
+            write('metadata.json', metadata)
+            event('ERROR técnico: no se pudo generar el resumen ejecutivo')
         (OUT / 'runner.log').write_text('\n'.join(log) + '\n')
         active_marker.unlink(missing_ok=True)
         print('Evidencia: ' + str(OUT), flush=True)

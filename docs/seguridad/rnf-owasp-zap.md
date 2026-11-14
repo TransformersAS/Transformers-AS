@@ -205,6 +205,7 @@ Artefacto Actions: `security-zap-<run_id>-<run_attempt>`, retención 14 días.
 |---|---|
 | `zap-report.html` | Informe legible generado de alertas reales ZAP, sanitizado y con HTML escapado |
 | `zap-report.json` | Alertas estructuradas, versión, cobertura, alcance, duración y evaluación |
+| `zap-resumen-ejecutivo.html` | Resumen visual en español: estado técnico y de política, indicadores, hallazgos agrupados, acciones y límites |
 | `execution.log` | Secuencia controlada de ZAP y lecturas, sin cabeceras/cuerpos |
 | `baseline-help.txt` | Parámetros consultados del ejecutable en la imagen fijada |
 | `scanner-status.json` | Estado técnico/cobertura y salida del proceso ZAP |
@@ -221,6 +222,52 @@ mensajes HTTP, logs privados del daemon, contraseñas, cookies ni tokens CSRF.
 Los valores sensibles conocidos se reemplazan también en evidencia textual.
 Ante un fallo temprano puede no haber reportes: el job debe fallar y conservar
 el diagnóstico disponible, nunca fabricar un reporte satisfactorio.
+
+### Informe ejecutivo para el profesor
+
+Abrir primero **`zap-resumen-ejecutivo.html`** dentro del ZIP descargado. Es un
+archivo autocontenido, sin JavaScript, fuentes externas ni CDN. Funciona sin
+conexión, se adapta a móvil y dispone de estilos de impresión. Los dos informes
+técnicos se conservan y se enlazan desde él, sin reescribir sus resultados.
+
+El resumen utiliza directamente los datos sanitizados del mismo escaneo:
+
+- Distingue análisis completado de aprobación por política. Código 1 por una
+  alerta alta sigue siendo un bloqueo, aunque se generen los tres informes.
+- Cuenta instancias y agrupa por regla, nombre y severidad. Las 48 alertas de
+  referencia forman ocho tipos; no se presentan como 48 vulnerabilidades
+  distintas ni como vulnerabilidades automáticamente confirmadas.
+- Incluye tarjetas y barras por severidad, confianza, ubicaciones y estados
+  de revisión. Mantiene visibles los estados mixtos y las excepciones.
+- Explica las ocho reglas observadas en español y utiliza una explicación
+  prudente para reglas futuras desconocidas, conservando el nombre original.
+- Distingue investigar, confirmar aplicabilidad, corregir hallazgos confirmados,
+  repetir pruebas y justificar falsos positivos. No acepta alertas por sí mismo.
+- Con cero alertas lo dice expresamente, junto con las limitaciones. Si falla
+  técnicamente o faltan resultados, no muestra una aprobación ni cero alertas
+  como si fueran un resultado válido.
+
+`write_reports()` lo crea junto a HTML/JSON técnicos. Al finalizar,
+`run.py::finalize_executive_report()` agrega fecha en horario de Bogotá,
+revisión, ID Actions y duraciones disponibles, sin modificar los resultados
+técnicos. También puede producir un resumen de error si el scanner no entregó
+datos. Si no se puede generar el archivo, el runner falla técnicamente.
+
+No se necesita cambiar el workflow: la subida existente con `always()` incluye
+todo `artifacts/security-zap/`, también el resumen y los resultados bloqueados.
+La disponibilidad en una nueva ejecución remota debe comprobarse después de
+publicar estos cambios; esta mejora se validó localmente, sin ejecutar ZAP otra
+vez, usando pruebas representativas y una copia de los resultados anteriores.
+
+Validación de esta mejora: **16 pruebas nuevas, 27 aprobadas en total**.
+Se comprobaron agrupación, conteos, cero alertas, bloqueo por riesgo Alto,
+reglas desconocidas, traducciones, sanitización, inyección HTML, estados
+parciales, excepciones y conservación de los reportes técnicos. La copia local
+de las 48 alertas produjo ocho grupos y mantuvo la salida 1. Se revisó en
+Chromium a 1440 px y 390 px, sin desbordamiento móvil ni solicitudes externas;
+la impresión PDF incluyó las ubicaciones y evidencias de los desplegables.
+Estos controles validan la presentación, no constituyen una nueva ejecución
+del scanner ni una nueva aprobación remota de GitHub Actions.
 
 ## Política e interpretación
 
