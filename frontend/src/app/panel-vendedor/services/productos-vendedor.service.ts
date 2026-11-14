@@ -1,4 +1,4 @@
-import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
@@ -10,17 +10,15 @@ import {
   ProductoVendedor,
   SolicitudProducto
 } from '../models/producto-vendedor.model';
-import { TIENDA_PROVISIONAL_ID } from './pedidos-vendedor.service';
 
 /**
- * Productos de la tienda del vendedor (CU-14). Usa la misma tienda provisional (X-Store-Id) que los pedidos
- * recibidos; la sesión y el CSRF los aporta sessionInterceptor.
+ * Productos de la tienda del vendedor (CU-14). No envía X-Store-Id: el backend resuelve la tienda a partir de la cuenta
+ * autenticada (CU-18); la sesión y el CSRF los aporta sessionInterceptor.
  */
 @Injectable({ providedIn: 'root' })
 export class ProductosVendedorService {
   private readonly http = inject(HttpClient);
   private readonly url = `${API_BASE}/seller/products`;
-  private readonly headers = new HttpHeaders({ 'X-Store-Id': String(TIENDA_PROVISIONAL_ID) });
 
   buscar(texto: string, estado: EstadoProducto | ''): Observable<ProductoVendedor[]> {
     let params = new HttpParams();
@@ -30,20 +28,20 @@ export class ProductosVendedorService {
     if (estado) {
       params = params.set('status', estado);
     }
-    return this.http.get<ProductoVendedor[]>(this.url, { params, headers: this.headers });
+    return this.http.get<ProductoVendedor[]>(this.url, { params });
   }
 
   crear(datos: SolicitudProducto): Observable<ProductoVendedor> {
-    return this.http.post<ProductoVendedor>(this.url, datos, { headers: this.headers });
+    return this.http.post<ProductoVendedor>(this.url, datos);
   }
 
   actualizar(id: number, datos: SolicitudProducto): Observable<ProductoVendedor> {
-    return this.http.put<ProductoVendedor>(`${this.url}/${id}`, datos, { headers: this.headers });
+    return this.http.put<ProductoVendedor>(`${this.url}/${id}`, datos);
   }
 
   /** Publicar, pausar, reactivar, retirar o duplicar: todas son un POST sin cuerpo. */
   ejecutar(id: number, accion: AccionProducto): Observable<ProductoVendedor> {
-    return this.http.post<ProductoVendedor>(`${this.url}/${id}/${accion}`, {}, { headers: this.headers });
+    return this.http.post<ProductoVendedor>(`${this.url}/${id}/${accion}`, {});
   }
 
   // ---------- Estructura del catálogo (solo lectura, CU-17) ----------
