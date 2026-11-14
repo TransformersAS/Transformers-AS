@@ -2,6 +2,7 @@ package com.transformersas.marketplace.recommendation.application;
 
 import com.transformersas.marketplace.product.Product;
 import com.transformersas.marketplace.product.ProductRepository;
+import com.transformersas.marketplace.product.ProductService;
 import com.transformersas.marketplace.recommendation.dto.RecommendationResponse;
 import com.transformersas.marketplace.recommendation.infrastructure.GeminiRecommendationClient;
 import com.transformersas.marketplace.recommendation.interaction.UserInteraction;
@@ -33,6 +34,8 @@ class RecommendationServiceTests {
     @Mock
     private GeminiRecommendationClient geminiClient;
 
+    @Mock private ProductService catalog;
+
     private RecommendationService service;
 
 
@@ -41,6 +44,7 @@ class RecommendationServiceTests {
 
         service = new RecommendationService(
                 productRepository,
+                catalog,
                 interactionRepository,
                 geminiClient
         );
@@ -51,8 +55,8 @@ class RecommendationServiceTests {
     void returnsNoProductsWhenThereAreNoAvailableCandidates() {
 
         when(
-                productRepository
-                        .findByActiveTrueAndStockGreaterThan(0)
+                catalog
+                        .getRecommendationCandidates()
         ).thenReturn(List.of());
 
 
@@ -89,8 +93,8 @@ class RecommendationServiceTests {
 
 
         when(
-                productRepository
-                        .findByActiveTrueAndStockGreaterThan(0)
+                catalog
+                        .getRecommendationCandidates()
         ).thenReturn(
                 List.of(
                         p1,
@@ -155,8 +159,8 @@ class RecommendationServiceTests {
 
 
         when(
-                productRepository
-                        .findByActiveTrueAndStockGreaterThan(0)
+                catalog
+                        .getRecommendationCandidates()
         ).thenReturn(
                 List.of(p1, p2)
         );
@@ -245,8 +249,8 @@ class RecommendationServiceTests {
 
 
         when(
-                productRepository
-                        .findByActiveTrueAndStockGreaterThan(0)
+                catalog
+                        .getRecommendationCandidates()
         ).thenReturn(candidates);
 
 
@@ -338,8 +342,8 @@ class RecommendationServiceTests {
 
 
         when(
-                productRepository
-                        .findByActiveTrueAndStockGreaterThan(0)
+                catalog
+                        .getRecommendationCandidates()
         ).thenReturn(
                 List.of(p1, p2)
         );
@@ -412,8 +416,8 @@ class RecommendationServiceTests {
 
 
         when(
-                productRepository
-                        .findByActiveTrueAndStockGreaterThan(0)
+                catalog
+                        .getRecommendationCandidates()
         ).thenReturn(
                 List.of(p1, p2)
         );

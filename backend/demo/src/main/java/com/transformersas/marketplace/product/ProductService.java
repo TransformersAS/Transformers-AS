@@ -43,7 +43,7 @@ public class ProductService {
      * No se listan las publicaciones ocultas o retiradas por moderación (CU-21) ni las de tiendas que no pueden recibir
      * nuevas compras, como una suspendida (CU-27).
      */
-    public List<ProductResponse> getAllProducts() {
+    private List<ProductResponse> visibleCatalog() {
         Set<Long> hidden = new HashSet<>(NONE);
         for (String id : contentVisibility.nonVisibleIds(ReportContentType.PUBLICACION)) {
             // Un id de contenido que no sea numérico no corresponde a ningún producto.
@@ -53,8 +53,21 @@ public class ProductService {
         }
         Set<Long> closedStores = new HashSet<>(NONE);
         closedStores.addAll(storeOperation.nonOperatingStoreIds());
+        return productRepository.findCatalog(VISIBLE_TO_BUYERS, hidden, closedStores);
+    }
+
+    /** RF-143: share catalog visibility, then retain only available recommendation candidates. */
+    public List<Product> getRecommendationCandidates() {
+        List<Long> ids = visibleCatalog().stream()
+                .filter(p -> Boolean.TRUE.equals(p.active()) && p.stock() > 0)
+                .map(ProductResponse::id).toList();
+        return productRepository.findAllById(ids).stream()
+                .filter(p -> Boolean.TRUE.equals(p.getActive()) && p.getStock() > 0).toList();
+    }
+
+    public List<ProductResponse> getAllProducts() {
         var ratings = reviews.summaries(null, null);
-        return productRepository.findCatalog(VISIBLE_TO_BUYERS, hidden, closedStores).stream()
+        return visibleCatalog().stream()
                 .map(product -> {
                     var rating = ratings.get(product.id());
                     return rating == null ? product : product.withRating(rating.average(), rating.count());

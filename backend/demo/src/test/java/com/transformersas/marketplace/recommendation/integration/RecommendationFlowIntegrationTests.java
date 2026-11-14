@@ -104,4 +104,60 @@ class RecommendationFlowIntegrationTests extends AbstractIntegrationTest {
                 .isInstanceOf(ResponseStatusException.class);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM user_interactions",Integer.class)).isZero();
     }
+
+    @ParameterizedTest
+    @ValueSource(strings={"SUSPENDED", "OCULTO_TEMPORAL", "RETIRADO", "RETIRED", "DRAFT", "NO_STOCK"})
+    void catalogVisibilityAppliesBeforeAiAndToEveryFallback(String exclusion) throws Exception {
+        seedStore(2, "Excluded store");
+        long excluded = seedProduct(2, "Excluded candidate secret", 100, "25");
+        long allowed = seedProduct(1, "Visible candidate", 2, "25");
+        Long moderationCase = null;
+        try {
+            if (exclusion.equals("SUSPENDED")) {
+                jdbc.update("UPDATE stores SET status='SUSPENDED',status_reason='RF-143 test' WHERE id=2");
+            } else if (exclusion.equals("NO_STOCK")) {
+                jdbc.update("UPDATE products SET stock=0 WHERE id=?", excluded);
+            } else if (Set.of("RETIRED", "DRAFT").contains(exclusion)) {
+                jdbc.update("UPDATE products SET status=?,active=FALSE WHERE id=?", exclusion, excluded);
+            } else {
+                jdbc.update("INSERT INTO moderation_cases(content_type,content_id,status,opened_at) VALUES ('PUBLICACION',?,'PENDIENTE',NOW(6))", ""+excluded);
+                moderationCase = jdbc.queryForObject("SELECT id FROM moderation_cases WHERE content_type='PUBLICACION' AND content_id=?", Long.class, ""+excluded);
+                jdbc.update("INSERT INTO content_moderation_state(content_type,content_id,state,case_id,updated_at) VALUES ('PUBLICACION',?,?,?,NOW(6))", ""+excluded, exclusion, moderationCase);
+            }
+            perform(buyer,get("/api/recommendations")).andExpect(status().isOk())
+                    .andExpect(jsonPath("$.strategy").value("GENERAL_NO_HISTORY"))
+                    .andExpect(jsonPath("$.products.length()").value(1))
+                    .andExpect(jsonPath("$.products[0].id").value(allowed));
+            server.verify(0,anyRequestedFor(anyUrl()));
+
+            search(); ai("{\"productIds\":["+excluded+","+allowed+"]}");
+            perform(buyer,get("/api/recommendations")).andExpect(status().isOk())
+                    .andExpect(jsonPath("$.strategy").value("AI"))
+                    .andExpect(jsonPath("$.products.length()").value(1))
+                    .andExpect(jsonPath("$.products[0].id").value(allowed));
+            server.verify(postRequestedFor(anyUrl()).withRequestBody(containing("Visible candidate")));
+            server.verify(0,postRequestedFor(anyUrl()).withRequestBody(containing("Excluded candidate secret")));
+
+            ai("{\"productIds\":["+excluded+"]}");
+            perform(buyer,get("/api/recommendations")).andExpect(status().isOk())
+                    .andExpect(jsonPath("$.strategy").value("GENERAL_AI_EMPTY"))
+                    .andExpect(jsonPath("$.products.length()").value(1))
+                    .andExpect(jsonPath("$.products[0].id").value(allowed));
+            server.stubFor(com.github.tomakehurst.wiremock.client.WireMock.post(anyUrl()).willReturn(aResponse().withStatus(500)));
+            perform(buyer,get("/api/recommendations")).andExpect(status().isOk())
+                    .andExpect(jsonPath("$.strategy").value("GENERAL_AI_UNAVAILABLE"))
+                    .andExpect(jsonPath("$.products.length()").value(1))
+                    .andExpect(jsonPath("$.products[0].id").value(allowed));
+            jdbc.update("UPDATE products SET active=FALSE,status='PAUSED' WHERE id=?",allowed);
+            perform(buyer,get("/api/recommendations")).andExpect(status().isOk())
+                    .andExpect(jsonPath("$.strategy").value("NO_PRODUCTS"))
+                    .andExpect(jsonPath("$.products").isEmpty());
+            server.verify(3,postRequestedFor(anyUrl()));
+        } finally {
+            if (moderationCase != null) {
+                jdbc.update("DELETE FROM content_moderation_state WHERE case_id=?",moderationCase);
+                jdbc.update("DELETE FROM moderation_cases WHERE id=?",moderationCase);
+            }
+        }
+    }
 }

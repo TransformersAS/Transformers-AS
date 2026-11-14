@@ -2,6 +2,7 @@ package com.transformersas.marketplace.recommendation.application;
 
 import com.transformersas.marketplace.product.Product;
 import com.transformersas.marketplace.product.ProductRepository;
+import com.transformersas.marketplace.product.ProductService;
 
 import com.transformersas.marketplace.recommendation.dto.RecommendationResponse;
 import com.transformersas.marketplace.recommendation.dto.RecommendedProductResponse;
@@ -28,6 +29,7 @@ public class RecommendationService {
 
 
     private final ProductRepository productRepository;
+    private final ProductService catalog;
 
     private final UserInteractionRepository
         interactionRepository;
@@ -39,6 +41,7 @@ public class RecommendationService {
     public RecommendationService(
 
         ProductRepository productRepository,
+        ProductService catalog,
 
         UserInteractionRepository
             interactionRepository,
@@ -50,6 +53,7 @@ public class RecommendationService {
 
         this.productRepository =
             productRepository;
+        this.catalog = catalog;
 
         this.interactionRepository =
             interactionRepository;
@@ -72,10 +76,7 @@ public class RecommendationService {
          * que realmente pueden comprarse.
          */
         List<Product> candidates =
-            productRepository
-                .findByActiveTrueAndStockGreaterThan(
-                    0
-                );
+            catalog.getRecommendationCandidates();
 
 
         if (candidates.isEmpty()) {
