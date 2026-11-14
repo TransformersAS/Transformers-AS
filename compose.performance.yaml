@@ -1,0 +1,82 @@
+# Exclusivo de scripts/performance/run.py. Sin puertos ni persistencia compartida.
+services:
+  mysql:
+    image: mysql:8.4.11
+    command: [--innodb-buffer-pool-size=134217728, --max-connections=100]
+    environment:
+      MYSQL_DATABASE: performance_fixture
+      MYSQL_USER: performance_test
+      MYSQL_PASSWORD: performance_db_only
+      MYSQL_ROOT_PASSWORD: performance_root_only
+    tmpfs: [/var/lib/mysql]
+    networks: [database]
+    cpus: 1
+    mem_limit: 1g
+    healthcheck:
+      test: [CMD-SHELL, 'MYSQL_PWD="$${MYSQL_PASSWORD}" mysql --protocol=TCP -h 127.0.0.1 -u "$${MYSQL_USER}" "$${MYSQL_DATABASE}" -e "SELECT 1" >/dev/null']
+      interval: 5s
+      timeout: 5s
+      retries: 40
+  backend:
+    build: ./backend/demo
+    environment:
+      JAVA_TOOL_OPTIONS: -Xms128m -Xmx512m
+      DB_HOST: mysql
+      DB_PORT: '3306'
+      DB_NAME: performance_fixture
+      DB_USER: performance_test
+      DB_PASSWORD: performance_db_only
+      DB_POOL_SIZE: '20'
+      SPRING_PROFILES_ACTIVE: ''
+      SPRING_PROFILES_INCLUDE: ''
+      MARKETPLACE_DEMO_DATA: 'false'
+      PAYMENTS_MOCK_ENABLED: 'false'
+      PAYMENTS_RECOVERY_ENABLED: 'false'
+      MERCADOPAGO_ACCESS_TOKEN: ''
+      GEMINI_API_KEY: ''
+      SPRING_MAIL_HOST: ''
+      NOTIFICATIONS_QUEUE_ENABLED: 'false'
+      NOTIFICATIONS_PUSH_ENABLED: 'false'
+      LOGISTICS_PROVIDER: simulated
+      NOTIFICATIONS_PROVIDER: simulated
+      LOGISTICS_TRACKING_POLLING_ENABLED: 'false'
+      LOGISTICS_SIMULATED_SCRIPT: NONE
+    networks: [database, target]
+    cpus: 2
+    mem_limit: 1g
+    depends_on:
+      mysql: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, curl, --fail, --silent, --max-time, '4', http://127.0.0.1:8080/actuator/health/readiness]
+      interval: 5s
+      timeout: 5s
+      start_period: 30s
+      retries: 50
+  frontend:
+    build: ./frontend
+    environment:
+      BACKEND_UPSTREAM_HOST: backend
+    volumes:
+      - ${PERF_ASSETS_DIR:?Runner requerido}:/usr/share/nginx/html/performance:ro
+    networks: [target]
+    cpus: 0.25
+    mem_limit: 128m
+    depends_on:
+      backend: {condition: service_healthy}
+    healthcheck:
+      test: [CMD-SHELL, 'wget -q -O /dev/null http://127.0.0.1/healthz && wget -q -O /dev/null http://127.0.0.1/api/actuator/health/readiness']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+  k6:
+    image: grafana/k6@sha256:70af91f86cd8e142e0544a4edaf79835a80033f71974b92edd5ac36fd4442a7b
+    profiles: [load]
+    networks: [target]
+    volumes:
+      - ./scripts/k6:/scripts:ro
+      - ${PERF_RESULTS_DIR:?Runner requerido}:/results
+    cpus: 1.5
+    mem_limit: 512m
+networks:
+  database: {internal: true}
+  target: {internal: true}

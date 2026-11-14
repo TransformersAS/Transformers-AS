@@ -5,19 +5,24 @@ const port = process.env.PLAYWRIGHT_PORT || '4300';
 export default defineConfig({
   testDir: './e2e',
   testIgnore: '**/push-browser.spec.ts',
+  workers: process.env.CI ? 2 : undefined,
+  reporter: [['list'], ['html', { open: 'never' }]],
 
   use: {
     baseURL: `http://127.0.0.1:${port}`,
-    trace: 'on-first-retry',
+    trace: 'retain-on-failure',
+    screenshot: 'only-on-failure',
     // Estas suites simulan HTTP con page.route; un service worker puede eludirlo.
     serviceWorkers: 'block',
   },
 
   webServer: {
-    // E2E must control navigation; dev-server reloads can destroy an open account panel.
-    command: `npm start -- --host 127.0.0.1 --port ${port} --live-reload=false --hmr=false`,
+    // Servir los bytes de producción: Vite transforma módulos e invalida SRI.
+    // Ejecutar npm run build antes de Playwright (CI ya lo hace).
+    command: `node e2e-security-server.cjs`,
+    env: { SECURITY_E2E_PORT: port },
     url: `http://127.0.0.1:${port}`,
-    reuseExistingServer: !process.env.CI && !process.env.PLAYWRIGHT_PORT,
+    reuseExistingServer: false,
     timeout: 120000,
   },
 

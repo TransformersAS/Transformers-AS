@@ -172,7 +172,7 @@ jobs:
 
       - name: Run Playwright E2E
         working-directory: frontend
-        run: npx playwright test --project=chrome --reporter=html
+        run: npx playwright test --project=chrome
       - name: Verify production Web Push browser integration
         working-directory: frontend
         run: npx playwright test --config=playwright.push.config.ts --project=chrome --reporter=list

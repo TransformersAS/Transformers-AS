@@ -5,13 +5,24 @@
     {
       "name": "app-shell",
       "installMode": "prefetch",
-      "resources": { "files": ["/favicon.ico", "/index.html", "/*.css", "/*.js"] }
+      "resources": {
+        "files": [
+          "/favicon.ico",
+          "/*.css",
+          "/*.js"
+        ]
+      }
     },
     {
       "name": "images",
       "installMode": "lazy",
       "updateMode": "prefetch",
-      "resources": { "files": ["/assets/**"] }
+      "resources": {
+        "files": [
+          "/assets/**"
+        ]
+      }
     }
-  ]
+  ],
+  "navigationUrls": []
 }
