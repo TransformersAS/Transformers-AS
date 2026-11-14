@@ -10,7 +10,7 @@ async function mockApi(page: Page, options: { unconfigured?: boolean; state?: st
     if (path === '/api/auth/csrf') return reply({ headerName: 'X-CSRF-TOKEN', token: 'csrf' });
     if (path === '/api/notifications') return reply({ items: [], hasMore: false });
     if (path === '/api/cart') return reply({ cartId: 1, items: [{ id: 1, productId: 2, productName: 'Jean', quantity: 1, unitPrice: 95000, subtotal: 95000 }], total: 95000 });
-    if (path === '/api/addresses') return reply({ id: 8 });
+    if (path === '/api/addresses') return reply([{ id: 8, recipientName: 'Buyer', street: 'Calle 1 # 2-3', city: 'Bogota', department: 'Cundinamarca', phone: '3001234567', postalCode: '', defaultAddress: true }]);
     if (path === '/api/checkout/preview') return reply({ subtotal: 95000, discount: 0, shippingCost: 10000, total: 105000, couponValid: false });
     if (path === '/api/payments/mercadopago/checkouts') {
       expect(req.headers()['x-csrf-token']).toBe('csrf');
@@ -41,7 +41,7 @@ for (const unconfigured of [true, false]) {
     await expect(page.locator('.welcome-strip')).toContainText('Hola, buyer');
     await page.getByRole('button', { name: 'Abrir carrito', exact: true }).click();
     await page.getByRole('button', { name: 'Continuar compra', exact: true }).click();
-    await page.getByPlaceholder('Escribe tu dirección de entrega').fill('Calle 1 # 2-3');
+  await expect(page.getByRole('radio', { name: /Usar esta/ })).toBeChecked();
     await page.getByRole('button', { name: 'Calcular total', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Continuar a Mercado Pago', exact: true })).toBeVisible();
     await expect(page.locator('.payment-section select')).toHaveCount(0);

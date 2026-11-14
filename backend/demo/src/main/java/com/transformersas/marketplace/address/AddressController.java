@@ -37,4 +37,21 @@ public class AddressController {
     ) {
         return addressService.create(BuyerAccess.accountId(principal), address);
     }
+
+    @PutMapping("/{id}")
+    public AddressResponse update(@AuthenticationPrincipal AccountPrincipal principal, @PathVariable Long id,
+                                  @Valid @RequestBody AddressRequest address) {
+        return addressService.update(BuyerAccess.accountId(principal), id, address);
+    }
+
+    @PutMapping("/{id}/default")
+    public AddressResponse defaultAddress(@AuthenticationPrincipal AccountPrincipal principal, @PathVariable Long id) {
+        return addressService.setDefault(BuyerAccess.accountId(principal), id);
+    }
+
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(@AuthenticationPrincipal AccountPrincipal principal, @PathVariable Long id) {
+        addressService.delete(BuyerAccess.accountId(principal), id);
+    }
 }

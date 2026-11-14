@@ -410,11 +410,7 @@
         </h3>
   
 
-<input
-  type="text"
-  [(ngModel)]="deliveryAddress"
-  placeholder="Escribe tu dirección de entrega"
-/>
+<app-mis-direcciones [checkout]="true" (selected)="seleccionarDireccion($event)"></app-mis-direcciones>
 
       </section>
 
@@ -1586,3 +1582,7 @@
 
 
 <app-conversaciones *ngIf="(esComprador || esVendedor) && mensajeria.abierta()"></app-conversaciones>
+
+<div class="panel-pedidos" *ngIf="esComprador && mostrarDirecciones">
+  <app-mis-direcciones (close)="mostrarDirecciones=false"></app-mis-direcciones>
+</div>

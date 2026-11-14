@@ -7,6 +7,7 @@ import lombok.Setter;
 
 @Entity
 @Table(name = "addresses")
+@org.hibernate.annotations.SQLRestriction("deleted = false")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -37,4 +38,10 @@ public class Address {
 
     @Column(nullable = false, length = 50)
     private String phone;
+
+    @Column(name = "is_default", nullable = false)
+    private boolean defaultAddress;
+
+    @Column(nullable = false)
+    private boolean deleted;
 }

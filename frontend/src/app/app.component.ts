@@ -1,3 +1,5 @@
+import { MisDireccionesComponent } from './direcciones/mis-direcciones.component';
+import { DeliveryAddress } from './direcciones/direcciones.service';
 import { ConversacionesComponent } from './mensajeria/components/conversaciones.component';
 import { ContactarVendedorComponent } from './mensajeria/components/contactar-vendedor.component';
 import { MensajeriaService } from './mensajeria/services/mensajeria.service';
@@ -23,7 +25,6 @@ import {
 import { FormsModule } from '@angular/forms';
 
 import {
-  HttpClient,
   HttpErrorResponse
 } from '@angular/common/http';
 
@@ -127,7 +128,7 @@ import {
 type OpcionMenu =
   | 'pedidos-recibidos' | 'devoluciones-recibidas' | 'reclamaciones' | 'mis-productos' | 'inventario' | 'mi-tienda'
   | 'estado-tienda' | 'analitica' | 'mis-reportes' | 'mis-devoluciones' | 'favoritos' | 'moderacion'
-  | 'mensajeria' | 'evaluar-tiendas' | 'catalogo-admin' | 'resenas';
+  | 'mensajeria' | 'evaluar-tiendas' | 'catalogo-admin' | 'resenas' | 'direcciones';
 
 interface MenuRol {
   /** Texto visible del botón; el nombre accesible es «Opciones de …». */
@@ -148,6 +149,7 @@ const MENUS_POR_ROL: Record<string, MenuRol> = {
       { id: 'mensajeria', etiqueta: 'Conversaciones' },
       { id: 'mis-reportes', etiqueta: 'Mis reportes' },
       { id: 'favoritos', etiqueta: 'Mis favoritos y alertas' },
+      { id: 'direcciones', etiqueta: 'Mis direcciones' },
       { id: 'resenas', etiqueta: 'Mis reseñas' }
     ] }]
   },
@@ -195,7 +197,7 @@ const MENUS_POR_ROL: Record<string, MenuRol> = {
   standalone: true,
 
   imports: [
-    ConversacionesComponent, ContactarVendedorComponent, CheckoutStatusComponent, MisFavoritosComponent, MisResenasComponent, ResenasProductoComponent, IonApp,
+    MisDireccionesComponent, ConversacionesComponent, ContactarVendedorComponent, CheckoutStatusComponent, MisFavoritosComponent, MisResenasComponent, ResenasProductoComponent, IonApp,
     IonContent,
     IonIcon,
     AsyncPipe,
@@ -277,9 +279,6 @@ export class AppComponent {
 
   private readonly payment =
     inject(PaymentService);
-
-  private readonly http =
-    inject(HttpClient);
 
   private readonly recommendation =
   inject(RecommendationService);
@@ -422,13 +421,13 @@ export class AppComponent {
   mostrarCheckout = false;
 
   /*
-   * Dirección escrita por el usuario.
+   * Administración y selección de direcciones guardadas.
    */
-  deliveryAddress = '';
+  mostrarDirecciones=false;
+  private revisionDireccion=0;
 
   /*
-   * ID generado por el backend después de
-   * guardar la dirección.
+   * Dirección propia seleccionada para esta compra.
    */
   addressId: number | null = null;
 
@@ -548,6 +547,7 @@ export class AppComponent {
       case 'mis-devoluciones': this.devoluciones.abrirPanelComprador(); break;
       case 'favoritos': this.mostrarFavoritos = true; break;
       case 'mensajeria': this.mensajeria.abrir(); break;
+      case 'direcciones': this.mostrarDirecciones = true; break;
       case 'resenas': this.mostrarResenas = true; break;
       case 'moderacion': this.mostrarModeracion = true; break;
       case 'evaluar-tiendas': this.mostrarEvaluacionTiendas = true; break;
@@ -565,7 +565,7 @@ export class AppComponent {
 
     this.auth.restaurar();
     effect(() => {
-      const cuenta=this.auth.cuenta();this.mensajeria.cerrar();this.mostrarFavoritos=false;this.mostrarMenu=false;this.mostrarResenas=false;
+      const cuenta=this.auth.cuenta();this.mensajeria.cerrar();this.mostrarFavoritos=false;this.mostrarMenu=false;this.mostrarResenas=false;this.mostrarDirecciones=false;
       if(cuenta && ['COMPRADOR','VENDEDOR'].includes(cuenta.activeRole || '') && new URLSearchParams(location.search).get('notificaciones')==='1') {
         this.mostrarNotificaciones=true;
         const url=new URL(location.href);url.searchParams.delete('notificaciones');history.replaceState(null,'',url);
@@ -584,6 +584,7 @@ export class AppComponent {
       }
       const comprador = cuenta?.activeRole === 'COMPRADOR' ? cuenta.accountId : null;
       if (comprador !== this.cuentaErrorCompra) {
+        this.revisionDireccion++;this.addressId=null;this.procesandoCheckout=false;
         this.cuentaErrorCompra = comprador;
         this.revisionCompra++;
         this.compraError = '';
@@ -839,6 +840,7 @@ buscarProductos(): void {
 
   cerrarCheckout(): void {
     this.revisionCompra++;
+    this.revisionDireccion++;this.procesandoCheckout=false;
 
     this.mostrarCheckout = false;
 
@@ -861,6 +863,7 @@ buscarProductos(): void {
   ): void {
 
     this.shippingMethod = metodo;
+    this.revisionDireccion++;this.procesandoCheckout=false;
 
     /*
      * Si cambia el método de envío,
@@ -877,140 +880,25 @@ buscarProductos(): void {
   // CALCULAR CHECKOUT
   // =========================================================
 
-  aplicarCheckout(): void {
-
-    /*
-     * Primero validamos que el usuario
-     * realmente haya escrito una dirección.
-     */
-    if (!this.deliveryAddress.trim()) {
-
-      this.checkoutError =
-        'Escribe una dirección de entrega.';
-
-      return;
-    }
-
-
-    this.procesandoCheckout = true;
-
-    this.checkoutError = '';
-
-    this.checkoutPreview = null;
-
-    this.compraResultado = null;
-
-    this.compraError = '';
-
-
-    /*
-     * PASO 1:
-     *
-     * Guardamos la dirección que escribió
-     * el usuario.
-     *
-     * POST /api/addresses
-     */
-    this.http
-      .post<{ id: number }>(
-        '/api/addresses',
-        {
-          recipientName: 'Comprador',
-
-          street:
-            this.deliveryAddress.trim(),
-
-          /*
-           * Como por ahora el frontend solamente
-           * solicita una caja de texto para la dirección,
-           * dejamos estos datos generales para el prototipo.
-           */
-          city: 'Bogotá',
-
-          department: 'Bogotá D.C.',
-
-          postalCode: '',
-
-          phone: '333-333-3333'
-        }
-      )
-
-      .pipe(
-
-        /*
-         * PASO 2:
-         *
-         * Cuando el backend crea la dirección,
-         * devuelve su ID.
-         *
-         * Utilizamos ese ID para calcular
-         * el checkout.
-         */
-        switchMap(address => {
-
-          this.addressId = address.id;
-
-          return this.checkout.preview({
-
-            addressId:
-              address.id,
-
-            shippingMethod:
-              this.shippingMethod,
-
-            couponCode:
-              this.couponCode
-          });
-        }),
-
-        /*
-         * Se ejecuta tanto si funciona
-         * como si ocurre un error.
-         */
-        finalize(() => {
-
-          this.procesandoCheckout =
-            false;
-        })
-      )
-
-      .subscribe({
-
-        next: (
-          response: CheckoutPreviewResponse
-        ) => {
-
-          this.checkoutPreview =
-            response;
-        },
-
-
-        error: (
-          error: HttpErrorResponse
-        ) => {
-
-          console.error(
-            'Error guardando dirección o calculando checkout',
-            error
-          );
-
-
-          this.checkoutError =
-            error.error?.message
-            ??
-            error.error?.detail
-            ??
-            error.message
-            ??
-            'No fue posible calcular el checkout.';
-        }
-      });
+  seleccionarDireccion(address:DeliveryAddress|null):void {
+    this.revisionDireccion++;
+    this.addressId=address?.id??null;
+    this.checkoutPreview=null;
+    this.procesandoCheckout=false;
+    this.checkoutError='';
+    this.compraError='';
   }
 
-
-  // =========================================================
-  // CONFIRMAR COMPRA
-  // =========================================================
+  aplicarCheckout(): void {
+    if(this.procesandoCheckout)return;
+    if(this.addressId===null){this.checkoutError='Selecciona o registra una direccion de entrega.';return;}
+    const revision=this.revisionDireccion,account=this.auth.cuenta()?.accountId,id=this.addressId;
+    const valid=()=>revision===this.revisionDireccion&&this.mostrarCheckout&&this.auth.cuenta()?.activeRole==='COMPRADOR'&&this.auth.cuenta()?.accountId===account;
+    this.procesandoCheckout=true;this.checkoutError='';this.checkoutPreview=null;this.compraError='';
+    this.checkout.preview({addressId:id,shippingMethod:this.shippingMethod,couponCode:this.couponCode})
+      .pipe(finalize(()=>{if(valid())this.procesandoCheckout=false;}))
+      .subscribe({next:r=>{if(valid())this.checkoutPreview=r;},error:e=>{if(valid())this.checkoutError=e.error?.message||e.error?.detail||'No fue posible calcular el checkout.';}});
+  }
 
   confirmarCompra(): void {
     if (this.procesandoCompra) return;
