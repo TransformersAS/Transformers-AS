@@ -6,7 +6,7 @@ import { IonButton, IonButtons, IonContent, IonHeader, IonTitle, IonToolbar } fr
 
 import { EvaluacionCuenta, Restriccion, Rol } from '../models/restricciones.model';
 import { AdminRestriccionesService } from '../services/restricciones.service';
-import { alcance, CAMBIO_RESTRICCION, errorDeRespuesta, ESTADO_INFORMACION, ESTADO_RESTRICCION, fechaHora, ROL, TIPO_ANTECEDENTE } from '../restricciones-texto';
+import { alcance, CAMBIO_RESTRICCION, decisionAntecedente, errorDeRespuesta, ESTADO_INFORMACION, ESTADO_RESTRICCION, fechaHora, pesos, ROL, TIPO_ANTECEDENTE } from '../restricciones-texto';
 
 /** Acción abierta sobre la cuenta o sobre una restricción elegida; cada una muestra su formulario. */
 type Accion = 'informacion' | 'restringir' | 'duracion' | 'permanente' | 'temporal' | 'retirar';
@@ -57,7 +57,7 @@ type Accion = 'informacion' | 'restringir' | 'duracion' | 'permanente' | 'tempor
           @for (registro of datos.records; track registro.type + registro.referenceId + registro.decision) {
             <li>
               <strong>{{ TIPO_ANTECEDENTE[registro.type] }}</strong> · {{ fechaHora(registro.decidedAt) }}
-              <br>{{ registro.subject }} — {{ registro.decision }}@if (registro.amount) { · reembolso de {{ registro.amount }} }
+              <br>{{ registro.subject }} — {{ decisionAntecedente(registro.type, registro.decision) }}@if (registro.amount) { · reembolso de {{ pesos(registro.amount) }} }
               @if (registro.detail) { <br><span class="nota">{{ registro.detail }}</span> }
             </li>
           } @empty {
@@ -215,8 +215,7 @@ type Accion = 'informacion' | 'restringir' | 'duracion' | 'permanente' | 'tempor
                 <ul>
                   @for (cambio of restriccion.changes; track $index) {
                     <li>{{ CAMBIO_RESTRICCION[cambio.type] }} el {{ fechaHora(cambio.createdAt) }}
-                      @if (cambio.actorId) { por la cuenta #{{ cambio.actorId }} } @else { por el sistema }
-                      @if (cambio.justification && cambio.type !== 'APPLIED') { : {{ cambio.justification }} }
+                      {{ cambio.actorId ? 'por la cuenta #' + cambio.actorId : 'por el sistema' }}{{ cambio.justification && cambio.type !== 'APPLIED' ? ': ' + cambio.justification : '' }}
                     </li>
                   }
                 </ul>
@@ -229,7 +228,8 @@ type Accion = 'informacion' | 'restringir' | 'duracion' | 'permanente' | 'tempor
   `,
   styles: [`
     :host { display: flex; flex-direction: column; height: 100%; }
-    ion-content { flex: 1; }
+    /* Las utilidades CSS de Ionic (ion-padding) no se cargan globalmente: el margen se da con las variables. */
+    ion-content { flex: 1; --padding-start: 1rem; --padding-end: 1rem; --padding-top: 1rem; --padding-bottom: 1rem; }
     .roja { color: #b3261e; }
     .lista li { margin-bottom: 0.5rem; }
     .vigente { border: 1px solid #ffcdd2; background: #fff5f5; border-radius: 0.5rem; padding: 0.6rem 0.8rem;
@@ -262,6 +262,8 @@ export class AdminRestriccionesComponent {
   readonly ESTADO_INFORMACION = ESTADO_INFORMACION;
   readonly CAMBIO_RESTRICCION = CAMBIO_RESTRICCION;
   readonly TIPO_ANTECEDENTE = TIPO_ANTECEDENTE;
+  readonly decisionAntecedente = decisionAntecedente;
+  readonly pesos = pesos;
   readonly ROL = ROL;
   readonly alcance = alcance;
   readonly fechaHora = fechaHora;

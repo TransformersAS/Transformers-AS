@@ -5,6 +5,7 @@ import com.transformersas.marketplace.notifications.application.usecase.PublishN
 import com.transformersas.marketplace.notifications.domain.model.RecipientType;
 import com.transformersas.marketplace.restrictions.domain.model.AccountInformationRequest;
 import com.transformersas.marketplace.restrictions.domain.model.AccountRestriction;
+import com.transformersas.marketplace.restrictions.domain.model.Texts;
 
 import org.springframework.stereotype.Component;
 
@@ -61,7 +62,7 @@ public class RestrictionNotices {
     }
 
     private static String scopeLabel(AccountRestriction restriction) {
-        return restriction.role() == null ? "Tu cuenta" : "Tu rol de " + restriction.role();
+        return restriction.role() == null ? "Tu cuenta" : "Tu rol de " + Texts.roleLabel(restriction.role());
     }
 
     private void publish(Long accountId, String type, String title, String message, String eventKey) {

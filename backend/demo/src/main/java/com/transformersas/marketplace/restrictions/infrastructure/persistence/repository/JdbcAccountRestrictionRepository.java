@@ -81,9 +81,9 @@ public class JdbcAccountRestrictionRepository implements AccountRestrictionRepos
 
     @Override
     public List<AccountRestriction> findDue(LocalDateTime now, int limit) {
-        return jdbc.sql(SELECT + """
-                         WHERE status = 'ACTIVE' AND permanent = FALSE AND ends_at <= ?
-                         ORDER BY ends_at, id LIMIT ?""")
+        // El espacio inicial es necesario: el text block quita la sangría y SELECT termina sin espacio.
+        return jdbc.sql(SELECT + " WHERE status = 'ACTIVE' AND permanent = FALSE AND ends_at <= ?"
+                        + " ORDER BY ends_at, id LIMIT ?")
                 .params(now, limit).query(this::toRestriction).list();
     }
 

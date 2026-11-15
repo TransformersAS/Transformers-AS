@@ -41,6 +41,27 @@ export function alcance(role: Rol | null): string {
   return role ? `Rol ${ROL[role]}` : 'Toda la cuenta';
 }
 
+/** Decisiones de reclamaciones (CU-13) y de moderación (CU-21) que cuentan como antecedente. */
+const DECISION_ANTECEDENTE: Record<string, string> = {
+  REFUND_GRANTED: 'Reembolso aprobado por soporte',
+  RETIRAR: 'Publicación retirada',
+  OCULTAR_TEMPORALMENTE: 'Ocultada temporalmente'
+};
+
+/**
+ * Decisión de un antecedente para mostrar. Llega como valor del enum de su módulo; el estado de una restricción
+ * anterior se traduce con ESTADO_RESTRICCION y el resto con DECISION_ANTECEDENTE. Una desconocida se muestra tal cual.
+ */
+export function decisionAntecedente(tipo: TipoAntecedente, decision: string): string {
+  const texto = tipo === 'RESTRICTION' ? ESTADO_RESTRICCION[decision as EstadoRestriccion] : DECISION_ANTECEDENTE[decision];
+  return texto ?? decision;
+}
+
+/** Monto en pesos colombianos sin decimales: 99000 → «$ 99.000». */
+export function pesos(valor: number): string {
+  return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(valor);
+}
+
 /** yyyy-MM-ddTHH:mm:ss a dd/MM/yyyy HH:mm sin pasar por la zona horaria del navegador. */
 export function fechaHora(iso: string | null): string {
   if (!iso) {

@@ -53,6 +53,7 @@ Este es el punto de entrada a las guías de Marketplace. Los documentos están a
 | --- | --- |
 | [CU-19: devolución de compra](casos-de-uso/cu-19-devolucion-compra.md) | Consultar el flujo de devoluciones, sus contratos y limitaciones. |
 | [CU-20: reportes de contenido](casos-de-uso/cu-20-reportes-contenido.md) | Consultar cómo se radican y consultan reportes de publicaciones. |
+| [CU-22: restricciones de cuentas](casos-de-uso/cu-22-restricciones.md) | Consultar cómo se restringe, modifica y retira el acceso de una cuenta, sus contratos, limitaciones y demo. |
 
 ## Pruebas
 

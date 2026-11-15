@@ -8,6 +8,7 @@ import com.transformersas.marketplace.restrictions.domain.model.AccountRecord;
 import com.transformersas.marketplace.restrictions.domain.model.AccountRestriction;
 import com.transformersas.marketplace.restrictions.domain.model.RestrictionChange;
 import com.transformersas.marketplace.restrictions.domain.model.RestrictionStatus;
+import com.transformersas.marketplace.restrictions.domain.model.Texts;
 import com.transformersas.marketplace.restrictions.domain.port.AccountDirectory;
 import com.transformersas.marketplace.restrictions.domain.port.AccountDirectoryEntry;
 import com.transformersas.marketplace.restrictions.domain.repository.AccountInformationRequestRepository;
@@ -78,7 +79,7 @@ public class GetAccountEvaluationUseCase {
     }
 
     private static AccountRecord toRecord(AccountRestriction restriction) {
-        String subject = restriction.role() == null ? "Toda la cuenta" : "Rol " + restriction.role();
+        String subject = restriction.role() == null ? "Toda la cuenta" : "Rol " + Texts.roleLabel(restriction.role());
         return new AccountRecord(AccountRecord.Type.RESTRICTION, restriction.id(), restriction.closedAt(), subject,
                 restriction.status().name(), restriction.closeReason(), null);
     }

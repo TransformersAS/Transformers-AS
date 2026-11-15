@@ -82,7 +82,8 @@ import { alcance, errorDeRespuesta, ESTADO_INFORMACION, ESTADO_RESTRICCION, fech
   `,
   styles: [`
     :host { display: flex; flex-direction: column; height: 100%; }
-    ion-content { flex: 1; }
+    /* Las utilidades CSS de Ionic (ion-padding) no se cargan globalmente: el margen se da con las variables. */
+    ion-content { flex: 1; --padding-start: 1rem; --padding-end: 1rem; --padding-top: 1rem; --padding-bottom: 1rem; }
     .restriccion { border: 1px solid #ffcdd2; background: #fff5f5; border-radius: 0.5rem; padding: 0.6rem 0.8rem;
       margin-bottom: 0.75rem; }
     .estado-ok { color: #2e7d32; }

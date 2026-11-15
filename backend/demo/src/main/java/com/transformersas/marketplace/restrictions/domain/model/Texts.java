@@ -1,6 +1,7 @@
 package com.transformersas.marketplace.restrictions.domain.model;
 
 import com.transformersas.marketplace.shared.error.BusinessException;
+import com.transformersas.marketplace.users.domain.model.Role;
 
 import java.util.Map;
 
@@ -21,5 +22,15 @@ public final class Texts {
                     what + " debe tener entre " + min + " y " + max + " caracteres", Map.of("field", field));
         }
         return text;
+    }
+
+    /** Nombre del rol para textos que lee una persona (antecedentes y notificaciones), no el valor del enum. */
+    public static String roleLabel(Role role) {
+        return switch (role) {
+            case COMPRADOR -> "Comprador";
+            case VENDEDOR -> "Vendedor";
+            case ADMIN -> "Administrador";
+            case SOPORTE -> "Soporte";
+        };
     }
 }
