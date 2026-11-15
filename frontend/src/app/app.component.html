@@ -1458,6 +1458,16 @@
   <app-catalogo-admin (cerrar)="mostrarCatalogoAdmin = false"></app-catalogo-admin>
 </div>
 
+<!-- Restricciones de cuentas (CU-22): solo con el rol activo ADMIN -->
+<div class="panel-pedidos" *ngIf="esAdmin && mostrarAdminRestricciones">
+  <app-admin-restricciones (cerrar)="mostrarAdminRestricciones = false"></app-admin-restricciones>
+</div>
+
+<!-- Mi cuenta (CU-22): restricciones propias y solicitudes de información; cualquier rol autenticado -->
+<div class="panel-pedidos" *ngIf="(esComprador || esVendedor || esSoporte || esAdmin) && mostrarEstadoCuenta">
+  <app-estado-cuenta (cerrar)="mostrarEstadoCuenta = false"></app-estado-cuenta>
+</div>
+
 <!-- Mi tienda (CU-18): solo con el rol activo VENDEDOR -->
 <div class="panel-pedidos" *ngIf="esVendedor && mostrarMiTienda">
   <app-mi-tienda (cerrar)="mostrarMiTienda = false"></app-mi-tienda>

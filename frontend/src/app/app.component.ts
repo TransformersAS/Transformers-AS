@@ -86,6 +86,8 @@ import { PromocionesComponent } from './panel-vendedor/components/promociones.co
 import { AnaliticaVentasComponent } from './analitica/components/analitica-ventas.component';
 import { EstadoTiendaComponent } from './suspensiones/components/estado-tienda.component';
 import { EvaluacionTiendasComponent } from './suspensiones/components/evaluacion-tiendas.component';
+import { EstadoCuentaComponent } from './restricciones/components/estado-cuenta.component';
+import { AdminRestriccionesComponent } from './restricciones/components/admin-restricciones.component';
 import { MisProductosComponent } from './panel-vendedor/components/mis-productos.component';
 import { MiTiendaComponent } from './panel-vendedor/components/mi-tienda.component';
 import { ReclamacionesComponent } from './reclamaciones-devoluciones/components/reclamaciones.component';
@@ -129,7 +131,8 @@ import {
 type OpcionMenu =
   | 'pedidos-recibidos' | 'devoluciones-recibidas' | 'reclamaciones' | 'mis-productos' | 'inventario' | 'promociones' | 'mi-tienda'
   | 'estado-tienda' | 'analitica' | 'mis-reportes' | 'mis-devoluciones' | 'favoritos' | 'moderacion'
-  | 'mensajeria' | 'evaluar-tiendas' | 'catalogo-admin' | 'resenas' | 'direcciones';
+  | 'mensajeria' | 'evaluar-tiendas' | 'catalogo-admin' | 'resenas' | 'direcciones'
+  | 'mi-cuenta' | 'restricciones-cuentas';
 
 interface MenuRol {
   /** Texto visible del botón; el nombre accesible es «Opciones de …». */
@@ -151,7 +154,8 @@ const MENUS_POR_ROL: Record<string, MenuRol> = {
       { id: 'mis-reportes', etiqueta: 'Mis reportes' },
       { id: 'favoritos', etiqueta: 'Mis favoritos y alertas' },
       { id: 'direcciones', etiqueta: 'Mis direcciones' },
-      { id: 'resenas', etiqueta: 'Mis reseñas' }
+      { id: 'resenas', etiqueta: 'Mis reseñas' },
+      { id: 'mi-cuenta', etiqueta: 'Mi cuenta' }
     ] }]
   },
   VENDEDOR: {
@@ -173,7 +177,8 @@ const MENUS_POR_ROL: Record<string, MenuRol> = {
         { id: 'mi-tienda', etiqueta: 'Mi tienda' },
         { id: 'estado-tienda', etiqueta: 'Estado de mi tienda' },
         { id: 'mensajeria', etiqueta: 'Conversaciones' },
-      { id: 'mis-reportes', etiqueta: 'Mis reportes' }
+      { id: 'mis-reportes', etiqueta: 'Mis reportes' },
+      { id: 'mi-cuenta', etiqueta: 'Mi cuenta' }
       ] }
     ]
   },
@@ -181,14 +186,17 @@ const MENUS_POR_ROL: Record<string, MenuRol> = {
     titulo: 'Soporte',
     grupos: [{ titulo: 'Atención', opciones: [
       { id: 'moderacion', etiqueta: 'Moderación de reportes' },
-      { id: 'reclamaciones', etiqueta: 'Reclamaciones escaladas' }
+      { id: 'reclamaciones', etiqueta: 'Reclamaciones escaladas' },
+      { id: 'mi-cuenta', etiqueta: 'Mi cuenta' }
     ] }]
   },
   ADMIN: {
     titulo: 'Administración',
     grupos: [{ titulo: 'Plataforma', opciones: [
       { id: 'evaluar-tiendas', etiqueta: 'Evaluar tiendas' },
-      { id: 'catalogo-admin', etiqueta: 'Configurar catálogo' }
+      { id: 'catalogo-admin', etiqueta: 'Configurar catálogo' },
+      { id: 'restricciones-cuentas', etiqueta: 'Restricciones de cuentas' },
+      { id: 'mi-cuenta', etiqueta: 'Mi cuenta' }
     ] }]
   }
 };
@@ -219,6 +227,8 @@ const MENUS_POR_ROL: Record<string, MenuRol> = {
     AnaliticaVentasComponent,
     EstadoTiendaComponent,
     EvaluacionTiendasComponent,
+    EstadoCuentaComponent,
+    AdminRestriccionesComponent,
     MiTiendaComponent,
     ReclamacionesComponent,
     RegistroVendedorComponent,
@@ -483,6 +493,10 @@ export class AppComponent {
 
   /** Panel del administrador para configurar categorías, marcas y atributos (CU-17). */
   mostrarCatalogoAdmin = false;
+  /** Restricciones de cuentas (CU-22): solo con el rol activo ADMIN; el backend lo exige igualmente. */
+  mostrarAdminRestricciones = false;
+  /** Estado de la propia cuenta (CU-22): cualquier rol autenticado. */
+  mostrarEstadoCuenta = false;
 
   /** Panel del vendedor para publicar y mantener sus productos (CU-14). */
   mostrarMisProductos = false;
@@ -559,6 +573,8 @@ export class AppComponent {
       case 'moderacion': this.mostrarModeracion = true; break;
       case 'evaluar-tiendas': this.mostrarEvaluacionTiendas = true; break;
       case 'catalogo-admin': this.mostrarCatalogoAdmin = true; break;
+      case 'restricciones-cuentas': this.mostrarAdminRestricciones = true; break;
+      case 'mi-cuenta': this.mostrarEstadoCuenta = true; break;
     }
   }
 
