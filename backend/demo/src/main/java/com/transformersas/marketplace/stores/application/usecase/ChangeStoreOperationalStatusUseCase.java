@@ -10,11 +10,13 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Cambia el estado operativo de una tienda por una suspensión (CU-27). Corre en la transacción de quien la aplica
- * (MANDATORY), así el estado de la tienda y el registro de la suspensión se confirman o se revierten juntos.
+ * Cambia el estado operativo de una tienda por una suspensión (CU-27) o por una restricción sobre su cuenta dueña
+ * (CU-22). Corre en la transacción de quien la aplica (MANDATORY), así el estado de la tienda y el registro de la
+ * medida se confirman o se revierten juntos.
  *
- * <p>Una tienda RESTRICTED tiene otra medida vigente que no le corresponde a la suspensión: ni suspenderla ni
- * terminar la suspensión la toca (A6).
+ * <p>Las dos medidas son independientes y no se pisan: una tienda RESTRICTED no se suspende (CU-27 la deja así hasta
+ * que termine la restricción) y una SUSPENDED no se restringe (CU-22 la deja así hasta que termine la suspensión);
+ * cada módulo solo toca el estado cuando le corresponde a él.
  */
 @Component
 public class ChangeStoreOperationalStatusUseCase {
@@ -49,6 +51,37 @@ public class ChangeStoreOperationalStatusUseCase {
         StoreStatus target = otherRestriction == null ? StoreStatus.ACTIVE : StoreStatus.RESTRICTED;
         compareAndSet(store, target, otherRestriction);
         return target;
+    }
+
+    /**
+     * Restringe una tienda (CU-22, cuenta dueña restringida en toda la cuenta o en el rol VENDEDOR) o actualiza el
+     * motivo de una ya restringida. No toca una tienda SUSPENDED: CU-27 ya la tiene bloqueada. Devuelve el estado
+     * resultante.
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public StoreStatus restrict(Long storeId, String reason) {
+        Store store = find(storeId);
+        if (store.status() == StoreStatus.SUSPENDED) {
+            return StoreStatus.SUSPENDED;
+        }
+        compareAndSet(store, StoreStatus.RESTRICTED, reason);
+        return StoreStatus.RESTRICTED;
+    }
+
+    /**
+     * Termina la restricción de la tienda (CU-22). Vuelve a ACTIVE. Supuesto documentado: no comprueba si CU-27 tiene
+     * en paralelo una suspensión vigente sobre la misma tienda, porque mientras existe no llega a RESTRICTED (ver
+     * {@link #restrict}); ese caso extremo lo resuelve el siguiente cambio de cualquiera de los dos módulos. Devuelve
+     * el estado resultante.
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public StoreStatus endRestriction(Long storeId) {
+        Store store = find(storeId);
+        if (store.status() != StoreStatus.RESTRICTED) {
+            return store.status();
+        }
+        compareAndSet(store, StoreStatus.ACTIVE, null);
+        return StoreStatus.ACTIVE;
     }
 
     private void compareAndSet(Store store, StoreStatus target, String reason) {
