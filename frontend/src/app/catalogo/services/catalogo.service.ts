@@ -120,112 +120,112 @@ export class CatalogoService {
       .replace(/[\u0300-\u036f]/g, '');
 
     if (producto.includes('camiseta')) {
-      return 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=700&q=85';
+      return '/assets/catalogo-demo/photo-1521572163474-6864f9cf17ab.jpg';
     }
 
     if (producto.includes('jean')) {
-      return 'https://images.unsplash.com/photo-1542272604-787c3835535d?auto=format&fit=crop&w=700&q=85';
+      return '/assets/catalogo-demo/photo-1542272604-787c3835535d.jpg';
     }
 
     if (producto.includes('chaqueta')) {
-      return 'https://images.unsplash.com/photo-1551028719-00167b16eac5?auto=format&fit=crop&w=700&q=85';
+      return '/assets/catalogo-demo/photo-1551028719-00167b16eac5.jpg';
     }
 
     if (producto.includes('mochila')) {
-      return 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&w=700&q=85';
+      return '/assets/catalogo-demo/photo-1553062407-98eeb64c6a62.jpg';
     }
 
     if (producto.includes('reloj') || producto.includes('smartwatch')) {
-      return 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=700&q=85';
+      return '/assets/catalogo-demo/photo-1523275335684-37898b6baf30.jpg';
     }
 
     if (producto.includes('audifonos')) {
-      return 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=700&q=85';
+      return '/assets/catalogo-demo/photo-1505740420928-5e560c06d30e.jpg';
     }
 
     if (producto.includes('teclado')) {
-      return 'https://images.unsplash.com/photo-1587829741301-dc798b83add3?auto=format&fit=crop&w=700&q=85';
+      return '/assets/catalogo-demo/photo-1587829741301-dc798b83add3.jpg';
     }
 
     if (producto.includes('mouse')) {
-      return 'https://images.unsplash.com/photo-1527864550417-7fd91fc51a46?auto=format&fit=crop&w=700&q=85';
+      return '/assets/catalogo-demo/photo-1527864550417-7fd91fc51a46.jpg';
     }
 
     if (producto.includes('monitor')) {
-      return 'https://images.unsplash.com/photo-1527443224154-c4a3942d3acf?auto=format&fit=crop&w=700&q=85';
+      return '/assets/catalogo-demo/photo-1527443224154-c4a3942d3acf.jpg';
     }
 
     if (producto.includes('webcam')) {
-      return 'https://images.unsplash.com/photo-1611162617474-5b21e879e113?auto=format&fit=crop&w=700&q=85';
+      return '/assets/catalogo-demo/photo-1611162617474-5b21e879e113.jpg';
     }
 
     if (producto.includes('lampara')) {
-      return 'https://images.unsplash.com/photo-1507473885765-e6ed057f782c?auto=format&fit=crop&w=700&q=85';
+      return '/assets/catalogo-demo/photo-1507473885765-e6ed057f782c.jpg';
     }
 
     if (producto.includes('cafetera')) {
-      return 'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=700&q=85';
+      return '/assets/catalogo-demo/photo-1495474472287-4d71bcdd2085.jpg';
     }
 
     if (producto.includes('bolso')) {
-      return 'https://images.unsplash.com/photo-1584917865442-de89df76afd3?auto=format&fit=crop&w=700&q=85';
+      return '/assets/catalogo-demo/photo-1584917865442-de89df76afd3.jpg';
     }
 
     if (producto.includes('botella')) {
-      return 'https://images.unsplash.com/photo-1602143407151-7111542de6e8?auto=format&fit=crop&w=700&q=85';
+      return '/assets/catalogo-demo/photo-1602143407151-7111542de6e8.jpg';
     }
 
     if (producto.includes('tenis')) {
-      return 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=700&q=85';
+      return '/assets/catalogo-demo/photo-1542291026-7eec264c27ff.jpg';
     }
 
     if (producto.includes('taza')) {
-      return 'https://images.unsplash.com/photo-1514228742587-6b1558fcca3d?auto=format&fit=crop&w=700&q=85';
+      return '/assets/catalogo-demo/photo-1514228742587-6b1558fcca3d.jpg';
     }
 
     if (producto.includes('libreta') || producto.includes('cuaderno')) {
-      return 'https://images.unsplash.com/photo-1531346878377-a5be20888e57?auto=format&fit=crop&w=700&q=85';
+      return '/assets/catalogo-demo/photo-1531346878377-a5be20888e57.jpg';
     }
 
     if (producto.includes('gorra')) {
-      return 'https://images.unsplash.com/photo-1521369909029-2afed882baee?auto=format&fit=crop&w=700&q=85';
+      return '/assets/catalogo-demo/photo-1521369909029-2afed882baee.jpg';
     }
 
     if (
       producto.includes('facial') ||
       producto.includes('cuidado')
     ) {
-      return 'https://images.unsplash.com/photo-1556228578-8c89e6adf883?auto=format&fit=crop&w=700&q=85';
+      return '/assets/catalogo-demo/photo-1556228578-8c89e6adf883.jpg';
     }
 
     // Fallbacks por categoría, por si agregan nuevos productos.
 
     if (categoriaNormalizada === 'tecnologia') {
-      return 'https://images.unsplash.com/photo-1498049794561-7780e7231661?auto=format&fit=crop&w=700&q=85';
+      return '/assets/catalogo-demo/photo-1498049794561-7780e7231661.jpg';
     }
 
     if (categoriaNormalizada === 'hogar') {
-      return 'https://images.unsplash.com/photo-1484101403633-562f891dc89a?auto=format&fit=crop&w=700&q=85';
+      return '/assets/catalogo-demo/photo-1484101403633-562f891dc89a.jpg';
     }
 
     if (categoriaNormalizada === 'moda' || categoriaNormalizada === 'ropa') {
-      return 'https://images.unsplash.com/photo-1445205170230-053b83016050?auto=format&fit=crop&w=700&q=85';
+      return '/assets/catalogo-demo/photo-1445205170230-053b83016050.jpg';
     }
 
     if (categoriaNormalizada === 'papeleria') {
-      return 'https://images.unsplash.com/photo-1531346878377-a5be20888e57?auto=format&fit=crop&w=700&q=85';
+      return '/assets/catalogo-demo/photo-1531346878377-a5be20888e57.jpg';
     }
 
     if (categoriaNormalizada === 'accesorios') {
-      return 'https://images.unsplash.com/photo-1521369909029-2afed882baee?auto=format&fit=crop&w=700&q=85';
+      return '/assets/catalogo-demo/photo-1521369909029-2afed882baee.jpg';
     }
 
     if (categoriaNormalizada === 'deportes') {
-      return 'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?auto=format&fit=crop&w=700&q=85';
+      return '/assets/catalogo-demo/photo-1461896836934-ffe607ba8211.jpg';
     }
 
     if (categoriaNormalizada === 'belleza') {
-      return 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?auto=format&fit=crop&w=700&q=85';
+      return '/assets/catalogo-demo/photo-1596462502278-27bfdc403348.jpg';
     }
 
     // Imagen genérica final

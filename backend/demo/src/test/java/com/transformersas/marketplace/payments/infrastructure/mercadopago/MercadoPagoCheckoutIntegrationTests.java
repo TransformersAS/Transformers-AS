@@ -117,6 +117,89 @@ class MercadoPagoCheckoutIntegrationTests extends AbstractIntegrationTest {
         assertThat(jdbc.queryForObject("SELECT stock FROM products WHERE id=?", Integer.class, product)).isEqualTo(9);
     }
 
+    @Test void secondCheckBlocksTotalChangedWhileProviderWasBeingConsulted() throws Exception {
+        var attempt = start();
+        String id = attempt.get("id").asString();
+        var verified = json.valueToTree(Map.of("id", 456, "external_reference", id,
+                "collector_id", 123, "live_mode", false, "currency_id", "COP",
+                "transaction_amount", attempt.get("total").decimalValue(), "status", "approved"));
+        doAnswer(call -> {
+            jdbc.update("UPDATE payment_checkouts SET total=total+1 WHERE id=?", id);
+            return verified;
+        }).when(provider).payment("456");
+
+        assertThat(checkouts.reconcile(accountId, id, "456").status()).isEqualTo("REVIEW");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM orders", Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT stock FROM products WHERE id=?", Integer.class, product)).isEqualTo(10);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM cart_items", Integer.class)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT status FROM inventory_reservations", String.class)).isEqualTo("ACTIVE");
+        assertThat(jdbc.queryForObject("SELECT resolution_status FROM external_payment_observations WHERE payment_id='456'",
+                String.class)).isEqualTo("PAYMENT_MISMATCH");
+        assertThat(checkouts.safetyChecks(accountId, id)).extracting(MercadoPagoPaymentJournal.SafetyCheck::result)
+                .containsExactly("MATCH", "MISMATCH");
+        var checks = checkouts.safetyChecks(accountId, id);
+        assertThat(checks.get(0).verificationId()).isEqualTo(checks.get(1).verificationId());
+        assertThat(checks.get(1).expectedAmount()).isEqualByComparingTo(attempt.get("total").decimalValue().add(java.math.BigDecimal.ONE));
+        assertThat(checks.get(1).observedAmount()).isEqualByComparingTo(attempt.get("total").decimalValue());
+        verify(provider, times(1)).payment("456");
+    }
+
+    @Test void safetyLogIsOwnedReadOnlyAndRecordsOnlyExecutedChecks() throws Exception {
+        var attempt = start();
+        String id = attempt.get("id").asString();
+        String path = "/api/payments/mercadopago/checkouts/" + id + "/safety-checks";
+        perform(buyer, get(path)).andExpect(status().isOk()).andExpect(content().json("[]"));
+        verify(provider, never()).payment(anyString());
+        payment(attempt, "approved");
+        checkouts.reconcile(accountId, id, "456");
+        perform(buyer, get(path)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].phase").value("FIRST"))
+                .andExpect(jsonPath("$[1].phase").value("SECOND"))
+                .andExpect(jsonPath("$[1].result").value("MATCH"))
+                .andExpect(jsonPath("$[1].expectedCollector").value("123"))
+                .andExpect(jsonPath("$[1].observedCollector").value("123"))
+                .andExpect(jsonPath("$[1].recordedAt").isNotEmpty());
+        perform(buyer, get(path)).andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(2));
+        verify(provider, times(1)).payment("456");
+        var other = sessionWithRole("audit-other@example.test", "COMPRADOR");
+        perform(other, get(path)).andExpect(status().isNotFound());
+        mvc.perform(get(path)).andExpect(status().isUnauthorized());
+        var seller = sessionWithRole("audit-seller@example.test", "VENDEDOR");
+        perform(seller, get(path)).andExpect(status().isForbidden());
+        checkouts.reconcile(accountId, id, "456");
+        assertThat(checkouts.safetyChecks(accountId, id)).extracting(MercadoPagoPaymentJournal.SafetyCheck::result)
+                .containsExactly("MATCH", "MATCH", "MATCH", "ALREADY_LINKED");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM orders", Integer.class)).isEqualTo(1);
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"amount", "currency", "collector"})
+    void approvedPaymentWithWrongFinancialDataNeverConfirmsPurchase(String mismatch) throws Exception {
+        var attempt = start();
+        String id = attempt.get("id").asString();
+        doReturn(json.valueToTree(Map.of("id", 456, "external_reference", id,
+                "collector_id", mismatch.equals("collector") ? 999 : 123, "live_mode", false,
+                "currency_id", mismatch.equals("currency") ? "USD" : "COP",
+                "transaction_amount", mismatch.equals("amount") ? java.math.BigDecimal.ONE : attempt.get("total").decimalValue(),
+                "status", "approved"))).when(provider).payment("456");
+
+        if (mismatch.equals("collector")) {
+            assertThatThrownBy(() -> checkouts.reconcile(accountId, id, "456"))
+                    .isInstanceOf(org.springframework.web.server.ResponseStatusException.class)
+                    .satisfies(error -> assertThat(((org.springframework.web.server.ResponseStatusException) error)
+                            .getStatusCode().value()).isEqualTo(409));
+            assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM external_payment_observations", Integer.class)).isZero();
+        } else {
+            assertThat(checkouts.reconcile(accountId, id, "456").status()).isEqualTo("REVIEW");
+            assertThat(jdbc.queryForObject("SELECT resolution_status FROM external_payment_observations WHERE payment_id='456'",
+                    String.class)).isEqualTo("PAYMENT_MISMATCH");
+        }
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM orders", Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT stock FROM products WHERE id=?", Integer.class, product)).isEqualTo(10);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM cart_items", Integer.class)).isEqualTo(1);
+    }
+
     @Test void unchangedPurchasedCartIsClearedOnlyAfterApproval() throws Exception {
         var attempt = start();
         payment(attempt, "pending");

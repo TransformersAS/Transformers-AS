@@ -6,6 +6,22 @@ export interface PaymentRequest {
   couponCode: string;
 }
 
+export interface PaymentSafetyCheck {
+  id: number;
+  verificationId: string;
+  paymentId: string;
+  phase: 'FIRST' | 'SECOND';
+  result: 'MATCH' | 'MISMATCH' | 'ALREADY_LINKED';
+  expectedAmount: number;
+  observedAmount: number;
+  expectedCurrency: string;
+  observedCurrency: string;
+  expectedCollector: string;
+  observedCollector: string;
+  providerStatus: string;
+  recordedAt: string;
+}
+
 export interface HostedCheckout {
   id: string;
   status: 'STARTING' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'REVIEW' | 'REFUNDED' | 'CANCELLED';

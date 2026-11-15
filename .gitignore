@@ -15,4 +15,5 @@ artifacts/
 frontend/test-results-demo/
 frontend/test-results/
 frontend/playwright-report-real/
+frontend/playwright-report/
 frontend/test-results-real/

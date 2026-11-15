@@ -1,13 +1,13 @@
 import { Component, effect, inject, OnDestroy } from '@angular/core';
-import { NgIf, DatePipe } from '@angular/common';
+import { NgIf, NgFor, DatePipe, CurrencyPipe } from '@angular/common';
 import { Subscription } from 'rxjs';
 import { AuthService } from '../../core/services/auth.service';
 import { CarritoService } from '../../carrito/services/carrito.service';
 import { PaymentService } from '../services/payment.service';
-import { HostedCheckout } from '../models/payment.model';
+import { HostedCheckout, PaymentSafetyCheck } from '../models/payment.model';
 
 @Component({
-  selector: 'app-checkout-status', standalone: true, imports: [NgIf, DatePipe],
+  selector: 'app-checkout-status', standalone: true, imports: [NgIf, NgFor, DatePipe, CurrencyPipe],
   templateUrl: './checkout-status.component.html',
   styles: [':host section { margin: 1rem; padding: 1.25rem; border: 1px solid #cbd5e1; border-radius: 12px; background: #f0f9ff; color: #173039; } button { margin: .4rem; padding: .75rem 1rem; border-radius: 8px; cursor: pointer; } button:disabled { cursor: wait; opacity: .65; }']
 })
@@ -26,6 +26,11 @@ export class CheckoutStatusComponent implements OnDestroy {
   private established = false;
   private generation = 0;
   private request?: Subscription;
+  private safetyRequest?: Subscription;
+  showSafety = false;
+  safetyBusy = false;
+  safetyError = '';
+  safety: PaymentSafetyCheck[] = [];
   get buyer(): boolean { return this.auth.cuenta()?.activeRole === 'COMPRADOR'; }
   get canCancel(): boolean { return this.buyer && !!this.checkout && !this.checkout.orderId && this.checkout.status !== 'CANCELLED'; }
   get financialMessage(): string {
@@ -44,6 +49,8 @@ export class CheckoutStatusComponent implements OnDestroy {
       if (next !== this.account) {
         this.generation++; this.request?.unsubscribe(); this.busy = false;
         this.checkout = null; this.error = ''; this.confirming = false;
+        this.safetyRequest?.unsubscribe(); this.showSafety = false;
+        this.safety = []; this.safetyBusy = false; this.safetyError = '';
         if (this.established) {
           this.sessionNotice = true;
           this.id = null; this.paymentId = null;
@@ -69,11 +76,38 @@ export class CheckoutStatusComponent implements OnDestroy {
         this.checkout = value; this.busy = false;
         if (!this.canCancel) this.confirming = false;
         if (value.status === 'APPROVED') this.cart.refrescar();
+        if (this.showSafety) this.loadSafety();
       },
       error: err => { if (this.valid(version)) { this.busy = false; this.handleError(err); } }
     });
   }
   back(): void { if (!this.busy) this.confirming = false; }
+  openSafety(): void {
+    this.showSafety = !this.showSafety;
+    if (this.showSafety) this.loadSafety();
+  }
+  loadSafety(): void {
+    if (!this.id || !this.buyer) return;
+    const version = this.generation;
+    this.safetyRequest?.unsubscribe();
+    this.safetyBusy = true; this.safetyError = ''; this.safety = [];
+    this.safetyRequest = this.payment.safetyChecks(this.id).subscribe({
+      next: rows => { if (this.valid(version)) { this.safety = rows; this.safetyBusy = false; } },
+      error: () => {
+        if (this.valid(version)) {
+          this.safetyBusy = false;
+          this.safetyError = 'No se pudo consultar la bitácora. Esto no cambia el estado del pago; puedes volver a intentar.';
+        }
+      }
+    });
+  }
+  safetyResult(row: PaymentSafetyCheck): string {
+    switch (row.result) {
+      case 'MATCH': return 'Datos coincidentes';
+      case 'MISMATCH': return 'Discrepancia detectada';
+      case 'ALREADY_LINKED': return 'Ya existía un pedido: no se repitió la confirmación';
+    }
+  }
   cancel(): void {
     if (!this.confirming || !this.canCancel || this.busy || !this.id) return;
     const version = this.generation, previous = this.checkout!;
@@ -107,5 +141,5 @@ export class CheckoutStatusComponent implements OnDestroy {
     this.error = messages[err.status ?? 0] ?? 'No se pudo completar la operación. Consulta el estado antes de volver a intentar.';
     if ([401, 403, 404].includes(err.status ?? 0)) this.checkout = null;
   }
-  ngOnDestroy(): void { this.generation++; this.request?.unsubscribe(); }
+  ngOnDestroy(): void { this.generation++; this.request?.unsubscribe(); this.safetyRequest?.unsubscribe(); }
 }

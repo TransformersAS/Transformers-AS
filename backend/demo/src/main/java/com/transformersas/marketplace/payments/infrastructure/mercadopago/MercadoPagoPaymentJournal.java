@@ -13,7 +13,51 @@ import static org.springframework.http.HttpStatus.*;
 @Repository
 public class MercadoPagoPaymentJournal {
     private final JdbcTemplate jdbc;
+    @org.springframework.beans.factory.annotation.Value("${payments.mercadopago.collector-id:}")
+    private String expectedCollector = "";
     public MercadoPagoPaymentJournal(JdbcTemplate jdbc) { this.jdbc = jdbc; }
+
+    public record SafetyCheck(long id, String verificationId, String paymentId, String phase, String result,
+            java.math.BigDecimal expectedAmount, java.math.BigDecimal observedAmount,
+            String expectedCurrency, String observedCurrency, String expectedCollector,
+            String observedCollector, String providerStatus, java.time.Instant recordedAt) { }
+
+    // La primera comprobación sobrevive a un rollback posterior del pedido.
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public String firstCheck(String checkout, String paymentId, java.math.BigDecimal total, JsonNode payment, boolean matches) {
+        String verification = java.util.UUID.randomUUID().toString();
+        appendCheck(verification, checkout, paymentId, "FIRST", matches ? "MATCH" : "MISMATCH", total, payment);
+        return verification;
+    }
+
+    // Se confirma junto con el resultado local: un rollback no deja una falsa segunda confirmación.
+    public void secondCheck(String verification, String checkout, String paymentId,
+            java.math.BigDecimal total, JsonNode payment, String result) {
+        appendCheck(verification, checkout, paymentId, "SECOND", result, total, payment);
+    }
+
+    private void appendCheck(String verification, String checkout, String paymentId, String phase, String result,
+            java.math.BigDecimal total, JsonNode payment) {
+        jdbc.update("""
+                INSERT INTO payment_safety_checks(verification_id,checkout_id,payment_id,phase,result,
+                  expected_amount,observed_amount,expected_currency,observed_currency,
+                  expected_collector,observed_collector,provider_status)
+                VALUES (?,?,?,?,?,?,?,'COP',?,?,?,?)
+                """, verification, checkout, paymentId, phase, result, total,
+                payment.path("transaction_amount").decimalValue(), payment.path("currency_id").asString(),
+                expectedCollector, payment.path("collector_id").asString(), payment.path("status").asString("unknown"));
+    }
+
+    public List<SafetyCheck> safetyChecks(String checkout) {
+        var rows = jdbc.query("SELECT * FROM payment_safety_checks WHERE checkout_id=? ORDER BY id DESC LIMIT 100",
+                (r, n) -> new SafetyCheck(r.getLong("id"), r.getString("verification_id"), r.getString("payment_id"),
+                        r.getString("phase"), r.getString("result"), r.getBigDecimal("expected_amount"),
+                        r.getBigDecimal("observed_amount"), r.getString("expected_currency"), r.getString("observed_currency"),
+                        r.getString("expected_collector"), r.getString("observed_collector"), r.getString("provider_status"),
+                        r.getTimestamp("recorded_at").toInstant()), checkout);
+        java.util.Collections.reverse(rows);
+        return rows;
+    }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void record(String checkout, String paymentId, JsonNode payment, String lease) {

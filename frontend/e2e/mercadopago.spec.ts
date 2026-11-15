@@ -1,6 +1,46 @@
 import { test, expect, Page } from '@playwright/test';
 
 const checkout = '11111111-1111-4111-8111-111111111111';
+
+test('muestra los dos cotejos persistidos y conserva el pago si falla la consulta de bitacora', async ({ page }) => {
+  await mockApi(page, { state: 'APPROVED' });
+  let fail = false;
+  const entries = ['FIRST', 'SECOND'].map((phase, i) => ({
+    id: i + 1, verificationId: 'verification-example', paymentId: '456', phase, result: 'MATCH',
+    expectedAmount: 105000, observedAmount: 105000, expectedCurrency: 'COP', observedCurrency: 'COP',
+    expectedCollector: '123', observedCollector: '123', providerStatus: 'approved', recordedAt: '2026-11-14T20:00:00Z'
+  }));
+  await page.route('**/safety-checks', route => fail
+    ? route.fulfill({ status: 503, json: {} }) : route.fulfill({ json: entries }));
+  await page.goto(`/?checkout=${checkout}&payment_id=456`);
+  const banner = page.getByRole('region', { name: 'Estado del pago' });
+  await banner.getByRole('button', { name: 'Ver verificaciones del pago' }).click();
+  await expect(banner).toContainText('Primer chequeo: datos del proveedor');
+  await expect(banner).toContainText('Segundo chequeo: compra bloqueada');
+  await expect(banner.getByRole('heading', { level: 4 })).toHaveCount(2);
+  await expect(banner).toContainText('Receptor esperado: 123');
+  fail = true;
+  await banner.getByRole('button', { name: 'Actualizar verificaciones' }).click();
+  await expect(banner.getByRole('alert')).toContainText('No se pudo consultar la bitácora');
+  await expect(banner).toContainText('Tu pedido es el #99');
+});
+
+test('bitacora distingue historial inexistente y discrepancia sin inventar aprobaciones', async ({ page }) => {
+  await mockApi(page, { state: 'REVIEW' });
+  let rows: unknown[] = [];
+  await page.route('**/safety-checks', route => route.fulfill({ json: rows }));
+  await page.goto(`/?checkout=${checkout}&payment_id=456`);
+  const banner = page.getByRole('region', { name: 'Estado del pago' });
+  await banner.getByRole('button', { name: 'Ver verificaciones del pago' }).click();
+  await expect(banner).toContainText('No hay verificaciones registradas');
+  rows = [{ id: 1, verificationId: 'mismatch', paymentId: '456', phase: 'SECOND', result: 'MISMATCH',
+    expectedAmount: 105001, observedAmount: 105000, expectedCurrency: 'COP', observedCurrency: 'COP',
+    expectedCollector: '123', observedCollector: '123', providerStatus: 'approved', recordedAt: '2026-11-14T20:00:00Z' }];
+  await banner.getByRole('button', { name: 'Actualizar verificaciones' }).click();
+  await expect(banner).toContainText('Discrepancia detectada');
+  await expect(banner).not.toContainText('Pago de pruebas aprobado');
+});
+
 async function mockApi(page: Page, options: { unconfigured?: boolean; state?: string } = {}) {
   await page.route('**/api/**', async route => {
     const req = route.request();

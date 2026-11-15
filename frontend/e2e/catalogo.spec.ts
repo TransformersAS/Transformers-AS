@@ -29,6 +29,20 @@ test.beforeEach(async ({ page }) => {
   await expect(page.locator('#catalogo .product-card')).toHaveCount(3);
 });
 
+test('las imagenes ilustrativas y la portada cargan aunque Unsplash este bloqueado', async ({ page }) => {
+  const portada = page.getByRole('img', { name: 'Reloj minimalista sobre fondo de color' });
+  const lampara = page.getByRole('img', { name: 'Lampara LED', exact: true });
+  const camiseta = page.getByRole('img', { name: 'Camiseta basica', exact: true });
+  for (const imagen of [portada, lampara, camiseta]) {
+    await expect(imagen).toHaveAttribute('src', /^\/assets\/catalogo-demo\//);
+    await expect.poll(() => imagen.evaluate((element: HTMLImageElement) =>
+      element.complete && element.naturalWidth > 0)).toBe(true);
+  }
+  // Las fotos aportadas por una publicación siguen siendo sus fotos, no se sustituyen.
+  await expect(page.getByRole('img', { name: 'Cafetera compacta', exact: true }))
+    .toHaveAttribute('src', productos[0].imageUrls![0]);
+});
+
 test('muestra errores del catalogo y del detalle', async ({ page }) => {
   await page.route('**/api/products/1', route => route.fulfill({ status: 404, json: { message: 'No encontrado' } }));
   await page.locator('#catalogo .product-card').first().getByRole('button', { name: 'Ver detalle' }).click();

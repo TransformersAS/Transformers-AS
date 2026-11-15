@@ -24,5 +24,26 @@
       <button type="button" (click)="cancel()" [disabled]="busy">Confirmar cierre</button>
     </div>
     <p *ngIf="checkout?.orderId">Consulta Mis pedidos para ver las opciones vigentes de tu pedido.</p>
+    <button *ngIf="checkout" type="button" (click)="openSafety()" [attr.aria-expanded]="showSafety" aria-controls="payment-safety-log">{{ showSafety ? 'Ocultar verificaciones' : 'Ver verificaciones del pago' }}</button>
+    <div *ngIf="showSafety && checkout" id="payment-safety-log" aria-label="Bitácora de verificaciones">
+      <h3>Verificaciones registradas del pago</h3>
+      <p>Comparamos los datos consultados a Mercado Pago con la compra. El segundo chequeo se registra dentro de la transacción local. Que los datos coincidan no significa por sí solo que el proveedor haya aprobado el pago.</p>
+      <p>Entorno de pruebas: esta evidencia no demuestra movimiento de dinero real ni liquidación bancaria. Se muestran hasta 100 registros recientes.</p>
+      <p *ngIf="safetyBusy" role="status">Consultando verificaciones...</p>
+      <p *ngIf="safetyError" role="alert">{{ safetyError }}</p>
+      <button type="button" (click)="loadSafety()" [disabled]="safetyBusy">Actualizar verificaciones</button>
+      <p *ngIf="!safetyBusy && !safetyError && !safety.length">No hay verificaciones registradas para esta compra. Los pagos anteriores a esta función no tienen una bitácora retroactiva. Consultar estado registra las comprobaciones que se ejecuten ahora.</p>
+      <ol *ngIf="!safetyBusy && safety.length">
+        <li *ngFor="let row of safety">
+          <h4>{{ row.phase === 'FIRST' ? 'Primer chequeo: datos del proveedor' : 'Segundo chequeo: compra bloqueada' }} — {{ safetyResult(row) }}</h4>
+          <p>Fecha: {{ row.recordedAt | date:'medium' }} · Pago: {{ row.paymentId }}</p>
+          <p>Importe esperado: {{ row.expectedAmount | currency:row.expectedCurrency }} · Observado: {{ row.observedAmount | currency:row.observedCurrency }}</p>
+          <p>Receptor esperado: {{ row.expectedCollector }} · Observado: {{ row.observedCollector }}</p>
+          <p>Estado reportado por Mercado Pago: {{ row.providerStatus }}</p>
+          <p>Consulta de verificación: {{ row.verificationId }}</p>
+        </li>
+      </ol>
+      <p>No se inventan etapas faltantes: si falló el primer cotejo o se revirtió la transacción local, puede existir solamente el primer registro. Si el pedido ya existía, no se presenta como una nueva doble aprobación.</p>
+    </div>
   </ng-container>
 </section>

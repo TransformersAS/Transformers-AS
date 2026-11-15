@@ -195,6 +195,12 @@ public class MercadoPagoCheckoutService {
         return applyVerified(attempt, paymentId, provider.payment(paymentId), null);
     }
 
+    public List<MercadoPagoPaymentJournal.SafetyCheck> safetyChecks(Long accountId, String id) {
+        Attempt attempt = load(id, false);
+        if (!attempt.accountId.equals(accountId)) throw new ResponseStatusException(NOT_FOUND);
+        return journal.safetyChecks(id);
+    }
+
     CheckoutStatus recoverPayment(String id, String paymentId, String lease) {
         return applyVerified(load(id, false), paymentId, provider.payment(paymentId), lease);
     }
@@ -214,6 +220,7 @@ public class MercadoPagoCheckoutService {
         }
         // Commit independiente ANTES de consumir reservas: una falla local no borra el pago observado.
         journal.record(attempt.id, paymentId, payment, lease);
+        String verification = journal.firstCheck(attempt.id, paymentId, attempt.total, payment, matches);
         try {
             CheckoutStatus result = localTransaction.execute(status -> {
                 if (!matches) {
@@ -222,7 +229,7 @@ public class MercadoPagoCheckoutService {
                     journal.resolution(paymentId, "PAYMENT_MISMATCH", null);
                     return view(load(attempt.id, true));
                 }
-                return materialize(attempt.id, paymentId, payment, lease);
+                return materialize(attempt.id, paymentId, payment, lease, verification);
             });
             financial.observeVerified(paymentId, payment);
             return "refunded".equals(payment.path("status").asString()) ? view(load(attempt.id, false)) : result;
@@ -233,9 +240,20 @@ public class MercadoPagoCheckoutService {
         }
     }
 
-    private CheckoutStatus materialize(String id, String paymentId, JsonNode payment, String lease) {
+    private CheckoutStatus materialize(String id, String paymentId, JsonNode payment, String lease, String verification) {
         Attempt attempt = load(id, true);
         journal.requireLease(id, lease);
+        // Segunda barrera: comparar contra la compra bloqueada, no solo contra la lectura
+        // anterior a consultar al proveedor. Una modificación concurrente no debe confirmar
+        // un pedido con un total distinto del importe realmente verificado.
+        boolean secondMatches = attempt.orderId != null || provider.matches(payment, attempt.id, attempt.total);
+        journal.secondCheck(verification, id, paymentId, attempt.total, payment,
+                attempt.orderId != null ? "ALREADY_LINKED" : secondMatches ? "MATCH" : "MISMATCH");
+        if (!secondMatches) {
+            if (attempt.cancelledAt == null) update(id, "REVIEW", paymentId, null);
+            journal.resolution(paymentId, "PAYMENT_MISMATCH", null);
+            return view(load(id, false));
+        }
         if (attempt.cancelledAt != null) {
             if (financial.externallyConfirmed(paymentId)) return view(attempt);
             journal.resolution(paymentId, "approved".equals(payment.path("status").asString())

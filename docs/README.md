@@ -15,6 +15,8 @@ Este es el punto de entrada a las guías de Marketplace. Los documentos están a
 
 ## Ejecución y entrega
 
+- [Túnel HTTPS local](ejecucion/tunel-https-local.md): autorizar el dominio exacto del túnel para iniciar sesión sin desactivar CSRF.
+
 - [Pruebas automatizadas del CU-04](pruebas/cu04-automatizado.md): ejecutar favoritos, alertas, cola y push con un comando y conservar evidencias.
 
 - [Web Push y RabbitMQ](ejecucion/notificaciones-push-rabbitmq.md): activar el canal push, levantar la cola y demostrar entrega y recuperación.
@@ -28,6 +30,10 @@ Este es el punto de entrada a las guías de Marketplace. Los documentos están a
 | [Construir el ejecutable de Windows](ejecucion/construir-ejecutable-windows.md) | Compilar, empaquetar y validar el launcher y entender su configuración. |
 
 ## Desarrollo y arquitectura
+
+- [Imágenes de demostración locales](desarrollo/imagenes-demostracion.md): fotografías ilustrativas disponibles sin depender de Unsplash y evidencia de pruebas.
+
+- [Safety de pagos del Marketplace](arquitectura/safety-pagos-marketplace.md): doble cotejo financiero, prevención de confirmaciones incorrectas, pruebas y consulta de evidencia.
 
 - [Usabilidad: arquitectura de información por contenedor C4](arquitectura/usabilidad-arquitectura-informacion.md): aplicación de las diapositivas de clase, diagnóstico, mapas, decisiones por contenedor y protocolo de evaluación.
 - [Vista visual de usabilidad para sustentación](sustentacion/usabilidad-marketplace.html): mapa C4, cinco planos por contenedor, navegación por rol y wireframes interactivos; abrir el archivo en el navegador.

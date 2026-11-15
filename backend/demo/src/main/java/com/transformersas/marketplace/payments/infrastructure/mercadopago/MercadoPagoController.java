@@ -35,6 +35,11 @@ public class MercadoPagoController {
             @PathVariable String id) {
         return checkouts.cancel(BuyerAccess.accountId(principal), id);
     }
+    @GetMapping("/checkouts/{id}/safety-checks")
+    public java.util.List<MercadoPagoPaymentJournal.SafetyCheck> safetyChecks(
+            @AuthenticationPrincipal AccountPrincipal principal, @PathVariable String id) {
+        return checkouts.safetyChecks(BuyerAccess.accountId(principal), id);
+    }
     public record Refresh(String paymentId) { }
     @PostMapping("/checkouts/{id}/refresh")
     public MercadoPagoCheckoutService.CheckoutStatus refresh(@AuthenticationPrincipal AccountPrincipal principal,

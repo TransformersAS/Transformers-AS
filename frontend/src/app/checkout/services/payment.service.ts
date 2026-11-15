@@ -5,13 +5,17 @@ import { Observable } from 'rxjs';
 
 import {
   PaymentRequest,
-  PaymentResponse, HostedCheckout, CheckoutCancellation
+  PaymentResponse, HostedCheckout, CheckoutCancellation, PaymentSafetyCheck
 } from '../models/payment.model';
 
 @Injectable({
   providedIn: 'root'
 })
 export class PaymentService {
+
+  safetyChecks(id: string): Observable<PaymentSafetyCheck[]> {
+    return this.http.get<PaymentSafetyCheck[]>(`${this.apiUrl}/mercadopago/checkouts/${encodeURIComponent(id)}/safety-checks`);
+  }
 
   startCheckout(request: { addressId: number; shippingMethod: string; couponCode: string }): Observable<HostedCheckout> {
     return this.http.post<HostedCheckout>(`${this.apiUrl}/mercadopago/checkouts`, request);

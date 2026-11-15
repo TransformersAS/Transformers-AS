@@ -1,0 +1,6 @@
+# Solo desarrollo: autorizar el origen HTTPS exacto del túnel, sin comodines.
+# MARKETPLACE_PUBLIC_ORIGIN no debe llevar ruta ni barra final.
+services:
+  backend:
+    environment:
+      APP_CORS_ALLOWED_ORIGINS: "http://localhost:4300,http://localhost:4200,http://localhost:8100,${MARKETPLACE_PUBLIC_ORIGIN:?Define MARKETPLACE_PUBLIC_ORIGIN con el origen HTTPS del tunel}"

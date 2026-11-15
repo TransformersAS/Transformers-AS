@@ -158,8 +158,12 @@ class MercadoPagoH05SafetyTests extends MercadoPagoH05TestSupport {
         assertThat(stock()).isEqualTo(10); assertThat(count("orders")).isZero();
         assertThat(count("order_status_history")).isZero(); assertThat(count("cart_items")).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT status FROM inventory_reservations", String.class)).isEqualTo("ACTIVE");
+        assertThat(jdbc.queryForList("SELECT phase FROM payment_safety_checks WHERE checkout_id=? ORDER BY id",
+                String.class, attempt.id())).containsExactly("FIRST");
         assertThat(browser(attempt.id(), "456")).isEqualTo(200);
         assertOnePurchase(attempt.id());
+        assertThat(jdbc.queryForList("SELECT phase FROM payment_safety_checks WHERE checkout_id=? ORDER BY id",
+                String.class, attempt.id())).containsExactly("FIRST", "FIRST", "SECOND");
         verify(provider, times(1)).create(anyString(), any(), anyString());
         observed("local-insert-failure-retry", "INSERT rolled back; same external payment recovered by explicit retry");
     }
