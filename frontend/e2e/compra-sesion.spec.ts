@@ -27,7 +27,7 @@ async function fixture(page: Page, delayed = false) {
   await expect(page.locator('.welcome-strip')).toContainText('Hola, a');
   await page.getByRole('button', { name: 'Abrir carrito', exact: true }).click();
   await page.getByRole('button', { name: 'Continuar compra', exact: true }).click();
-  await expect(page.getByRole('radio', { name: /Usar esta/ })).toBeChecked();
+  await page.getByRole('button',{name:'Elegir o cambiar dirección',exact:true}).click();await expect(page.getByRole('radio', { name: /Usar esta/ })).toBeChecked();
   await page.getByRole('button', { name: 'Calcular total', exact: true }).click();
   await page.getByRole('button', { name: 'Continuar a Mercado Pago', exact: true }).click(); await started;
   if (!delayed) await expect(page.getByText('Error de compra de A', { exact: true })).toBeVisible();
@@ -52,7 +52,7 @@ async function logoutAndLoginB(page: Page, checkLogout = true) {
   // A fresh checkout for B keeps the original late-response/error isolation assertions meaningful.
   await page.getByRole('button', { name: 'Abrir carrito', exact: true }).click();
   await page.getByRole('button', { name: 'Continuar compra', exact: true }).click();
-  await expect(page.getByRole('radio', { name: /Usar esta/ })).toBeChecked();
+  await page.getByRole('button',{name:'Elegir o cambiar dirección',exact:true}).click();await expect(page.getByRole('radio', { name: /Usar esta/ })).toBeChecked();
   await page.getByRole('button', { name: 'Calcular total', exact: true }).click();
 }
 test('logout y comprador B no conservan el error visible de A', async ({ page }) => {

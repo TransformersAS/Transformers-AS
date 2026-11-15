@@ -2,7 +2,17 @@
 
 El comprador administra sus direcciones desde **Mis direcciones**, en el menú de su cuenta. Durante una compra también puede seleccionar, registrar o editar una dirección sin salir del checkout. Se utilizan los datos reales guardados de destinatario, teléfono y ubicación; calcular el total ya no crea direcciones repetidas ni introduce contactos ficticios.
 
+## Selector compacto en checkout
+
+El checkout muestra inicialmente un resumen de la dirección seleccionada (predeterminada cuando corresponde), en lugar de todas las tarjetas de administración. **Elegir o cambiar dirección** despliega las opciones, la búsqueda por destinatario/dirección/ciudad/departamento y las acciones de nueva dirección y edición. La lista tiene desplazamiento interno limitado a 18 rem para no alejar envío y pago.
+
+Seleccionar otra dirección cierra el desplegable, actualiza el resumen y devuelve el foco al botón de selección. La dirección elegida sigue enviándose por su ID al cálculo del total. Guardar una dirección nueva también cierra el selector; si no existen direcciones se abre para permitir registrarla. Los errores conservan el formulario y cerrar/reabrir el selector no descarta el borrador.
+
+La pantalla independiente **Mis direcciones** conserva la lista completa. No se cambian permisos, persistencia, reglas de eliminación ni la relación entre dirección y pedido. La evaluación de usabilidad con participantes debe medir por separado si esta reducción de desplazamiento facilita la tarea; las pruebas de interfaz no prueban satisfacción.
+
 ## Requisitos implementados
+
+Validación del selector compacto: compilación de frontend correcta y **40 pruebas Playwright aprobadas** entre `direcciones.spec.ts`, `mercadopago.spec.ts` y `compra-sesion.spec.ts`. Se comprueba búsqueda y selección con 42 direcciones en anchos de 1280 y 390 píxeles, cierre automático, recuperación del foco y envío del ID elegido al cálculo. Estas pruebas usan API controlada.
 
 | Requisito | Comportamiento y verificación |
 | --- | --- |

@@ -81,7 +81,7 @@ for (const unconfigured of [true, false]) {
     await expect(page.locator('.welcome-strip')).toContainText('Hola, buyer');
     await page.getByRole('button', { name: 'Abrir carrito', exact: true }).click();
     await page.getByRole('button', { name: 'Continuar compra', exact: true }).click();
-  await expect(page.getByRole('radio', { name: /Usar esta/ })).toBeChecked();
+  await page.getByRole('button',{name:'Elegir o cambiar dirección',exact:true}).click();await expect(page.getByRole('radio', { name: /Usar esta/ })).toBeChecked();
     await page.getByRole('button', { name: 'Calcular total', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Continuar a Mercado Pago', exact: true })).toBeVisible();
     await expect(page.locator('.payment-section select')).toHaveCount(0);
