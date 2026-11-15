@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 720" role="img" aria-labelledby="title desc">
+  <title id="title">Marketplace: contenedores C4 y contribución a la usabilidad</title>
+  <desc id="desc">Las personas interactúan con la aplicación web. La aplicación auxiliar prepara la demostración y abre el navegador. El backend valida y coordina; MySQL conserva la información; RabbitMQ transporta trabajos de aviso. Pagos, IA, correo, logística y push son sistemas externos. Nginx entrega la aplicación web, no constituye otra sección de navegación.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" fill="#506872"/></marker>
+    <style>text{font-family:Arial,sans-serif;fill:#19353e} .title{font-size:20px;font-weight:700}.body{font-size:15px}.small{font-size:13px}.line{fill:none;stroke:#506872;stroke-width:2;marker-end:url(#arrow)}.box{fill:#fff;stroke:#76939b;stroke-width:1.5}.chip{fill:#dcebf0}.caption{fill:#506872}</style>
+  </defs>
+  <rect width="1120" height="720" rx="20" fill="#fffdf8"/>
+  <rect x="290" y="16" width="550" height="65" rx="14" fill="#19353e"/>
+  <text x="565" y="42" text-anchor="middle" class="title" style="fill:white">Comprador · Vendedor · Soporte · Administrador</text>
+  <text x="565" y="64" text-anchor="middle" class="small" style="fill:white">Interacción según tareas y rol activo</text>
+  <rect x="20" y="111" width="1080" height="464" rx="18" fill="#f3f6f5" stroke="#78949b" stroke-dasharray="7 5"/>
+  <text x="40" y="139" class="title">Marketplace · vista de contenedores lógicos</text>
+  <path class="line" d="M510 81V166"/>
+  <rect x="45" y="176" width="225" height="135" rx="14" class="box"/>
+  <rect x="59" y="188" width="34" height="22" rx="5" class="chip"/><text x="76" y="204" text-anchor="middle" class="small">C5</text>
+  <text x="60" y="238" class="title">Inicio de demostración</text>
+  <text x="60" y="263" class="body">Aplicación auxiliar Windows</text>
+  <text x="60" y="286" class="small">Etapas, resultado y siguiente acción</text>
+  <rect x="355" y="176" width="310" height="135" rx="14" fill="#e6f2ef" stroke="#39756d" stroke-width="2"/>
+  <rect x="369" y="188" width="34" height="22" rx="5" fill="#bbddd6"/><text x="386" y="204" text-anchor="middle" class="small">C1</text>
+  <text x="370" y="238" class="title">Aplicación web</text>
+  <text x="370" y="263" class="body">Angular/Ionic · interfaz por rol</text>
+  <text x="370" y="286" class="small">Nginx la entrega; navegador la ejecuta</text>
+  <rect x="755" y="176" width="310" height="135" rx="14" class="box"/>
+  <rect x="769" y="188" width="34" height="22" rx="5" class="chip"/><text x="786" y="204" text-anchor="middle" class="small">C2</text>
+  <text x="770" y="238" class="title">Backend</text>
+  <text x="770" y="263" class="body">Spring Boot · reglas y coordinación</text>
+  <text x="770" y="286" class="small">Validación, resultados y recuperación</text>
+  <path class="line" d="M270 244H350" stroke-dasharray="5 4"/>
+  <text x="312" y="232" text-anchor="middle" class="small">Abre</text>
+  <path class="line" d="M665 244H749"/>
+  <text x="710" y="232" text-anchor="middle" class="small">Solicita</text>
+  <rect x="355" y="421" width="310" height="119" rx="14" class="box"/>
+  <rect x="369" y="433" width="34" height="22" rx="5" class="chip"/><text x="386" y="449" text-anchor="middle" class="small">C4</text>
+  <text x="370" y="479" class="title">RabbitMQ · opcional</text>
+  <text x="370" y="503" class="body">Trabajos de avisos asíncronos</text>
+  <text x="370" y="524" class="small">Los consumidores se ejecutan en C2</text>
+  <rect x="755" y="421" width="310" height="119" rx="14" class="box"/>
+  <rect x="769" y="433" width="34" height="22" rx="5" class="chip"/><text x="786" y="449" text-anchor="middle" class="small">C3</text>
+  <text x="770" y="479" class="title">MySQL</text>
+  <text x="770" y="503" class="body">Información confirmada e historia</text>
+  <text x="770" y="524" class="small">Sin pantalla propia para el comprador</text>
+  <path class="line" d="M910 311V415"/>
+  <text x="923" y="369" class="small">Lee / guarda</text>
+  <path class="line" style="marker-start:url(#arrow)" d="M780 315V354H510V415"/>
+  <text x="650" y="343" text-anchor="middle" class="small">Encola / consume</text>
+  <text x="54" y="383" class="body">Contribución directa: C1 y C5</text>
+  <text x="54" y="406" class="body">Contribución indirecta: C2, C3 y C4</text>
+  <text x="54" y="451" class="small caption">La organización de información del usuario</text>
+  <text x="54" y="471" class="small caption">se refleja en la interfaz. No exige un menú</text>
+  <text x="54" y="491" class="small caption">para cada tecnología del sistema.</text>
+  <rect x="310" y="622" width="755" height="69" rx="14" fill="#f8e9db" stroke="#be9167"/>
+  <text x="330" y="648" class="title">Sistemas externos</text>
+  <text x="330" y="673" class="body">Pagos · IA · Correo · Logística · Web Push</text>
+  <path class="line" d="M1065 275H1080V594H955V616"/>
+  <text x="977" y="596" text-anchor="end" class="small">C2 integra proveedores</text>
+  <text x="35" y="666" class="small caption">Vista elaborada para el ejercicio.</text>
+  <text x="35" y="686" class="small caption">Réplicas ≠ nuevos tipos de contenedor.</text>
+</svg>

@@ -29,6 +29,10 @@ Este es el punto de entrada a las guías de Marketplace. Los documentos están a
 
 ## Desarrollo y arquitectura
 
+- [Usabilidad: arquitectura de información por contenedor C4](arquitectura/usabilidad-arquitectura-informacion.md): aplicación de las diapositivas de clase, diagnóstico, mapas, decisiones por contenedor y protocolo de evaluación.
+- [Vista visual de usabilidad para sustentación](sustentacion/usabilidad-marketplace.html): mapa C4, cinco planos por contenedor, navegación por rol y wireframes interactivos; abrir el archivo en el navegador.
+- [PDF de usabilidad para sustentación](sustentacion/usabilidad-marketplace.pdf): versión para proyectar o compartir sin iniciar el sistema.
+
 | Documento | Para qué sirve |
 | --- | --- |
 | [Guía del frontend](desarrollo/guia-frontend.md) | Ejecutar y compilar la interfaz Angular/Ionic. |
@@ -55,6 +59,8 @@ Este es el punto de entrada a las guías de Marketplace. Los documentos están a
 | [CU-20: reportes de contenido](casos-de-uso/cu-20-reportes-contenido.md) | Consultar cómo se radican y consultan reportes de publicaciones. |
 
 ## Pruebas
+
+- [Evaluación de usabilidad del proyecto completo](pruebas/usabilidad-proyecto-completo.md): mapa actual, inventario de todos los roles, 24 tareas, hallazgos de inspección y plantillas para registrar sesiones y criterios del SAD.
 
 - [CU-03: checkout con Mercado Pago](pruebas/cu03-mercadopago.md): configuración de sandbox, flujos, límites y pruebas.
 

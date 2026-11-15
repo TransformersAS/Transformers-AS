@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Usabilidad del Marketplace · Arquitectura de información y C4</title>
+  <style>
+    :root{--ink:#19353e;--muted:#4d646d;--paper:#fffdf8;--soft:#f0f5f3;--line:#becdce;--accent:#b53c22;--ok:#235d4c;--focus:#075fba}
+    *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--paper);color:var(--ink);font:17px/1.55 system-ui,-apple-system,Segoe UI,sans-serif}a{color:#145a84}button,input,select{font:inherit}button,select{cursor:pointer}button,a,input,select{outline-offset:4px}button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--focus)}button{border:1px solid var(--ink);border-radius:9px;padding:.65rem .9rem;background:white;color:var(--ink)}button:hover{background:var(--soft)}button.primary{background:var(--accent);border-color:var(--accent);color:white}button[aria-pressed=true]{background:var(--ink);color:white}button small{display:block;font-size:.8rem;font-weight:400}h1,h2,h3{line-height:1.18;letter-spacing:-.025em}h1{font-size:clamp(2rem,5vw,3.7rem);max-width:21ch;margin:.5rem 0 1rem}h2{font-size:clamp(1.6rem,3vw,2.2rem);margin:.4rem 0 1.2rem}h3{font-size:1.2rem;margin:.3rem 0 .8rem}p{margin:.5rem 0 1rem}.lead{font-size:1.12rem;max-width:74ch}.eyebrow{font-weight:750;letter-spacing:.12em;text-transform:uppercase;font-size:.78rem;color:var(--muted)}.tag{display:inline-block;background:#f9e7dc;border:1px solid #d49a78;border-radius:99px;padding:.25rem .7rem;font-size:.82rem;font-weight:650}.subtle{color:var(--muted);font-size:.92rem}.skip{position:absolute;top:-100px;left:1rem;background:white;padding:1rem;z-index:20}.skip:focus{top:.5rem}.top{position:sticky;top:0;z-index:10;background:#fffdf8f5;border-bottom:1px solid var(--line);backdrop-filter:blur(8px);padding:.7rem 3vw;display:flex;align-items:center;gap:1rem;justify-content:space-between}.top strong{font-size:1rem}.top button{padding:.45rem .7rem;font-size:.88rem}.layout{display:grid;grid-template-columns:220px minmax(0,1fr);max-width:1480px;margin:auto}.index{padding:1.5rem 1rem;position:sticky;top:76px;align-self:start}.index a{display:block;text-decoration:none;color:var(--ink);padding:.6rem;border-radius:8px;font-size:.93rem}.index a:hover{background:#e4eeea}.index .subtle{padding:.6rem}main{min-width:0;padding:0 2.5rem 3rem}section{scroll-margin-top:95px;padding:3.1rem 0;border-bottom:1px solid var(--line)}section:last-child{border:0}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem}.grid.three{grid-template-columns:repeat(3,minmax(0,1fr))}.card{border:1px solid var(--line);border-radius:15px;padding:1.2rem;background:white;min-width:0}.card.soft{background:var(--soft)}.callout{border-left:5px solid var(--accent);padding:.8rem 1rem;background:#fbefe8;margin:1.2rem 0}.callout.green{border-color:var(--ok);background:#e9f2ed}.diagram{display:block;width:100%;height:auto;border:1px solid var(--line);border-radius:16px}.controls{display:flex;flex-wrap:wrap;gap:.6rem;margin:1rem 0}.controls button{flex:1 1 145px;text-align:left;font-weight:700}table{width:100%;border-collapse:collapse;font-size:.94rem}th,td{padding:.8rem;text-align:left;vertical-align:top;border-bottom:1px solid var(--line);overflow-wrap:anywhere}th{background:var(--soft);font-weight:700}.table-wrap{overflow-x:auto}dl{margin:0}dt{font-weight:750;margin-top:1rem}dd{margin:.3rem 0 .9rem;max-width:82ch}.journey{display:flex;flex-wrap:wrap;gap:.5rem;margin:1rem 0;padding:0;list-style:none}.journey li{background:#e4eeea;border-radius:8px;padding:.5rem .7rem}.journey li+li:before{content:'→ ';color:var(--muted)}.nav-groups{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.8rem}.nav-groups ul{padding-left:1.2rem;margin:.2rem 0}.nav-groups h3{font-size:1.05rem}.wireframe{border:2px solid var(--line);border-radius:15px;padding:1.2rem;background:white;min-width:0}.wireframe .banner{background:var(--soft);padding:.5rem .7rem;font-size:.82rem;margin-bottom:1rem;border-radius:6px}.wireframe label{display:block;font-size:.92rem;font-weight:650;margin:.6rem 0}.wireframe input:not([type=radio]){display:block;width:100%;border:1px solid #738992;border-radius:7px;padding:.55rem;background:white;color:var(--ink);margin-top:.25rem}.wireframe input[aria-invalid=true]{border:2px solid #a52217}.wireframe form{border:1px solid var(--line);border-radius:10px;padding:1rem;margin:1rem 0;background:#fcfaf4}.wireframe .actions{display:flex;flex-wrap:wrap;gap:.5rem;margin:.8rem 0}.wireframe button{font-size:.9rem;padding:.5rem .7rem}.saved{padding:1rem;border:1px solid var(--line);border-radius:10px;margin:1rem 0}.saved h4{margin:0}.error{color:#a52217;font-size:.87rem}.status{color:var(--ok);font-weight:650}.steps{display:flex;gap:.4rem;flex-wrap:wrap;padding:0;list-style:none;font-size:.9rem}.steps li{padding:.3rem .5rem;border-bottom:3px solid #b7c8c5}.steps li.active{border-color:var(--accent);font-weight:750}.summary-row{display:flex;justify-content:space-between;gap:1rem;padding:.4rem 0}.total{font-size:1.25rem;font-weight:750;border-top:1px solid var(--line);margin-top:.7rem;padding-top:.8rem}.print-only{display:none}footer{padding:1.5rem 0;font-size:.88rem;color:var(--muted)}.measure-list{padding-left:1.3rem}.measure-list li{margin:.7rem 0}.role-control{display:flex;flex-wrap:wrap;align-items:center;gap:.6rem;margin:1.2rem 0}.role-control select{padding:.5rem;max-width:100%;border-radius:8px;border:1px solid var(--line);background:white;color:var(--ink)}
+    @media(max-width:1050px){.layout{grid-template-columns:185px minmax(0,1fr)}main{padding-inline:1.3rem}.grid.three{grid-template-columns:1fr}}
+    @media(max-width:760px){.layout{display:block}.index{position:static;display:flex;gap:.3rem;overflow:auto;padding:.7rem;border-bottom:1px solid var(--line)}.index a{flex:0 0 auto;font-size:.85rem}.index p{display:none}main{padding-inline:1rem}.top{position:static;align-items:flex-start;flex-wrap:wrap}.top .tag{max-width:100%}.grid,.nav-groups{grid-template-columns:1fr}section{padding:2rem 0}table{font-size:.85rem}th,td{padding:.6rem}.controls button{flex-basis:135px}.card{padding:1rem}}
+    @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+    @media print{@page{size:A4;margin:15mm}body{font:10.5pt/1.4 Arial,sans-serif;background:white;color:#172f36}.top,.index,.skip,.screen-only,.controls,.role-control{display:none!important}.layout{display:block}main{padding:0;max-width:none}section{padding:0;border:0;break-before:page;scroll-margin:0}section:first-child{break-before:auto}h1{font-size:29pt}h2{font-size:20pt}h3{font-size:13pt}.grid.three{grid-template-columns:repeat(3,minmax(0,1fr))}.grid{gap:8mm}.card,.wireframe{border-radius:5px;padding:10px;break-inside:avoid}.diagram{max-height:135mm;object-fit:contain}.print-only{display:block}#containerDetail{display:none}.container-print{break-before:page;padding-top:0}.container-print:first-child{break-before:auto}table{font-size:10pt}th,td{padding:7px}.callout{padding:8px 10px}a{color:inherit}.tag{font-size:9pt}.table-wrap{overflow:visible}.wireframe input:not([type=radio]){padding:5px}.wireframe form{padding:8px}.wireframe button{padding:5px;font-size:9pt}.wireframe h3{font-size:14pt}footer{padding-top:12px}}
+  </style>
+  <style media="print">
+    html{font-size:12px}
+    p{margin:.35rem 0 .65rem}.lead{font-size:11pt}.subtle{font-size:9pt}
+    .grid,.nav-groups{gap:10px}.card{padding:10px}
+    h2,h3,h4{break-after:avoid}
+    #rolesPrint>div{break-inside:avoid;margin-bottom:12px}
+    #wireframes>.grid{display:block}
+    #wireframes .wireframe{break-before:page;margin-bottom:12px}
+    #wireframes .wireframe:first-child{break-before:auto}
+    #evaluacion{font-size:10pt}
+    #evaluacion .lead{break-inside:avoid;font-size:10.5pt}
+  </style>
+</head>
+<body>
+<a href="#contenido" class="skip">Saltar al contenido</a>
+<header class="top"><strong>Marketplace · Usabilidad</strong><span class="tag">Ejercicio de diseño · evaluación con usuarios pendiente</span><button type="button" onclick="window.print()">Imprimir o guardar PDF</button></header>
+<div class="layout">
+<nav class="index" aria-label="Secciones del ejercicio">
+  <a href="#inicio">01 · Vista C4</a><a href="#necesidades">02 · Estrategia y alcance</a><a href="#estructura">03 · Información y navegación</a><a href="#contenedores">04 · Cada contenedor</a><a href="#wireframes">05 · Esqueleto y superficie</a><a href="#evaluacion">06 · Cómo demostrarlo</a>
+  <p class="subtle">Basado en las páginas 25–43 de «14. Usability.pdf». Contenido de diseño, sin datos reales ni conexión al Marketplace.</p>
+</nav>
+<main id="contenido">
+<section id="inicio">
+  <p class="eyebrow">01 / Un ejercicio de arquitectura de información</p>
+  <h1>Que la persona encuentre, comprenda y complete su tarea.</h1>
+  <p class="lead">La usabilidad se construye desde los objetivos y el contenido hasta la navegación y la presentación. Cada contenedor C4 contribuye de manera distinta a esa experiencia.</p>
+  <img class="diagram" src="../arquitectura/diagramas/usabilidad-contenedores.svg" alt="C4 del Marketplace: aplicación web y launcher con interacción directa; backend, MySQL y RabbitMQ con contribución indirecta. El backend integra servicios externos.">
+  <div class="callout"><strong>Qué se entrega.</strong> Un diagnóstico, una organización propuesta, fichas por contenedor y wireframes. Estos diseños no son nuevas pantallas desplegadas ni resultados de una evaluación con participantes.</div>
+  <p class="subtle">C1–C5 identifican contenedores lógicos en este ejercicio. No son cinco pantallas, cinco microservicios ni cinco réplicas Docker. La aplicación de inicio de Windows es auxiliar.</p>
+</section>
+<section id="necesidades">
+  <p class="eyebrow">02 / Estrategia → alcance</p><h2>Primero las personas y la información que necesitan.</h2>
+  <div class="grid three">
+    <article class="card"><h3>Comprador</h3><p>Encontrar un producto, decidir, comprar y gestionar su entrega.</p><p class="subtle">Necesita precio, disponibilidad, total, dirección elegida y siguiente paso.</p></article>
+    <article class="card"><h3>Vendedor</h3><p>Administrar productos y atender lo que requiere acción.</p><p class="subtle">Necesita inventario, pedidos, reseñas y situación de su tienda.</p></article>
+    <article class="card"><h3>Soporte y administración</h3><p>Revisar casos y decidir con antecedentes y consecuencias claras.</p><p class="subtle">Necesitan contexto pertinente, criterio de elegibilidad, estado y motivo.</p></article>
+  </div>
+  <div class="callout green"><strong>Operador de demostración.</strong> Necesita saber en qué etapa está el arranque, si terminó y qué hacer ante un error. Esa es la experiencia de C5, distinta de la compra.</div>
+  <h3>Inventario mínimo del recorrido de compra</h3>
+  <div class="table-wrap"><table><thead><tr><th>Información</th><th>Responsable de actualizarla</th><th>Dónde se usa</th></tr></thead><tbody>
+    <tr><td>Precio y disponibilidad</td><td>Vendedor y sistema, cuando cambia el producto</td><td>Catálogo, favoritos, ficha y resumen</td></tr>
+    <tr><td>Dirección guardada</td><td>Comprador al registrar o editar</td><td>Mi cuenta y elección durante la compra</td></tr>
+    <tr><td>Dirección histórica</td><td>Sistema al confirmar el pedido</td><td>Detalle de esa compra, aunque cambie la cuenta</td></tr>
+    <tr><td>Condición y estado de alerta</td><td>Comprador y sistema al evaluar cambios</td><td>Favoritos, alertas y notificaciones</td></tr>
+    <tr><td>Estado del pago</td><td>Sistema tras comprobar el resultado del proveedor</td><td>Resultado de compra y recuperación</td></tr>
+  </tbody></table></div>
+  <p class="subtle">Referencia de clase: estrategia (páginas 28–30), alcance y responsables del contenido (página 32).</p>
+</section>
+<section id="estructura">
+  <p class="eyebrow">03 / Estructura: organizar antes de decorar</p><h2>Una navegación organizada por intención.</h2>
+  <p>Propuesta: distinguir explorar, comprar, entrega, posventa y cuenta. La cabecera conserva búsqueda, carrito, pedidos, notificaciones y cuenta; los permisos se verifican en backend.</p>
+  <div class="role-control"><label for="role">Ver el mapa de</label><select id="role"><option value="COMPRADOR">Comprador</option><option value="VENDEDOR">Vendedor</option><option value="SOPORTE">Soporte</option><option value="ADMIN">Administrador</option><option value="VISITANTE">Visitante</option></select><span class="tag">Agrupación propuesta</span></div>
+  <div id="roleMap" class="nav-groups screen-only" aria-live="polite"></div>
+  <div id="rolesPrint" class="print-only"></div>
+  <h3 style="margin-top:1.8rem">Arquitectura de información combinada</h3>
+  <div class="grid">
+    <article class="card soft"><h3>Jerarquía</h3><p>Catálogo → categoría → producto. Ayuda a ubicarse y volver a un nivel anterior.</p></article>
+    <article class="card soft"><h3>Matriz de opciones</h3><p>Combinar categoría y precio; elegir dirección y envío. Las opciones se cruzan para resolver una tarea.</p></article>
+    <article class="card soft"><h3>Secuencia</h3><p>Entrega → revisión → pago → resultado. Las fases muestran avance y permiten corregir antes de confirmar.</p></article>
+    <article class="card soft"><h3>Enlaces contextuales</h3><p>De recomendación o notificación a producto; de pedido entregado a reseña. No todo recorrido empieza en la portada.</p></article>
+  </div>
+  <div class="callout"><strong>Decisión concreta.</strong> «Después de comprar» no debe contener todo: favoritos se usan antes de comprar y las direcciones antes o durante la entrega. El mapa propuesto hace explícita esa diferencia.</div>
+  <p class="subtle">Referencia: páginas 34–37. El checkout tiene alternativas matriciales dentro de un avance secuencial; no se obliga a que todo el sistema utilice una sola estructura.</p>
+</section>
+<section id="contenedores">
+  <p class="eyebrow">04 / Five Planes Framework, aplicado a C4</p><h2>Una ficha de decisiones por contenedor.</h2>
+  <p>Selecciona un contenedor para explicar sus cinco planos. En los contenedores sin interfaz de comprador, esqueleto y superficie describen la información que habilitan en C1.</p>
+  <div class="controls" id="containerButtons" aria-label="Contenedor seleccionado"></div>
+  <article id="containerDetail" class="card soft" aria-live="polite"></article>
+  <div id="allContainerSheets" class="print-only"></div>
+  <p class="subtle">Los consumidores de notificaciones pertenecen al backend. RabbitMQ no envía por sí mismo una notificación a la pantalla del usuario.</p>
+</section>
+<section id="wireframes">
+  <p class="eyebrow">05 / Esqueleto → superficie</p><h2>Ubicación, acción, respuesta y recuperación.</h2>
+  <p>Wireframes de diseño con información ficticia. La interacción de esta página ilustra el ejercicio; no guarda direcciones, no llama al backend ni procesa pagos.</p>
+  <div class="grid">
+    <article class="wireframe" aria-label="Wireframe propuesto de direcciones">
+      <div class="banner">Propuesta · datos ficticios · sin conexión al sistema</div>
+      <h3>Mis direcciones</h3><p class="subtle">Guarda una dirección y elígela al comprar.</p>
+      <div class="actions"><button type="button" id="showForm">Nueva dirección</button><button type="button" id="resetForm">Restablecer ejemplo</button></div>
+      <form id="addressExample" novalidate>
+        <h4 style="margin:0">Registrar dirección</h4>
+        <label for="recipient">Destinatario<input id="recipient" value="Persona de demostración" required autocomplete="off"></label>
+        <label for="street">Dirección<input id="street" value="Calle Ejemplo 12" required autocomplete="off"></label>
+        <div class="grid"><label for="city">Ciudad<input id="city" value="Bogotá" required autocomplete="off"></label><label for="department">Departamento<input id="department" value="Bogotá D. C." required autocomplete="off"></label></div>
+        <label for="postal">Código postal (opcional)<input id="postal" autocomplete="off"></label>
+        <label for="phone">Teléfono<input id="phone" type="tel" value="3001234567" required aria-describedby="phoneHelp phoneError" autocomplete="off"></label>
+        <p id="phoneHelp" class="subtle">De 7 a 15 dígitos.</p><p id="phoneError" class="error" role="alert"></p>
+        <div class="actions"><button class="primary" type="submit">Guardar en el prototipo</button><button type="button" id="cancelExample">Cancelar edición</button><button type="button" id="invalidPhone">Mostrar teléfono inválido</button></div>
+        <p id="formResult" class="status" role="status"></p>
+      </form>
+      <div class="saved"><h4>Casa · Predeterminada</h4><p>Calle Ejemplo 12 · Bogotá</p><label><input type="radio" name="example-address" checked> Usar esta dirección en la compra</label><div class="actions"><button type="button" id="blockedDelete">Ver eliminación bloqueada</button></div><p id="deleteResult" class="error" role="alert"></p></div>
+      <p class="subtle"><strong>Decisión:</strong> botones y formulario antes de la lista. La elección es única; un error aparece junto al campo, con una acción para corregirlo.</p>
+    </article>
+    <article class="wireframe" aria-label="Wireframe propuesto de revisión de compra">
+      <div class="banner">Propuesta · no es una compra real</div>
+      <h3>Revisa tu compra</h3>
+      <ol class="steps" aria-label="Fases propuestas de compra"><li>1. Entrega</li><li class="active" aria-current="step">2. Revisión</li><li>3. Pago</li></ol>
+      <div class="saved"><h4>Entrega en Casa</h4><p>Calle Ejemplo 12 · Bogotá</p><button type="button" id="editFromReview">Volver a editar entrega</button></div>
+      <h4>Resumen</h4><div class="summary-row"><span>Producto de demostración</span><strong>$95.000</strong></div><div class="summary-row"><span>Envío</span><strong>$10.000</strong></div><div class="summary-row total"><span>Total</span><span>$105.000</span></div>
+      <p>Seleccionarás el medio de pago en la pasarela. Al volver, el Marketplace comprobará su estado.</p>
+      <button class="primary" type="button" id="paymentExample">Mostrar resultado pendiente</button>
+      <div id="paymentResult" role="status"></div>
+      <div class="callout green"><strong>Jerarquía de lectura.</strong><br>Dónde estoy → qué reviso → cuánto pago → siguiente acción → cómo recuperarme.</div>
+      <p class="subtle"><strong>Decisión:</strong> «Pendiente» no significa aprobado. Una espera no debe inducir un segundo pago.</p>
+    </article>
+  </div>
+  <p class="subtle">Referencia: páginas 39–43. Los controles se eligen por la decisión: opción única para dirección; texto para ubicación; acción explícita para guardar. Color y tipografía acompañan la explicación, no la sustituyen.</p>
+</section>
+<section id="evaluacion">
+  <p class="eyebrow">06 / Evidencia y sustentación</p><h2>Qué podemos demostrar y qué debemos medir.</h2>
+  <div class="grid">
+    <article class="card"><h3>Preparado en este ejercicio</h3><ul><li>Vista C4 e inventario de información.</li><li>Objetivos por rol y mapa de navegación propuesto.</li><li>Cinco planos por contenedor.</li><li>Wireframes y estados de recuperación.</li><li>Protocolo de evaluación, sin resultados inventados.</li></ul></article>
+    <article class="card"><h3>Pendiente con participantes</h3><ul><li>Encontrar un control sin que se lo indiquemos.</li><li>Tiempo y pasos para terminar la misma tarea.</li><li>Recordar el recorrido después de 24–48 horas.</li><li>Recuperarse de un error y explicar lo ocurrido.</li><li>Valorar satisfacción y registrar críticas.</li></ul></article>
+  </div>
+  <h3 style="margin-top:1.5rem">Escenario U-01 · corregir la entrega antes de pagar</h3>
+  <ol class="journey"><li>Comprador autenticado</li><li>Encuentra direcciones</li><li>Corrige teléfono inválido</li><li>Reintenta sin perder campos</li><li>Reconoce el resultado</li></ol>
+  <p>C1 organiza la tarea, C2 valida y explica, C3 conserva lo confirmado. La respuesta debe mostrar qué ocurrió y el siguiente paso. Este escenario del ejercicio no añade un número oficial al SAD.</p>
+  <div class="table-wrap"><table><thead><tr><th>Dimensión de clase</th><th>Cómo se evalúa</th><th>Resultado actual</th></tr></thead><tbody>
+    <tr><td>Aprendizaje</td><td>Primer intento sin guía: éxito, ayudas y tiempo</td><td>No medido</td></tr>
+    <tr><td>Eficiencia</td><td>Misma tarea: activaciones y duración, antes y después</td><td>No medido</td></tr>
+    <tr><td>Recordación</td><td>Repetir después de 24–48 horas sin instrucciones</td><td>No medido</td></tr>
+    <tr><td>Errores</td><td>Teléfono inválido, fallo recuperable y eliminación bloqueada</td><td>No medido con participantes</td></tr>
+    <tr><td>Satisfacción</td><td>Pregunta posterior, escala 1–5 y comentario libre</td><td>No medido</td></tr>
+  </tbody></table></div>
+  <p class="subtle">Metas propuestas, por acordar: ≥90 % de tareas sin ayuda, hasta tres activaciones para abrir «Nueva dirección» desde el inicio autenticado y cero errores críticos. Una evaluación exploratoria con cinco compradores es descriptiva; no certifica a toda la población.</p>
+  <h3>Qué decir al profesor</h3>
+  <p class="lead">«Hicimos el ejercicio de arquitectura de información: identificamos personas y objetivos, definimos el contenido, organizamos la navegación y aterrizamos las decisiones en wireframes. Cada contenedor sostiene parte de esa experiencia. La validación con personas está pendiente y no la confundimos con cobertura de código».</p>
+  <p><a href="../arquitectura/usabilidad-arquitectura-informacion.md">Consultar el documento completo: decisiones, trazabilidad y protocolo</a></p>
+  <footer>Fuente de clase: «14. Usability.pdf», páginas 25–43. Vista elaborada para el Marketplace; no reproduce las diapositivas ni afirma una mejora medida. Sin bibliotecas, fuentes remotas o proveedores externos.</footer>
+</section>
+</main></div>
+<script>
+'use strict';
+const planes=['Estrategia','Alcance','Estructura','Esqueleto','Superficie'];
+const informationFlows={
+ C1:[['Rol e intención','Grupo de tareas','Pantalla y contexto','Acción y resultado']],
+ C2:[['Intención','Validación','Acción permitida','Resultado o recuperación']],
+ C3:[['Persona','Direcciones actuales'],['Persona','Pedido','Entrega histórica']],
+ C4:[['Evento registrado','Aviso interno en bandeja'],['Trabajo de envío','Proveedor externo','Resultado de envío']],
+ C5:[['Prerrequisitos','Preparación','Inicio','Disponible o siguiente acción']]
+};
+const containers=[
+ {id:'C1',name:'Aplicación web',kind:'Interacción directa',goal:'Que cada rol encuentre su tarea sin conocer la estructura técnica.',values:[
+  'Comprador, vendedor, soporte y administrador tienen objetivos distintos. El recorrido se organiza para completar esos objetivos.',
+  'Explorar, guardar, comprar, gestionar entrega, posventa y cuenta. Cada pantalla muestra la información necesaria para la tarea.',
+  'Jerarquía catálogo–producto, filtros combinables, acceso contextual desde avisos y avance de compra por fases. Menús agrupados por intención.',
+  'Contexto, datos, validación, acción principal y confirmación. El formulario de direcciones aparece junto a sus acciones, antes de las tarjetas.',
+  'Títulos claros, moneda y fechas legibles, foco visible y estados explicados con texto. La importancia se comunica mediante agrupación y jerarquía, no solo color.'
+ ],evidence:'Mostrar mapa por rol, un recorrido y los wireframes. La agrupación nueva es propuesta; la ubicación del formulario ya se observa en la aplicación revisada.'},
+ {id:'C2',name:'Backend',kind:'Contribución indirecta',goal:'Que cada acción tenga un resultado comprensible, válido y autorizado.',values:[
+  'Completar la intención de la persona con reglas consistentes y una respuesta que permita continuar o corregir.',
+  'Validación, permisos, disponibilidad, cálculo, estados y recuperación de operaciones. El backend coordina también los consumidores de avisos.',
+  'Modelo de tarea: pendiente, confirmada, rechazada o recuperable. Cada estado tiene acciones permitidas y un motivo cuando hay restricción.',
+  'Informar qué ocurrió, qué campo corregir, qué información se conservó y cuál es el siguiente paso. C1 organiza esos datos en la pantalla.',
+  'El mensaje de negocio se presenta en C1. No se necesita mostrar excepciones, nombres de tablas o detalles de infraestructura al comprador.'
+ ],evidence:'Mostrar una eliminación bloqueada o una validación de teléfono y explicar la recuperación. No es necesario proyectar una respuesta técnica.'},
+ {id:'C3',name:'MySQL',kind:'Contribución indirecta',goal:'Que la información confirmada permanezca y sea coherente al volver.',values:[
+  'Reconocer las direcciones propias y confiar en que un pedido conserva los datos con los que se realizó.',
+  'Direcciones, predeterminada única, pedidos, historia, alertas, reseñas y notificaciones. Un borrador no guardado no se asume persistido.',
+  'Distinguir información actual de cuenta e información histórica de compra, separando también la información de cada persona.',
+  'Respaldar los grupos “Direcciones guardadas” y “Dirección utilizada en esta compra”. La interfaz puede explicar claramente esa diferencia.',
+  'C1 formatea fechas, moneda y valores no aplicables. Un valor ausente no se presenta como “NULL” a la persona.'
+ ],evidence:'Mostrar el concepto persona → direcciones y persona → pedido → entrega histórica; comparar ambas vistas, sin tablas ni SQL.'},
+ {id:'C4',name:'RabbitMQ',kind:'Opcional · contribución indirecta',goal:'Que esperar un aviso externo no impida seguir usando el Marketplace.',values:[
+  'Separar la tarea principal del envío de avisos; la persona puede volver a su bandeja sin repetir la operación.',
+  'Transportar trabajos de envío y permitir su recuperación mediante consumidores del backend. La notificación interna se conserva en MySQL.',
+  'Distinguir evento registrado, trabajo de envío, respuesta del proveedor y lectura de la persona. No son el mismo estado.',
+  'Explicar qué hacer si el aviso externo demora o falla: consultar la bandeja y abrir el recurso relacionado. No pedir crear otra alerta para reintentar un aviso.',
+  'Mostrar lenguaje de la tarea, como “Tu aviso está disponible en Notificaciones”. La aceptación del trabajo no prueba que la persona vio un push.'
+ ],evidence:'Mostrar el recorrido evento → bandeja interna → trabajo de envío → proveedor → usuario. La consola del broker no demuestra facilidad de uso.'},
+ {id:'C5',name:'Inicio de demostración',kind:'Aplicación auxiliar · interacción directa',goal:'Que la persona que prepara la demostración sepa qué está pasando.',values:[
+  'Permitir al operador iniciar el entorno y reconocer cuándo puede comenzar. El operador no se confunde con el comprador.',
+  'Comprobar prerrequisitos, informar etapas, abrir el navegador y orientar ante un fallo de preparación.',
+  'Secuencia comprobar → preparar → iniciar → listo; si falla, una salida con contexto y siguiente acción.',
+  'Etapa actual, aviso de espera y acceso al Marketplace cuando esté listo. El launcher existente informa por consola: esto es un storyboard de información, no una GUI nueva.',
+  'Mensajes operativos breves y resultado visible. Los detalles de diagnóstico quedan en un segundo nivel para la persona responsable.'
+ ],evidence:'Explicar las etapas y un ejemplo de recuperación, sin abrir una terminal durante la sustentación.'}
+];
+const groups={
+ COMPRADOR:[['Explorar y guardar','Mis favoritos y alertas','Volver al catálogo'],['Compras y entregas','Mis pedidos','Mis direcciones'],['Después de comprar','Mis reseñas','Mis devoluciones','Mis reclamaciones'],['Ayuda y seguimiento','Conversaciones','Mis reportes']],
+ VENDEDOR:[['Catálogo','Mis productos','Inventario'],['Ventas y atención','Pedidos recibidos','Reseñas recibidas','Devoluciones recibidas','Reclamaciones'],['Tienda y seguimiento','Mi tienda','Estado de mi tienda','Analítica','Conversaciones','Mis reportes']],
+ SOPORTE:[['Atención de casos','Moderación de reportes','Reclamaciones escaladas']],
+ ADMIN:[['Plataforma','Evaluar tiendas','Configurar catálogo']],
+ VISITANTE:[['Explorar','Catálogo','Búsqueda','Ficha de producto'],['Acceder','Iniciar sesión','Crear cuenta','Recuperar acceso']]
+};
+function element(tag,text,cls){const e=document.createElement(tag);if(text)e.textContent=text;if(cls)e.className=cls;return e;}
+function sheet(c){const f=document.createDocumentFragment();f.append(element('p',c.kind,'eyebrow'),element('h3',c.id+' · '+c.name),element('p',c.goal,'lead'),element('h4','Organización de la información'));informationFlows[c.id].forEach(flow=>{const ol=element('ol',null,'journey');flow.forEach(item=>ol.append(element('li',item)));f.append(ol);});const list=element('dl');planes.forEach((p,i)=>list.append(element('dt',p),element('dd',c.values[i])));f.append(list,element('p','Evidencia para explicar: '+c.evidence,'callout'));return f;}
+const buttons=document.getElementById('containerButtons');
+containers.forEach((c,i)=>{const button=element('button',c.id+' · '+c.name);button.type='button';button.setAttribute('aria-controls','containerDetail');button.setAttribute('aria-pressed',String(i===0));button.addEventListener('click',()=>{buttons.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b===button)));document.getElementById('containerDetail').replaceChildren(sheet(c));});buttons.append(button);const printed=element('article',null,'container-print');printed.append(sheet(c));document.getElementById('allContainerSheets').append(printed);});
+document.getElementById('containerDetail').append(sheet(containers[0]));
+function roleGroups(role,target){target.replaceChildren();groups[role].forEach(([name,...items])=>{const card=element('article',null,'card');card.append(element('h3',name));const ul=element('ul');items.forEach(item=>ul.append(element('li',item)));card.append(ul);target.append(card);});}
+document.getElementById('role').addEventListener('change',e=>roleGroups(e.target.value,document.getElementById('roleMap')));
+roleGroups('COMPRADOR',document.getElementById('roleMap'));
+Object.keys(groups).forEach(role=>{const div=element('div');div.append(element('h3','Mapa propuesto · '+({COMPRADOR:'Comprador',VENDEDOR:'Vendedor',SOPORTE:'Soporte',ADMIN:'Administrador',VISITANTE:'Visitante'}[role])));const g=element('div',null,'nav-groups');roleGroups(role,g);div.append(g);document.getElementById('rolesPrint').append(div);});
+const form=document.getElementById('addressExample'),phone=document.getElementById('phone'),error=document.getElementById('phoneError'),result=document.getElementById('formResult');
+function clear(){error.textContent='';result.textContent='';result.className='status';phone.removeAttribute('aria-invalid');document.getElementById('deleteResult').textContent='';}
+function validate(){clear();const value=phone.value.trim(),digits=value.replace(/\D/g,'').length;if(!/^\+?\d[\d ()-]*$/.test(value)||digits<7||digits>15){phone.setAttribute('aria-invalid','true');error.textContent='Ingresa un teléfono de 7 a 15 dígitos. Los demás datos se conservaron.';phone.focus();return false;}return true;}
+form.addEventListener('submit',e=>{e.preventDefault();if(!validate())return;const empty=[...form.querySelectorAll('[required]')].find(input=>!input.value.trim());if(empty){empty.focus();result.className='error';result.textContent='Completa los campos obligatorios del ejemplo.';return;}result.textContent='Resultado ilustrativo: dirección guardada. Este prototipo no almacena datos.';});
+document.getElementById('showForm').addEventListener('click',()=>{form.hidden=false;form.scrollIntoView({block:'center'});document.getElementById('recipient').focus();});
+document.getElementById('resetForm').addEventListener('click',()=>{form.hidden=false;form.reset();clear();});
+document.getElementById('cancelExample').addEventListener('click',()=>{form.reset();clear();form.hidden=true;document.getElementById('showForm').focus();});
+document.getElementById('invalidPhone').addEventListener('click',()=>{phone.value='123';validate();});
+document.getElementById('blockedDelete').addEventListener('click',()=>{document.getElementById('deleteResult').textContent='Ejemplo de restricción: esta dirección tiene un pedido en proceso. Puedes usar otra dirección para una compra nueva.';});
+document.getElementById('editFromReview').addEventListener('click',()=>{form.hidden=false;form.scrollIntoView({block:'center'});document.getElementById('street').focus();});
+document.getElementById('paymentExample').addEventListener('click',()=>{const box=document.getElementById('paymentResult');box.className='callout';box.textContent='Ejemplo de estado: el pago está pendiente. Consulta su estado antes de intentar pagar otra vez. No se realizó una compra.';});
+</script>
+</body>
+</html>
