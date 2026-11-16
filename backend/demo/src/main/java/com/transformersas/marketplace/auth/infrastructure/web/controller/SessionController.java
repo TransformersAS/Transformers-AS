@@ -6,6 +6,8 @@ import com.transformersas.marketplace.auth.application.usecase.ChangeAccountPass
 import org.springframework.security.web.authentication.logout.SecurityContextLogoutHandler;
 import java.util.List;
 import com.transformersas.marketplace.users.domain.model.Role;
+import com.transformersas.marketplace.users.domain.port.AccountRestrictionReader;
+import com.transformersas.marketplace.shared.error.BusinessException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
@@ -29,10 +31,14 @@ public class SessionController {
 
     private final ChangeAccountPassword passwords;
 
-    public SessionController(SecurityContextRepository contexts, ManageAccountSessions sessions, ChangeAccountPassword passwords) {
+    private final AccountRestrictionReader restrictions;
+
+    public SessionController(SecurityContextRepository contexts, ManageAccountSessions sessions,
+                             ChangeAccountPassword passwords, AccountRestrictionReader restrictions) {
         this.contexts = contexts;
         this.sessions = sessions;
         this.passwords = passwords;
+        this.restrictions = restrictions;
     }
 
     public record CsrfResponse(String headerName, String token) {}
@@ -67,6 +73,11 @@ public class SessionController {
             @Valid @RequestBody ActiveRoleRequest selection, HttpServletRequest request, HttpServletResponse response) {
         if (!principal.roles().contains(selection.role())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Rol no disponible para esta cuenta");
+        }
+        // CU-22: a restricted role (or a restricted account) cannot be activated; the session stays without it.
+        if (restrictions.isRestricted(principal.accountId(), selection.role())) {
+            throw BusinessException.forbidden("ROLE_RESTRICTED",
+                    "Este rol tiene una restricción vigente. Consulta los detalles en «Mi cuenta».");
         }
         var selected = principal.withActiveRole(selection.role());
         var authentication = UsernamePasswordAuthenticationToken.authenticated(selected, null, selected.getAuthorities());
