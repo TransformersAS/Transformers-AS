@@ -9,7 +9,17 @@
     "test:catalogo": "playwright test --config=playwright.catalogo.config.ts",
     "demo:cu04": "playwright test --config=playwright.cu04-demo.config.ts",
     "demo:cu05": "playwright test --config=playwright.cu05-demo.config.ts",
-    "demo:cu06": "playwright test --config=playwright.cu06-demo.config.ts"
+    "demo:cu06": "playwright test --config=playwright.cu06-demo.config.ts",
+    "demo:cu07": "python3 ../scripts/demos/run.py cu07",
+    "demo:cu07:extras": "python3 ../scripts/demos/run.py cu07 --extras",
+    "demo:cu08": "python3 ../scripts/demos/run.py cu08",
+    "demo:cu08:extras": "python3 ../scripts/demos/run.py cu08 --extras",
+    "demo:cu09": "python3 ../scripts/demos/run.py cu09",
+    "demo:cu09:extras": "python3 ../scripts/demos/run.py cu09 --extras",
+    "demo:cu10": "python3 ../scripts/demos/run.py cu10",
+    "demo:cu11": "python3 ../scripts/demos/run.py cu11",
+    "demo:cu10:extras": "python3 ../scripts/demos/run.py cu10 --extras",
+    "demo:cu11:extras": "python3 ../scripts/demos/run.py cu11 --extras"
   },
   "dependencies": {
     "@angular/common": "20.3.35",

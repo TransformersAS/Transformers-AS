@@ -1,0 +1,6 @@
+# Sólo CU11: adaptadores simulados existentes; nunca servicios productivos.
+services:
+  backend:
+    environment:
+      PAYMENTS_REFUND_SIMULATED_MODE: ${CU11_REFUND_MODE:-OK}
+      NOTIFICATIONS_SIMULATED_MODE: ${CU11_NOTIFICATION_MODE:-OK}

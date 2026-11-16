@@ -1,0 +1,84 @@
+# Exclusivo de scripts/demos/run.py: redes internas, base nueva en tmpfs y puertos loopback efímeros.
+services:
+  mysql:
+    image: mysql:8.4.11
+    environment:
+      MYSQL_DATABASE: sustentacion
+      MYSQL_USER: demo_fixture
+      MYSQL_PASSWORD: demo_database_only
+      MYSQL_ROOT_PASSWORD: demo_root_only
+    tmpfs: [/var/lib/mysql]
+    networks: [database]
+    mem_limit: 1g
+    healthcheck:
+      test: [CMD-SHELL, 'MYSQL_PWD="$${MYSQL_PASSWORD}" mysql --protocol=TCP -h 127.0.0.1 -u "$${MYSQL_USER}" "$${MYSQL_DATABASE}" -e "SELECT 1" >/dev/null']
+      interval: 5s
+      timeout: 5s
+      retries: 40
+  mailpit:
+    image: axllent/mailpit:v1.27
+    networks: [target, edge]
+    ports: ["127.0.0.1::8025"]
+    mem_limit: 128m
+  backend:
+    image: transformers-sustentacion-backend:local
+    build: ./backend/demo
+    environment:
+      DB_HOST: mysql
+      DB_PORT: '3306'
+      DB_NAME: sustentacion
+      DB_USER: demo_fixture
+      DB_PASSWORD: demo_database_only
+      SPRING_PROFILES_ACTIVE: ''
+      SPRING_PROFILES_INCLUDE: ''
+      MARKETPLACE_DEMO_DATA: 'false'
+      PAYMENTS_MOCK_ENABLED: 'false'
+      PAYMENTS_RECOVERY_ENABLED: 'false'
+      MERCADOPAGO_ACCESS_TOKEN: ''
+      MERCADOPAGO_WEBHOOK_SECRET: ''
+      GEMINI_API_KEY: ''
+      MAIN_STORE_OWNER_EMAIL: ''
+      SPRING_MAIL_HOST: mailpit
+      SPRING_MAIL_PORT: '1025'
+      SPRING_MAIL_USERNAME: ''
+      SPRING_MAIL_PASSWORD: ''
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH: 'false'
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE: 'false'
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_REQUIRED: 'false'
+      EMAIL_VERIFICATION_FROM: marketplace@example.test
+      NOTIFICATIONS_QUEUE_ENABLED: 'false'
+      NOTIFICATIONS_PUSH_ENABLED: 'false'
+      NOTIFICATIONS_PROVIDER: simulated
+      LOGISTICS_PROVIDER: simulated
+      LOGISTICS_TRACKING_POLLING_ENABLED: 'false'
+      LOGISTICS_SIMULATED_SCRIPT: NONE
+    networks: [database, target]
+    depends_on:
+      mysql: {condition: service_healthy}
+      mailpit: {condition: service_started}
+    mem_limit: 1536m
+    healthcheck:
+      test: [CMD, curl, --fail, --silent, --max-time, '4', http://127.0.0.1:8080/actuator/health/readiness]
+      interval: 5s
+      timeout: 5s
+      retries: 50
+      start_period: 30s
+  frontend:
+    image: transformers-sustentacion-frontend:local
+    build: ./frontend
+    environment:
+      BACKEND_UPSTREAM_HOST: backend
+    networks: [target, edge]
+    ports: ["127.0.0.1::80"]
+    depends_on:
+      backend: {condition: service_healthy}
+    mem_limit: 256m
+    healthcheck:
+      test: [CMD-SHELL, 'wget -q -O /dev/null http://127.0.0.1/healthz && wget -q -O /dev/null http://127.0.0.1/api/actuator/health/readiness']
+      interval: 5s
+      timeout: 5s
+      retries: 30
+networks:
+  database: {internal: true}
+  target: {internal: true}
+  edge: {internal: false}
