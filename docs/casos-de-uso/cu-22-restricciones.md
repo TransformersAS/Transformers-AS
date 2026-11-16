@@ -84,7 +84,7 @@ Los cuerpos son estrictos: una propiedad desconocida responde 400. Errores con c
 
 - `restrictions.sweep.enabled` (`true`) y `restrictions.sweep.interval` (`PT1M`). Las pruebas lo apagan y llaman a
   `ExpireDueRestrictionsUseCase.runOnce()` directamente.
-- Migración `V50__create_account_restrictions.sql`: `account_restrictions`, `account_restriction_changes` y
+- Migración `V51__create_account_restrictions.sql`: `account_restrictions`, `account_restriction_changes` y
   `account_information_requests`. La unicidad por alcance vigente y la de una aclaración abierta por cuenta las
   garantiza la base (`active_key` y `open_key`), no solo el código.
 

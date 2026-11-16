@@ -71,6 +71,16 @@ Este es el punto de entrada a las guías de Marketplace. Los documentos están a
 
 - [CU-03: checkout con Mercado Pago](pruebas/cu03-mercadopago.md): configuración de sandbox, flujos, límites y pruebas.
 
+- [CU-18: demostración automática](pruebas/cu18-demostracion.md): recorrido en Chrome de consultar, validar el plazo mínimo, editar con vista previa y guardar la tienda, con `npm.cmd run demo:cu18`.
+
+- [CU-19: demostración automática](pruebas/cu19-demostracion.md): recorrido en Chrome de solicitar, revisar, aclarar, aprobar, enviar e inspeccionar hasta el reembolso, con `npm.cmd run demo:cu19`.
+
+- [CU-20: demostración automática](pruebas/cu20-demostracion.md): recorrido en Chrome de reportar una publicación con evidencia, evitar duplicados, responder a soporte y ver el resultado, con `npm.cmd run demo:cu20`.
+
+- [CU-21: demostración automática](pruebas/cu21-demostracion.md): recorrido en Chrome de tomar un caso, ocultar por precaución, pedir información y retirar una publicación, con `npm.cmd run demo:cu21`.
+
+- [CU-22: demostración automática](pruebas/cu22-demostracion.md): recorrido en Chrome de evaluar, restringir, responder y retirar, con `npm.cmd run demo:cu22`.
+
 | Documento | Para qué sirve |
 | --- | --- |
 | [Pruebas de autenticación y sesiones — CU-08](pruebas/cu-08-autenticacion-y-sesiones.md) | Localizar pruebas de backend, interfaz y extremo a extremo, con sus alcances. |
