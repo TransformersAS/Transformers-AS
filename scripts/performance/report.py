@@ -39,6 +39,20 @@ def assess(data, exit_code):
     status = ('No evaluado' if not valid or exit_code not in (0, 99) else
               'Cumple' if exit_code == 0 and all(m['state'] == 'Cumple' for m in metrics)
               and errors is not None and errors < 0.02 and p95 is not None and p95 <= 4000 else 'No cumple')
+    # Additional observations, not an alternative approval/validity decision.
+    breaches = []
+    for name, observed, limit, comparison in [
+            ('flow_p95_ms', p95, 4000, '>'), ('flow_error_rate', errors, 0.02, '>=')]:
+        if observed is not None and (observed > limit if comparison == '>' else observed >= limit):
+            breaches.append({'metric': name, 'observed': observed, 'limit': limit, 'comparison': comparison})
+    for metric in metrics:
+        for name, observed, limit, comparison in [
+                ('p95_ms', metric['p95_ms'], metric['limit_ms'], '>'),
+                ('successful_p95_ms', metric['successful_p95_ms'], metric['limit_ms'], '>'),
+                ('error_rate', metric['error_rate'], 0.02, '>=')]:
+            if observed is not None and (observed > limit if comparison == '>' else observed >= limit):
+                breaches.append({'metric': metric['operation'] + '.' + name,
+                                 'observed': observed, 'limit': limit, 'comparison': comparison})
     if not valid:
         for metric in metrics:
             metric['state'] = 'No evaluado'
@@ -47,6 +61,7 @@ def assess(data, exit_code):
             'warmup_seconds': config.get('warmup_seconds'), 'measurement_seconds': config.get('measurement_seconds'),
             'observed_measurement_span_seconds': span, 'k6_exit_code': exit_code,
             'state': status, 'valid_evidence': valid, 'measured_vus': participation,
+            'observed_performance_breaches': breaches,
             'flow_p95_ms': p95, 'flow_error_rate': errors,
             'flow_avg_ms': values(data, 'flow_ms').get('avg'),
             'measured_requests': values(data, 'measured_requests').get('count', 0),
@@ -62,7 +77,7 @@ def write_report(directory, metadata, runs):
     document = {'metadata': metadata, 'runs': runs,
                 'coverage': {'RNF-016': 'Parcial: listado HTTP; búsquedas, filtros y orden se ejecutan en Angular y no se cronometraron.',
                              'RNF-017': 'HTTP: detalle con variantes, reseñas e imágenes; no visualización en navegador.',
-                             'RNF-018': 'CRUD carrito/favoritos; lectura y preferencias de perfil; alta/lectura de direcciones. No hay edición/borrado de direcciones en API.',
+                             'RNF-018': 'CRUD carrito/favoritos; lectura y preferencias de perfil. Se miden la creación y consulta de direcciones; la edición, eliminación y selección de dirección predeterminada quedan fuera del alcance de este escenario de carga.',
                              'RNF-024': 'Comparación 50/100 solo de los escenarios ejecutados; no de todos los CU.',
                              'RNF-019..023': 'No evaluados en esta implementación. Checkout legado no se ejecuta.'}}
     (directory/'performance-summary.json').write_text(json.dumps(document, indent=2, ensure_ascii=False)+'\n')
@@ -109,6 +124,11 @@ def write_report(directory, metadata, runs):
                      f'<p>P95 del flujo frente al límite de RNF-024: 4.000 ms</p><div class="track"><div style="width:{width:.2f}%"></div></div>'
                      + '<p>Recorrido: '+('listado, detalle, reseñas, calificación e imágenes.' if run['scenario']=='catalog' else 'carrito completo, favoritos, lectura y preferencias del perfil, alta y lectura de direcciones, ejecutados en secuencia. El límite de 2.000 ms se evalúa por operación; el de 4.000 ms se aplica a este recorrido completo, más exigente que cada funcionalidad aislada.')+'</p>'
                      + (('<p><b>Umbrales incumplidos:</b> '+esc(', '.join(m['operation'] for m in run.get('metrics',[]) if m['state']=='No cumple'))+'</p>') if any(m['state']=='No cumple' for m in run.get('metrics',[])) else '')
+                     + ('<p><b>Incumplimientos de rendimiento observados (independientes de la validez contractual):</b> '
+                        + esc('; '.join(f"{b['metric']}: {b['observed']:.6g} {b['comparison']} {b['limit']}"
+                                        for b in run.get('observed_performance_breaches', [])))
+                        + '. Esta lista no cambia el estado ni acredita cumplimiento.</p>'
+                        if run.get('observed_performance_breaches') else '')
                      +
                      '<details><summary>Operaciones, muestras y umbrales</summary><div class="scroll"><table><thead><tr>'
                      +''.join('<th>'+x+'</th>' for x in ['Operación','RNF','Intentos','Éxitos','Media ms','P95 ms','Máximo ms','Error %','Límite P95 ms','Estado'])

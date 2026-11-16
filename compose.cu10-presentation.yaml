@@ -1,0 +1,5 @@
+# Sólo CU10: adaptador externo de prueba existente, sin servicios productivos.
+services:
+  backend:
+    environment:
+      NOTIFICATIONS_SIMULATED_MODE: ${CU10_NOTIFICATION_MODE:-OK}

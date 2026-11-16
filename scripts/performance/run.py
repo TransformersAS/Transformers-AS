@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import re
+import secrets
 import signal
 import subprocess
 import tempfile
@@ -14,20 +15,68 @@ import time
 import uuid
 from seed import assets, sql, PASSWORD, HASH
 from report import assess, write_report
+from diagnostics import Observer, nginx_template, nginx_timing
 
 ROOT = Path(__file__).resolve().parents[2]
 PROJECT = 'rnf-perf-' + uuid.uuid4().hex[:12]
 OUT = ROOT/'artifacts/performance'/PROJECT
 ENV = {k:v for k,v in os.environ.items() if k in ('PATH','HOME','TMPDIR','DOCKER_CONFIG')}
 ENV.update(COMPOSE_DISABLE_ENV_FILE='1', PERF_ASSETS_DIR=str(OUT/'assets'), PERF_RESULTS_DIR=str(OUT/'results'))
+ENV.update(PERF_METRICS_TOKEN=secrets.token_urlsafe(32), PERF_NGINX_TEMPLATE=str(OUT/'nginx.performance.template'))
 COMPOSE = ['docker','compose','--env-file','/dev/null','-f',str(ROOT/'compose.performance.yaml'),'-p',PROJECT]
+
+
+def sanitize_environment_log(text):
+    """Keep technical messages/stack frames, not headers, payloads or quoted values."""
+    for secret in (PASSWORD, HASH, 'performance_db_only', 'performance_root_only', ENV['PERF_METRICS_TOKEN']):
+        text = text.replace(secret, '[REDACTED]')
+    safe = []
+    sensitive = re.compile(r'password|passwd|cookie|authorization|csrf|token|secret|credential|'
+                           r'full.?name|recipient|birth.?date|street|phone|payload|request.?body|parameters', re.I)
+    for line in text.splitlines():
+        timing = nginx_timing(line)
+        if timing is not None:
+            safe.append(timing)
+            continue
+        if sensitive.search(line):
+            # Retain only the Docker timestamp, never the potentially sensitive message.
+            stamp = re.search(r'\d{4}-\d\d-\d\dT[\d:.]+(?:Z|[+-]\d\d:\d\d)', line)
+            safe.append((stamp.group(0) + ' ' if stamp else '') + '[SENSITIVE LOG LINE OMITTED]')
+            continue
+        line = re.sub(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\b', '[EMAIL]', line)
+        line = re.sub(r'\b\d{1,3}(?:\.\d{1,3}){3}\b', '[IP]', line)
+        line = re.sub(r'([/][^\s?"\']*)\?[^\s"\']*', r'\1?[REDACTED]', line)
+        line = re.sub(r'"[^"\n]*"|\'[^\'\n]*\'', '[QUOTED VALUE OMITTED]', line)
+        safe.append(line)
+    return '\n'.join(safe) + '\n'
+
+
+def collect_environment_logs(label):
+    """Project-scoped, bounded snapshots; a diagnostic failure must not prevent cleanup."""
+    records = []
+    for service in ('backend', 'frontend', 'mysql'):
+        record = {'service': service, 'file': f'{label}-{service}.log', 'tail_lines': 1000,
+                  'max_bytes': 512 * 1024, 'captured_at': dt.datetime.now(dt.timezone.utc).isoformat()}
+        try:
+            result = cmd(COMPOSE + ['logs', '--no-color', '--timestamps', '--tail', '1000', service],
+                         timeout=30, check=False)
+            safe = sanitize_environment_log(result.stdout + '\n' + result.stderr).encode('utf-8')
+            record.update(exit_code=result.returncode, truncated=len(safe) > record['max_bytes'])
+            content = safe[-record['max_bytes']:].decode('utf-8', errors='ignore')
+            (OUT / record['file']).write_text(content, encoding='utf-8')
+            record['saved_bytes'] = len(content.encode('utf-8'))
+        except Exception as error:
+            # Exception text can embed a command or raw output; persist only its type.
+            record['capture_error'] = type(error).__name__
+        records.append(record)
+    save(label + '-environment-logs.json', records)
 
 
 def cmd(args, input=None, timeout=120, check=True):
     r = subprocess.run(args,cwd=ROOT,env=ENV,input=input,text=True,capture_output=True,timeout=timeout)
     if check and r.returncode:
         detail=(r.stderr or r.stdout)[-1800:]
-        for secret in (PASSWORD,HASH,'performance_db_only','performance_root_only'):
+        for secret in (PASSWORD,HASH,'performance_db_only','performance_root_only',ENV['PERF_METRICS_TOKEN']):
             detail=detail.replace(secret,'[REDACTED]')
         raise RuntimeError('Comando fallido '+ ' '.join(args[:3])+' exit='+str(r.returncode)+' '+detail)
     return r
@@ -54,6 +103,8 @@ def capacity():
     cpu=sum(float(r['CPUPerc'].strip('%')) for r in rows)
     return {'docker_memory_bytes':info['MemTotal'],'docker_cpus':info['NCPU'],
             'estimated_free_bytes':info['MemTotal']-used,'cpu_percent_of_one_core':cpu,
+            'own_cpu_percent_of_one_core':sum(float(r['CPUPerc'].strip('%')) for r in rows if r['Name'].startswith(PROJECT)),
+            'external_cpu_percent_of_one_core':sum(float(r['CPUPerc'].strip('%')) for r in rows if not r['Name'].startswith(PROJECT)),
             'own_services':[{'service':r['Name'].replace(PROJECT,'test'), 'cpu_percent':r['CPUPerc'],
                              'memory':r['MemUsage']} for r in rows if r['Name'].startswith(PROJECT)]}
 
@@ -78,7 +129,8 @@ def isolation(config):
         if not service.get('mem_limit') or not service.get('cpus'):
             raise RuntimeError('Faltan límites de recursos')
         for volume in service.get('volumes',[]):
-            if volume['type']!='bind' or volume['target'] not in ('/scripts','/results','/usr/share/nginx/html/performance'):
+            if volume['type']!='bind' or volume['target'] not in ('/scripts','/results','/usr/share/nginx/html/performance',
+                                                               '/etc/nginx/templates/default.conf.template'):
                 raise RuntimeError('Montaje ajeno')
     if '/var/lib/mysql' not in config['services']['mysql'].get('tmpfs',[]):
         raise RuntimeError('MySQL requiere tmpfs')
@@ -88,11 +140,15 @@ def isolation(config):
               'SPRING_MAIL_HOST':'','NOTIFICATIONS_QUEUE_ENABLED':'false','NOTIFICATIONS_PUSH_ENABLED':'false',
               'LOGISTICS_TRACKING_POLLING_ENABLED':'false','LOGISTICS_PROVIDER':'simulated','NOTIFICATIONS_PROVIDER':'simulated'}
     if any(str(backend.get(k))!=v for k,v in expected.items()):raise RuntimeError('Proveedor/BD fuera del alcance')
+    if backend.get('METRICS_TOKEN') != ENV['PERF_METRICS_TOKEN']:raise RuntimeError('Missing private performance metrics credential')
     for service in config['services'].values():
         for volume in service.get('volumes',[]):
             expected_source={'/scripts':str(ROOT/'scripts/k6'),'/results':str(OUT/'results'),
-                             '/usr/share/nginx/html/performance':str(OUT/'assets')}[volume['target']]
+                             '/usr/share/nginx/html/performance':str(OUT/'assets'),
+                             '/etc/nginx/templates/default.conf.template':ENV['PERF_NGINX_TEMPLATE']}[volume['target']]
             if volume['source']!=expected_source:raise RuntimeError('Directorio ajeno al proyecto')
+            if volume['target']=='/etc/nginx/templates/default.conf.template' and not volume.get('read_only'):
+                raise RuntimeError('Performance template must be read-only')
 
 
 def verify_runtime():
@@ -137,25 +193,42 @@ def run_load(kind, vus, smoke, duration, warmup):
     started=time.monotonic()
     with tempfile.TemporaryFile(mode='w+') as log:
         process=subprocess.Popen(arguments,cwd=ROOT,env=ENV,stdout=log,stderr=subprocess.STDOUT,text=True)
+        observer=Observer(COMPOSE,PROJECT,OUT,label,cmd)
         try:
+            observer.start()
             deadline=time.monotonic()+duration+warmup+300
             while process.poll() is None:
+                sampling_start=time.monotonic()
                 sample=capacity(); sample['elapsed_seconds']=round(time.monotonic()-started,3)
+                sample['collection_seconds']=round(time.monotonic()-sampling_start,3)
                 sample['utc']=dt.datetime.now(dt.timezone.utc).isoformat();samples.append(sample)
                 if not safe_capacity(sample) or time.monotonic()>deadline:
+                    save(label+'-stop.json',{'utc':sample['utc'], 'sample':sample,
+                         'cpu_limit':sample['docker_cpus']*70, 'minimum_free_bytes':700*1024**2,
+                         'cpu_exceeded':sample['cpu_percent_of_one_core']>=sample['docker_cpus']*70,
+                         'memory_insufficient':sample['estimated_free_bytes']<700*1024**2,
+                         'deadline_exceeded':time.monotonic()>deadline})
                     process.terminate()
                     raise RuntimeError('Carga detenida por presión de recursos o timeout')
                 time.sleep(4)
             code=process.returncode
         finally:
-            if process.poll() is None:
-                process.terminate()
-                process.wait(timeout=30)
-            log.seek(0)
-            safe=log.read().replace(PASSWORD,'[REDACTED]')
-            safe=re.sub(r'perf\d+@example\.test','[CUENTA_FICTICIA]',safe)
-            (OUT/(label+'.log')).write_text(safe)
-    save(label+'-resources.json',samples)
+            try:
+                if process.poll() is None:
+                    process.terminate()
+                    process.wait(timeout=30)
+            finally:
+                save(label+'-diagnostics-status.json',observer.stop())
+                log.seek(0)
+                safe=log.read().replace(PASSWORD,'[REDACTED]')
+                safe=re.sub(r'perf\d+@example\.test','[CUENTA_FICTICIA]',safe)
+                (OUT/(label+'.log')).write_text(safe)
+                # Preserve partial evidence even if sampling or process termination fails.
+                save(label+'-resources.json',samples)
+                try:
+                    collect_environment_logs(label)
+                except Exception as error:
+                    print('Environment log capture: ' + type(error).__name__, flush=True)
     path=OUT/'results'/(label+'.json')
     if not path.exists():raise RuntimeError('k6 no produjo resumen: '+label)
     result=assess(json.loads(path.read_text()),code)
@@ -173,6 +246,7 @@ def main():
     if args.duration<30 or args.warmup<5:parser.error('Medición >=30s y calentamiento >=5s; no alteran límites RNF')
     OUT.mkdir(parents=True);(OUT/'results').mkdir(mode=0o777);os.chmod(OUT/'results',0o777)
     assets(OUT/'assets')
+    Path(ENV['PERF_NGINX_TEMPLATE']).write_text(nginx_template((ROOT/'frontend/nginx.conf').read_text()))
     metadata={'project':PROJECT,'started_utc':dt.datetime.now(dt.timezone.utc).isoformat(),
               'revision':os.environ.get('GITHUB_SHA','local-no-verificada-sin-git'),
               'dataset':{'active_products':1000,'independent_buyers':100,'reviews':26,
@@ -225,11 +299,12 @@ def main():
         print('Validación detenida: '+metadata['risks'][-1],flush=True)
     finally:
         if owned:
-            if code==3:
-                diagnostics=cmd(COMPOSE+['logs','--no-color','--tail','70','mysql'],check=False).stdout
-                for secret in (PASSWORD,HASH,'performance_db_only','performance_root_only'):
-                    diagnostics=diagnostics.replace(secret,'[REDACTED]')
-                (OUT/'environment-failure.log').write_text(diagnostics)
+            # Always capture all three own services, including successful and invalid runs.
+            # Cleanup still runs if collecting diagnostics fails.
+            try:
+                collect_environment_logs('final')
+            except Exception as error:
+                metadata['risks'].append('Environment log capture: ' + type(error).__name__)
             clean=cmd(COMPOSE+['--profile','load','down','--volumes','--remove-orphans','--rmi','local'],check=False,timeout=180)
             remaining={k:ids(k) for k in ('container','network','volume')}
             metadata['cleanup']={'exit_code':clean.returncode,'remaining':remaining,'passed':clean.returncode==0 and not any(remaining.values())}

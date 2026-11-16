@@ -1,0 +1,5 @@
+# Únicamente el proyecto desechable CU08; la recuperación real requiere remitente.
+services:
+  backend:
+    environment:
+      PASSWORD_RECOVERY_FROM: recovery@example.test
