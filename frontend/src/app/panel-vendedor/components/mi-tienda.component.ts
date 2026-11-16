@@ -187,41 +187,51 @@ interface CambioImagen {
                     <ion-input label="Nombre de la tienda" labelPlacement="stacked" name="nombre"
                       [(ngModel)]="borrador.name" [counter]="true" [maxlength]="limites.nombre"
                       helperText="Obligatorio. Debe ser distinto al de otras tiendas."
-                      [class.ion-invalid]="!!errores.name" [class.ion-touched]="!!errores.name"
-                      [errorText]="errores.name"></ion-input>
+                      [class.ion-invalid]="!!errores.name" [class.ion-touched]="!!errores.name"></ion-input>
                   </ion-item>
+                  @if (errores.name) {
+                    <p class="error-campo" id="error-name" role="alert">{{ errores.name }}</p>
+                  }
 
                   <ion-item>
                     <ion-textarea label="Descripción" labelPlacement="stacked" name="descripcion" [rows]="3"
                       [(ngModel)]="borrador.description" [counter]="true" [maxlength]="limites.descripcion"
                       helperText="Opcional. Cuéntales a tus compradores qué vendes."
-                      [class.ion-invalid]="!!errores.description" [class.ion-touched]="!!errores.description"
-                      [errorText]="errores.description"></ion-textarea>
+                      [class.ion-invalid]="!!errores.description" [class.ion-touched]="!!errores.description"></ion-textarea>
                   </ion-item>
+                  @if (errores.description) {
+                    <p class="error-campo" id="error-description" role="alert">{{ errores.description }}</p>
+                  }
 
                   <ion-item>
                     <ion-input label="Correo de contacto" labelPlacement="stacked" name="correo" type="email"
                       inputmode="email" [(ngModel)]="borrador.contactEmail"
                       helperText="Opcional. Ejemplo: ventas@mitienda.com"
-                      [class.ion-invalid]="!!errores.contactEmail" [class.ion-touched]="!!errores.contactEmail"
-                      [errorText]="errores.contactEmail"></ion-input>
+                      [class.ion-invalid]="!!errores.contactEmail" [class.ion-touched]="!!errores.contactEmail"></ion-input>
                   </ion-item>
+                  @if (errores.contactEmail) {
+                    <p class="error-campo" id="error-contactEmail" role="alert">{{ errores.contactEmail }}</p>
+                  }
 
                   <ion-item>
                     <ion-input label="Teléfono de contacto" labelPlacement="stacked" name="telefono" type="tel"
                       inputmode="tel" [(ngModel)]="borrador.contactPhone"
                       helperText="Opcional. De 7 a 15 dígitos. Ejemplo: +57 300 123 4567"
-                      [class.ion-invalid]="!!errores.contactPhone" [class.ion-touched]="!!errores.contactPhone"
-                      [errorText]="errores.contactPhone"></ion-input>
+                      [class.ion-invalid]="!!errores.contactPhone" [class.ion-touched]="!!errores.contactPhone"></ion-input>
                   </ion-item>
+                  @if (errores.contactPhone) {
+                    <p class="error-campo" id="error-contactPhone" role="alert">{{ errores.contactPhone }}</p>
+                  }
 
                   <ion-item>
                     <ion-textarea label="Horarios de atención" labelPlacement="stacked" name="horarios" [rows]="3"
                       [(ngModel)]="borrador.businessHours" [counter]="true" [maxlength]="limites.horarios"
                       helperText="Opcional. Ejemplo: Lunes a viernes de 8:00 a 18:00"
-                      [class.ion-invalid]="!!errores.businessHours" [class.ion-touched]="!!errores.businessHours"
-                      [errorText]="errores.businessHours"></ion-textarea>
+                      [class.ion-invalid]="!!errores.businessHours" [class.ion-touched]="!!errores.businessHours"></ion-textarea>
                   </ion-item>
+                  @if (errores.businessHours) {
+                    <p class="error-campo" id="error-businessHours" role="alert">{{ errores.businessHours }}</p>
+                  }
 
                   <h3>Política de devoluciones</h3>
                   <p class="nota">Las políticas de tu tienda no pueden contradecir las reglas obligatorias del
@@ -233,17 +243,21 @@ interface CambioImagen {
                       inputmode="numeric" step="1" [min]="tienda.minReturnWindowDays" [max]="limites.plazoMaximo"
                       [value]="borrador.returnWindowDays" (ionInput)="cambiarPlazo($event)"
                       [helperText]="'Mínimo ' + tienda.minReturnWindowDays + ' días, máximo ' + limites.plazoMaximo + '.'"
-                      [class.ion-invalid]="!!errores.returnWindowDays" [class.ion-touched]="!!errores.returnWindowDays"
-                      [errorText]="errores.returnWindowDays"></ion-input>
+                      [class.ion-invalid]="!!errores.returnWindowDays" [class.ion-touched]="!!errores.returnWindowDays"></ion-input>
                   </ion-item>
+                  @if (errores.returnWindowDays) {
+                    <p class="error-campo" id="error-returnWindowDays" role="alert">{{ errores.returnWindowDays }}</p>
+                  }
 
                   <ion-item>
                     <ion-textarea label="Texto de la política" labelPlacement="stacked" name="politica" [rows]="4"
                       [(ngModel)]="borrador.policyText" [counter]="true" [maxlength]="limites.politica"
                       helperText="Opcional. Condiciones adicionales de cambios y devoluciones."
-                      [class.ion-invalid]="!!errores.policyText" [class.ion-touched]="!!errores.policyText"
-                      [errorText]="errores.policyText"></ion-textarea>
+                      [class.ion-invalid]="!!errores.policyText" [class.ion-touched]="!!errores.policyText"></ion-textarea>
                   </ion-item>
+                  @if (errores.policyText) {
+                    <p class="error-campo" id="error-policyText" role="alert">{{ errores.policyText }}</p>
+                  }
 
                   <fieldset class="envios" [class.con-error]="!!errores.shippingMethods">
                     <legend>Métodos de envío</legend>
@@ -374,6 +388,8 @@ interface CambioImagen {
     .envios.con-error { border-color: #b3261e; }
     .envios legend { padding: 0 0.25rem; font-weight: 600; }
     .error-campo { margin: 0.25rem 0 0; color: #b3261e; font-size: 0.85rem; }
+    /* Los errores de los campos de texto van bajo su ion-item, alineados con la etiqueta. */
+    form > .error-campo { padding: 0 1rem; }
     .tenue { color: #667b80; font-size: 0.85rem; }
     .imagenes { margin: 1rem 0; padding: 0.5rem 0.75rem; border: 1px solid #d8dee4; border-radius: 0.5rem; }
     .imagenes legend { padding: 0 0.25rem; font-weight: 600; }

@@ -9,7 +9,7 @@
 # Le agrega a la tienda 1 los dos antecedentes confirmados que CU-22 muestra, así la evaluación sale como
 # «Reincidente» en vez de vacía:
 #   - una reclamación resuelta por soporte con reembolso (sobre el pedido entregado demo-datos-05)
-#   - una decisión de moderación RETIRAR sobre «Publicación retirada demo CU-22» (producto inactivo, propio del
+#   - una decisión de moderación RETIRAR sobre «Juego de ollas antiadherentes» (producto inactivo, propio del
 #     script, para no ocultar nada del catálogo demo)
 #
 # Es repetible: no duplica nada. Con RESET_RESTRICTIONS=1 además borra todas las restricciones y solicitudes de
@@ -44,25 +44,35 @@ fi
 sql() {
   cat <<'SQL'
 SET @ahora = NOW(6);
+SET @reclamo = 'El producto llegó roto y la tienda no respondió.';
+SET @producto = 'Juego de ollas antiadherentes';
+SET @motivo = 'La publicación ofrecía un producto falsificado.';
+
+-- Los textos visibles son realistas para la sustentación. Lo que evita duplicar va en datos que no se muestran:
+-- el pedido demo-datos-05 para la reclamación y agent_id = 'demo-cu22' para la moderación.
+-- Versiones anteriores del script escribían «Demo CU-22» en los textos; se renombran en vez de duplicarse.
+UPDATE claims SET description = @reclamo WHERE description LIKE 'Demo CU-22:%';
+UPDATE products SET name = @producto WHERE name = 'Publicación retirada demo CU-22' AND store_id = 1;
+UPDATE moderation_actions SET justification = @motivo WHERE agent_id = 'demo-cu22';
 
 -- Antecedente 1: reclamación del pedido entregado demo-datos-05 que soporte resolvió con reembolso.
 INSERT INTO claims (order_id, product_id, product_name, item_total, buyer_account_id, store_id, description, status,
                     resolution, resolution_note, refund_amount, created_at, updated_at)
 SELECT o.id, i.product_id, i.product_name, i.subtotal, o.account_id, o.store_id,
-       'Demo CU-22: el producto llegó roto y la tienda no respondió.', 'RESOLVED', 'REFUND_GRANTED',
+       @reclamo, 'RESOLVED', 'REFUND_GRANTED',
        'Soporte confirmó el daño con las fotos del comprador.', i.subtotal,
        @ahora - INTERVAL 12 DAY, @ahora - INTERVAL 10 DAY
 FROM orders o
 JOIN order_items i ON i.order_id = o.id
 WHERE o.transaction_id = 'demo-datos-05'
-  AND NOT EXISTS (SELECT 1 FROM claims c WHERE c.description LIKE 'Demo CU-22:%')
+  AND NOT EXISTS (SELECT 1 FROM claims c WHERE c.order_id = o.id AND c.description = @reclamo)
 LIMIT 1;
 
--- Antecedente 2: publicación de la tienda 1 que moderación retiró.
+-- Antecedente 2: publicación inactiva de la tienda 1 que moderación retiró (no aparece en el catálogo).
 INSERT INTO products (name, price, stock, category, active, store_id)
-SELECT 'Publicación retirada demo CU-22', 30000, 0, 'Hogar', FALSE, 1 FROM DUAL
-WHERE NOT EXISTS (SELECT 1 FROM products WHERE name = 'Publicación retirada demo CU-22');
-SET @retirado = (SELECT id FROM products WHERE name = 'Publicación retirada demo CU-22');
+SELECT @producto, 30000, 0, 'Hogar', FALSE, 1 FROM DUAL
+WHERE NOT EXISTS (SELECT 1 FROM products WHERE name = @producto AND store_id = 1);
+SET @retirado = (SELECT MIN(id) FROM products WHERE name = @producto AND store_id = 1);
 
 INSERT INTO moderation_cases (content_type, content_id, status, report_count, open_key, version, opened_at, resolved_at)
 SELECT 'PUBLICACION', CAST(@retirado AS CHAR), 'RESUELTO', 1, NULL, 0, @ahora - INTERVAL 30 DAY, @ahora - INTERVAL 28 DAY
@@ -73,7 +83,7 @@ SET @caso = (SELECT MAX(id) FROM moderation_cases WHERE content_type = 'PUBLICAC
 
 INSERT INTO moderation_actions (case_id, agent_id, decision, justification, previous_status, new_status,
                                 measure_result, created_at)
-SELECT @caso, 'demo-cu22', 'RETIRAR', 'Demo CU-22: la publicación ofrecía un producto falsificado.',
+SELECT @caso, 'demo-cu22', 'RETIRAR', @motivo,
        'EN_REVISION', 'RESUELTO', 'APLICADA', @ahora - INTERVAL 28 DAY
 FROM DUAL
 WHERE NOT EXISTS (SELECT 1 FROM moderation_actions WHERE agent_id = 'demo-cu22');
