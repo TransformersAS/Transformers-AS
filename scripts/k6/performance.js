@@ -94,6 +94,43 @@ let failed = false;
 let elapsed = 0;
 let phase = 'warmup';
 let headers = {};
+// Diagnostic state only; never controls requests, contracts or metric recording.
+let cartFailures = {};
+const outcomes = {};
+function transportError(response) {
+  if (!response.error) return null;
+  // Do not echo k6's free-form error: it can contain URLs or credentials.
+  const text = String(response.error).toLowerCase();
+  return text.includes('timeout') ? 'request_timeout'
+    : text.includes('refused') ? 'connection_refused'
+    : text.includes('reset') ? 'connection_reset'
+    : text.includes('tls') ? 'tls_error' : 'transport_error';
+}
+function failureDiagnostic(name, response, expected, statusOk, contractException, diagnostic) {
+  const prior = (diagnostic.dependencies || []).filter(Boolean);
+  let conditions = [];
+  if (statusOk && diagnostic.contractConditions) {
+    try {
+      // Only static condition names and booleans; never persist the response or its values.
+      conditions = Object.entries(diagnostic.contractConditions(json(response)))
+        .filter(([, ok]) => !ok).map(([condition]) => condition);
+    } catch (_) { conditions = ['contract_diagnostic_unavailable']; }
+  }
+  console.warn('PERF_FAILURE ' + JSON.stringify({
+    operation: name, vu: __VU, iteration: __ITER, timestamp: new Date().toISOString(), phase,
+    expected_status: expected, received_status: response.status,
+    transport_error: transportError(response), transport_error_code: response.error_code || null,
+    response_ms: response.timings.duration,
+    http_status_failed: !statusOk, contract_failed: statusOk,
+    contract_check: statusOk ? name + '_response_contract' : null,
+    contract_exception: contractException,
+    failed_contract_conditions: conditions,
+    prior_failed_operations: prior,
+    dependency_condition_failed: !!diagnostic.requiredValueMissing,
+    dependency_impact: diagnostic.requiredValueMissing ? 'required_value_unavailable'
+      : prior.length ? 'prior_failure_effect_unknown' : 'none',
+  }));
+}
 function record(name, milliseconds, valid, contractFailure, isHttp = true) {
   if (phase !== 'measurement') return;
   metrics[name].attempts.add(1); metrics[name].duration.add(milliseconds);
@@ -104,13 +141,21 @@ function record(name, milliseconds, valid, contractFailure, isHttp = true) {
   }
   span.add(Date.now() - exec.scenario.startTime - warm * 1000);
 }
-function request(name, method, path, body, expected, contract, binary = false) {
+function request(name, method, path, body, expected, contract, binary = false, diagnostic = {}) {
   const params = { jar, headers, timeout: '10s', tags: { name, phase, rnf: definitions[name][1] } };
   if (binary) params.responseType = 'binary';
   const r = http.request(method, `${BASE_URL}${path}`, body === null ? null : JSON.stringify(body), params);
   const statusOk = r.status === expected;
   let valid = false;
-  try { valid = statusOk && contract(binary ? r.body : json(r)); } catch (_) { valid = false; }
+  let contractException = false;
+  try { valid = statusOk && contract(binary ? r.body : json(r)); }
+  catch (_) { valid = false; contractException = true; }
+  if (!valid) failureDiagnostic(name, r, expected, statusOk, contractException, diagnostic);
+  outcomes[name] = { operation: name, iteration: __ITER, failed: !valid };
+  if (['cart_create', 'cart_update', 'cart_delete'].includes(name)) {
+    if (name === 'cart_delete' && valid) cartFailures = {};
+    else if (!valid) cartFailures[name] = outcomes[name];
+  }
   if (phase === 'measurement') {
     record(name, r.timings.duration, valid, statusOk && !valid);
     check(r, { [name + ': estado y contrato']: () => valid });
@@ -147,16 +192,24 @@ function resources(data) {
   const email = data.accounts[__VU - 1].email;
   const product = 100 + __VU; // Producto por VU; identidad, carrito y favoritos también separados.
   const item = request('cart_create', 'POST', '/api/cart/items', { productId: product, quantity: 1 }, 201,
-    x => x && x.id > 0 && x.productId === product && x.quantity === 1);
+    x => x && x.id > 0 && x.productId === product && x.quantity === 1, false,
+    { dependencies: Object.values(cartFailures) });
   request('cart_read', 'GET', '/api/cart', null, 200,
-    x => x && Array.isArray(x.items) && x.items.length === 1 && x.items[0].productId === product);
+    x => x && Array.isArray(x.items) && x.items.length === 1 && x.items[0].productId === product, false,
+    { dependencies: Object.values(cartFailures), contractConditions: x => ({
+      items_array: !!x && Array.isArray(x.items), exactly_one_item: !!x && Array.isArray(x.items) && x.items.length === 1,
+      expected_product: !!x && Array.isArray(x.items) && !!x.items[0] && x.items[0].productId === product,
+    }) });
   if (item) {
-    request('cart_update', 'PATCH', `/api/cart/items/${item.id}`, { quantity: 2 }, 200, x => x && x.quantity === 2);
-    request('cart_delete', 'DELETE', `/api/cart/items/${item.id}`, null, 204, () => true);
+    request('cart_update', 'PATCH', `/api/cart/items/${item.id}`, { quantity: 2 }, 200, x => x && x.quantity === 2, false, { dependencies: Object.values(cartFailures) });
+    request('cart_delete', 'DELETE', `/api/cart/items/${item.id}`, null, 204, () => true, false, { dependencies: Object.values(cartFailures) });
   }
   request('favorite_save', 'PUT', `/api/favorites/${product}`, null, 200, () => true);
   request('favorite_read', 'GET', '/api/favorites', null, 200,
-    x => Array.isArray(x) && x.some(p => p.id === product));
+    x => Array.isArray(x) && x.some(p => p.id === product), false,
+    { dependencies: outcomes.favorite_save.failed ? [outcomes.favorite_save] : [], contractConditions: x => ({
+      favorites_array: Array.isArray(x), expected_product_present: Array.isArray(x) && x.some(p => p.id === product),
+    }) });
   request('favorite_delete', 'DELETE', `/api/favorites/${product}`, null, 200, () => true);
   const profile = request('profile_read', 'GET', '/api/account/profile', null, 200,
     x => x && x.email === email && Number.isInteger(x.version));
@@ -171,7 +224,13 @@ function resources(data) {
   }, 201, x => x && x.id > 0 && x.recipientName === `Carga ${__VU}`);
   request('address_read', 'GET', '/api/addresses', null, 200,
     x => Array.isArray(x) && address && x.some(a => a.id === address.id)
-      && x.every(a => a.recipientName === `Carga ${__VU}` || a.recipientName === `Fixture ${__VU}`));
+      && x.every(a => a.recipientName === `Carga ${__VU}` || a.recipientName === `Fixture ${__VU}`), false,
+    { dependencies: outcomes.address_create.failed ? [outcomes.address_create] : [], requiredValueMissing: !address,
+      contractConditions: x => ({
+        addresses_array: Array.isArray(x), created_address_available: !!address,
+        created_address_present: Array.isArray(x) && !!address && x.some(a => a.id === address.id),
+        expected_recipients: Array.isArray(x) && x.every(a => a.recipientName === `Carga ${__VU}` || a.recipientName === `Fixture ${__VU}`),
+      }) });
 }
 export default function(data) {
   if (!initialized && kind === 'resources') {
@@ -195,6 +254,9 @@ export default function(data) {
   sleep(0.25);
 }
 export function handleSummary(data) {
+  // k6 includes setup return data (cookies, CSRF and identities) in the summary object.
+  // It is not a metric and must not become a persisted authentication credential.
+  delete data.setup_data;
   data.performance = { scenario: kind, vus, warmup_seconds: warm, measurement_seconds: duration,
     minimum_samples: smoke ? 1 : 20, run_kind: smoke ? 'smoke' : 'measurement',
     operations: definitions, scope: 'HTTP; no renderizado ni filtros locales Angular' };
