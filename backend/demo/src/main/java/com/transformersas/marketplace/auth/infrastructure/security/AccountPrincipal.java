@@ -43,6 +43,13 @@ public final class AccountPrincipal extends User {
         return refreshed;
     }
 
+    /** Same identity without an active role, so role-protected endpoints answer 403 (CU-22 restrictions). */
+    public AccountPrincipal withoutActiveRole() {
+        var cleared = new AccountPrincipal(accountId, getUsername(), "", isEnabled(), roles, null);
+        cleared.eraseCredentials();
+        return cleared;
+    }
+
     public AccountPrincipal withActiveRole(Role role) {
         if (role == null || !roles.contains(role)) throw new IllegalArgumentException("Rol no disponible");
         var selected = new AccountPrincipal(accountId, getUsername(), "", isEnabled(), roles, role);

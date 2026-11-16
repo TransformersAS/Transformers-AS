@@ -185,7 +185,14 @@ export class AccesoComponent {
     if (!rol || rol === this.auth.cuenta()?.activeRole) return;
     this.ejecutar(this.auth.cambiarRol(rol), () => {
       this.exito = 'Rol activo actualizado.';
-    }, 'No se pudo cambiar el rol activo.');
+    }, 'No se pudo cambiar el rol activo.', e => this.rolRestringido(e));
+  }
+
+  /** CU-22: el rol (o la cuenta) tiene una restricción vigente; el mensaje del servidor remite a «Mi cuenta». */
+  private rolRestringido(e: HttpErrorResponse): boolean {
+    if (e.status !== 403 || e.error?.code !== 'ROLE_RESTRICTED') return false;
+    this.error = e.error.message ?? 'Este rol tiene una restricción vigente. Consulta los detalles en «Mi cuenta».';
+    return true;
   }
 
   salir(): void {

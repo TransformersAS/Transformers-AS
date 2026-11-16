@@ -7,6 +7,7 @@ import org.springframework.security.web.context.SecurityContextHolderFilter;
 import com.transformersas.marketplace.auth.infrastructure.security.EmailNotVerifiedException;
 import com.transformersas.marketplace.auth.infrastructure.security.LoginSessionPolicy;
 import com.transformersas.marketplace.auth.infrastructure.security.LoginAttemptGuard;
+import com.transformersas.marketplace.users.domain.port.AccountRestrictionReader;
 import com.transformersas.marketplace.users.domain.repository.UserAccountRepository;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -88,13 +89,14 @@ public class SecurityConfiguration {
     SecurityFilterChain securityFilterChain(HttpSecurity http, DaoAuthenticationProvider provider,
                                             SecurityContextRepository contexts, LoginSessionPolicy sessionPolicy,
                                             UserAccountRepository accounts, LoginAttemptGuard loginAttempts,
+                                            AccountRestrictionReader restrictions,
                                             @Value("${monitoring.metrics.token:}") String metricsToken) throws Exception {
         return http
                 .cors(Customizer.withDefaults())
                 .authenticationProvider(provider)
                 .securityContext(context -> context.securityContextRepository(contexts))
                 // Only register inside Spring Security, after loading the JDBC context and before authorization.
-                .addFilterAfter(new CurrentAccountSessionFilter(accounts, contexts), SecurityContextHolderFilter.class)
+                .addFilterAfter(new CurrentAccountSessionFilter(accounts, restrictions, contexts), SecurityContextHolderFilter.class)
                 .authorizeHttpRequests(authorize -> authorize
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                         .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
@@ -169,6 +171,11 @@ public class SecurityConfiguration {
                         .usernameParameter("email")
                         .successHandler((request, response, authentication) -> {
                             var principal = (AccountPrincipal) authentication.getPrincipal();
+                            // The single-role default is not applied when CU-22 restricts that role.
+                            if (principal.activeRole() != null
+                                    && restrictions.isRestricted(principal.accountId(), principal.activeRole())) {
+                                principal = principal.withoutActiveRole();
+                            }
                             // Keep only the active role, including when the provider adds factor authorities.
                             var active = UsernamePasswordAuthenticationToken.authenticated(
                                     principal, null, principal.getAuthorities());
