@@ -8,12 +8,14 @@ import sys
 import tempfile
 import threading
 import unittest
+from unittest.mock import patch
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from report import assess, write_report
 from seed import png, sql
 from run import safe_capacity, isolation
+import run as runner
 ROOT=Path(__file__).resolve().parents[3]
 
 
@@ -56,6 +58,32 @@ class EvidenceTests(unittest.TestCase):
     def test_no_results_are_not_a_pass(self):
         self.assertEqual(assess({},3)['state'],'No evaluado')
 
+    def test_invalid_contract_keeps_observed_breaches_separate(self):
+        data=self.data()
+        data['metrics']['contract_errors']['values']['rate']=.001
+        data['metrics']['flow_ms']['values']['p(95)']=12463.7
+        data['metrics']['flow_errors']['values']['rate']=.0504
+        result=assess(data,99)
+        self.assertEqual(result['state'],'No evaluado')
+        self.assertFalse(result['valid_evidence'])
+        self.assertEqual({b['metric'] for b in result['observed_performance_breaches']},
+                         {'flow_p95_ms','flow_error_rate'})
+        with tempfile.TemporaryDirectory() as d:
+            write_report(d,{},[result])
+            page=(Path(d)/'performance-executive.html').read_text()
+            self.assertIn('No evaluado',page)
+            self.assertIn('Incumplimientos de rendimiento observados',page)
+
+    def test_historical_summary_replay_does_not_change_approval_or_metrics(self):
+        artifact=ROOT/'artifacts/performance/rnf-perf-5029cca0fe4c'
+        if not artifact.exists(): self.skipTest('Historical local evidence unavailable')
+        summary=json.loads((artifact/'performance-summary.json').read_text())
+        for previous in summary['runs']:
+            label=f"{previous['run_kind']}-{previous['scenario']}-{previous['vus']}"
+            raw=json.loads((artifact/'results'/(label+'.json')).read_text())
+            result=assess(raw,previous['k6_exit_code'])
+            self.assertEqual({k:v for k,v in result.items() if k!='observed_performance_breaches'},previous)
+
     def test_capacity_guard(self):
         self.assertFalse(safe_capacity({'estimated_free_bytes':100,'cpu_percent_of_one_core':0,'docker_cpus':10},True))
         self.assertFalse(safe_capacity({'estimated_free_bytes':4*1024**3,'cpu_percent_of_one_core':800,'docker_cpus':10}))
@@ -67,6 +95,62 @@ class EvidenceTests(unittest.TestCase):
         self.assertEqual(text.count('INSERT INTO product_reviews('),26)
         self.assertEqual(text.count('INSERT INTO addresses('),100)
         self.assertTrue(png(32).startswith(b'\x89PNG\r\n\x1a\n'))
+
+
+class RunnerDiagnosticsTests(unittest.TestCase):
+    def test_sampling_failure_still_preserves_partial_evidence_and_collects_logs(self):
+        class Process:
+            returncode=None
+            def poll(self): return self.returncode
+            def terminate(self): self.returncode=-15
+            def wait(self,timeout): return self.returncode
+        with tempfile.TemporaryDirectory() as d, patch.object(runner,'OUT',Path(d)), \
+                patch.object(runner,'reset'), patch.object(runner.subprocess,'Popen',return_value=Process()), \
+                patch.object(runner,'Observer') as observer, \
+                patch.object(runner,'capacity',side_effect=RuntimeError('sampling failed')), \
+                patch.object(runner,'collect_environment_logs') as capture:
+            observer.return_value.stop.return_value={'stopped':True,'failure':None}
+            with self.assertRaisesRegex(RuntimeError,'sampling failed'):
+                runner.run_load('resources',100,False,60,10)
+            self.assertEqual(json.loads((Path(d)/'measurement-resources-100-resources.json').read_text()),[])
+            self.assertTrue((Path(d)/'measurement-resources-100.log').exists())
+            capture.assert_called_once_with('measurement-resources-100')
+
+    def test_scoped_bounded_logs_and_capture_failure_do_not_skip_other_services(self):
+        calls=[]
+        def fake_cmd(args, **kwargs):
+            calls.append((args,kwargs))
+            if args[-1]=='frontend': raise subprocess.TimeoutExpired(args,30)
+            return subprocess.CompletedProcess(args,0,stdout='x'*600000,stderr='')
+        with tempfile.TemporaryDirectory() as d, patch.object(runner,'OUT',Path(d)), patch.object(runner,'cmd',side_effect=fake_cmd):
+            runner.collect_environment_logs('measurement-resources-100')
+            manifest=json.loads((Path(d)/'measurement-resources-100-environment-logs.json').read_text())
+            self.assertEqual([m['service'] for m in manifest],['backend','frontend','mysql'])
+            self.assertEqual(manifest[1]['capture_error'],'TimeoutExpired')
+            for item in (manifest[0],manifest[2]):
+                self.assertTrue(item['truncated'])
+                self.assertLessEqual((Path(d)/item['file']).stat().st_size,512*1024)
+        for args,kwargs in calls:
+            self.assertEqual(args[:len(runner.COMPOSE)],runner.COMPOSE)
+            self.assertIn(runner.PROJECT,args)
+            self.assertEqual(args[len(runner.COMPOSE):],['logs','--no-color','--timestamps','--tail','1000',args[-1]])
+            self.assertEqual(kwargs,{'timeout':30,'check':False})
+
+    def test_environment_logs_redact_values_but_keep_technical_failure(self):
+        raw=('2026-11-16T17:42:33Z java.lang.OutOfMemoryError: Java heap space\n'
+             '2026-11-16T17:42:34Z Cookie: SESSION=private\n'
+             'password='+runner.PASSWORD+'\n'+runner.HASH+'\n'
+             'Authorization: Bearer private-token\n'
+             'email=person@example.test phone=3001234567\n'
+             '192.168.1.2 GET /api/products?credential=private\n'
+             'request: "GET /api/profile?name=private HTTP/1.1"\n'
+             "SQL error value 'Private Name'\n")
+        safe=runner.sanitize_environment_log(raw)
+        for forbidden in (runner.PASSWORD,runner.HASH,'SESSION=private','private-token','person@example.test',
+                          '3001234567','192.168.1.2','name=private','Private Name'):
+            self.assertNotIn(forbidden,safe)
+        self.assertIn('java.lang.OutOfMemoryError: Java heap space',safe)
+        self.assertIn('2026-11-16T17:42:34Z',safe)
 
 
 @unittest.skipUnless(shutil.which('k6'),'k6 local no disponible')

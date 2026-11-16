@@ -27,6 +27,8 @@ services:
       DB_USER: performance_test
       DB_PASSWORD: performance_db_only
       DB_POOL_SIZE: '20'
+      # Ephemeral read-only metrics credential; only the isolated runner supplies it.
+      METRICS_TOKEN: ${PERF_METRICS_TOKEN:?Runner requerido}
       SPRING_PROFILES_ACTIVE: ''
       SPRING_PROFILES_INCLUDE: ''
       MARKETPLACE_DEMO_DATA: 'false'
@@ -58,6 +60,7 @@ services:
       BACKEND_UPSTREAM_HOST: backend
     volumes:
       - ${PERF_ASSETS_DIR:?Runner requerido}:/usr/share/nginx/html/performance:ro
+      - ${PERF_NGINX_TEMPLATE:?Runner requerido}:/etc/nginx/templates/default.conf.template:ro
     networks: [target]
     cpus: 0.25
     mem_limit: 128m
