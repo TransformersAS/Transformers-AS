@@ -105,16 +105,37 @@ cd frontend
 npx.cmd playwright test e2e/resenas.spec.ts --project=chrome --workers=1
 ```
 
-Para ver los recorridos con Chrome visible y 700 ms entre acciones:
+Para ver un recorrido continuo con Chrome visible, 1 segundo entre acciones y
+pausas explicativas:
 
 ```powershell
 cd frontend
 npm.cmd run demo:cu05
 ```
 
-La demostración utiliza API controlada y puerto 4438: muestra la automatización de
-la interfaz y no crea reseñas en tu MySQL local. La integración real con MySQL,
-sesiones, archivos y permisos se verifica mediante las pruebas Java.
+La demostración utiliza API controlada y puerto 4438. El archivo
+`frontend/e2e-cu05-demo/resenas-demo.spec.ts` muestra un pantalón con foto local,
+su pedido entregado, validación de la calificación obligatoria, publicación con
+comentario e imagen, modificación de la reseña, consulta pública del promedio,
+filtros del vendedor, compra asociada y publicación/edición de una respuesta.
+Finalmente el comprador ve la respuesta, confirma la eliminación de su reseña
+y consulta el promedio recalculado. Todo ocurre en una misma ventana; solo se
+recarga al cambiar las sesiones controladas de comprador y vendedor.
+
+No crea reseñas en MySQL ni prueba autenticación real. El archivo adjunto usa
+una foto local de catálogo como imagen de demostración. Las respuestas HTTP,
+valoraciones, imágenes de reseña y sesiones proceden del fixture; la integración
+real con MySQL, validación de archivos y permisos se verifica mediante Java.
+Las siete regresiones originales de `e2e/resenas.spec.ts` se conservan intactas.
+
+Validación de la demostración continua, 15/11/2026:
+
+- `npm.cmd run demo:cu05`: **1 passed (1.8m)**.
+- Regresiones originales de reseñas en Chrome, un worker y puerto 4471:
+  **7 passed (11.9s)**.
+- `tsc --noEmit -p tsconfig.json`: salida 0.
+- No se modificó código de producción. Esta ejecución no vuelve a medir
+  cobertura Java ni certifica reglas del backend a partir de respuestas simuladas.
 
 ### Cobertura
 
