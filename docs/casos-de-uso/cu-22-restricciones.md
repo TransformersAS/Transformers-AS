@@ -27,6 +27,17 @@ módulo `restrictions` (backend) y en `frontend/src/app/restricciones`.
   que una suspensión de CU-27). Al cerrarse vuelve a `ACTIVE` solo si no queda otra restricción que le impida vender.
   Una tienda `SUSPENDED` no se toca: CU-27 ya la bloquea. `FindSellerAccountStanding` (users) también tiene en cuenta
   las restricciones, así CU-27 no reactiva la tienda de una cuenta restringida.
+- **Efecto sobre el acceso.** La cuenta restringida **puede iniciar sesión**, para consultar la medida y responder
+  las aclaraciones en «Mi cuenta», pero **no puede usar el rol restringido** (o ningún rol, si la restricción es de
+  toda la cuenta):
+  - `PUT /api/auth/active-role` con ese rol responde 403 `ROLE_RESTRICTED`.
+  - Al iniciar sesión, una cuenta de un solo rol restringido queda sin rol activo.
+  - Una sesión ya abierta pierde el rol en su siguiente petición: `CurrentAccountSessionFilter` consulta
+    `AccountRestrictionReader` y, si el rol activo está restringido, lo quita del principal. Sin rol activo, todos
+    los endpoints de ese rol responden 403; `/api/account/**` y `/api/auth/**` siguen disponibles.
+  - Al retirarse o vencer la restricción, el rol vuelve a poder elegirse; no se activa solo.
+  - En el frontend, una sesión sin rol activo tiene un menú con «Mi cuenta», y el cambio de rol rechazado muestra el
+    mensaje del servidor.
 - **Trazabilidad.** Cada aplicación, cambio, retiro y vencimiento queda en `account_restriction_changes` y en
   `audit_logs` (`entity_type = 'ACCOUNT'`; actor `SYSTEM` en el fin automático). La persona recibe una notificación
   interna en cada paso (`ACCOUNT_RESTRICTED`, `ACCOUNT_RESTRICTION_CHANGED`, `ACCOUNT_RESTRICTION_ENDED`,
@@ -58,7 +69,7 @@ Los cuerpos son estrictos: una propiedad desconocida responde 400. Errores con c
 `JUSTIFICATION_REQUIRED`, `INFORMATION_MESSAGE_REQUIRED`, `INFORMATION_RESPONSE_REQUIRED`,
 `RESTRICTION_DURATION_INVALID`, `RESTRICTION_DURATION_UNCHANGED`, `RESTRICTION_END_IN_PAST`,
 `RESTRICTION_SCOPE_ROLE_MISMATCH` (400, con `details.field`); `RESTRICTION_SCOPE_INVALID`, `RESTRICTION_ROLE_INVALID`
-(400); `ACCOUNT_NOT_FOUND`, `RESTRICTION_NOT_FOUND`, `INFORMATION_NOT_FOUND` (404); `ACCOUNT_ALREADY_RESTRICTED`,
+(400); `ROLE_RESTRICTED` (403, en `PUT /api/auth/active-role`); `ACCOUNT_NOT_FOUND`, `RESTRICTION_NOT_FOUND`, `INFORMATION_NOT_FOUND` (404); `ACCOUNT_ALREADY_RESTRICTED`,
 `RESTRICTION_NOT_ACTIVE`, `RESTRICTION_ALREADY_PERMANENT`, `RESTRICTION_ALREADY_TEMPORARY`, `RESTRICTION_IS_PERMANENT`,
 `RESTRICTION_CONCURRENT_UPDATE`, `INFORMATION_ALREADY_OPEN`, `INFORMATION_ALREADY_ANSWERED`, `INFORMATION_EXPIRED` (409).
 
@@ -82,16 +93,16 @@ Los cuerpos son estrictos: una propiedad desconocida responde 400. Errores con c
 - Unitarias del dominio y de los casos de uso en `src/test/java/.../restrictions/`.
 - `AccountRestrictionIntegrationTests`: de punta a punta contra MySQL (Testcontainers). Cubre antecedentes reales
   (los no confirmados no cuentan), aclaraciones y su vencimiento, restricción de rol y de cuenta con efecto sobre la
-  tienda y sobre la venta, cambios, retiro con varias restricciones a la vez, el barrido y los permisos.
+  tienda y sobre la venta, el efecto sobre el acceso (sesión abierta, nuevo inicio de sesión, cuenta de un solo rol y
+  rol recuperado al retirar), cambios, retiro con varias restricciones a la vez, el barrido y los permisos.
 - `AbstractIntegrationTest` limpia las tres tablas nuevas entre pruebas.
 
 ## Limitaciones conocidas
 
-- **Hoy la restricción solo bloquea vender.** El efecto se aplica a través de la tienda (`RESTRICTED`) y de
-  `FindSellerAccountStanding`. Una restricción de toda la cuenta o del rol `COMPRADOR`, `SOPORTE` o `ADMIN` queda
-  registrada, se notifica y la persona la ve, pero **todavía no impide** iniciar sesión, comprar, atender casos ni
-  administrar. Para hacerla efectiva falta que el inicio de sesión y la selección del rol activo consulten
-  `AccountRestrictionReader`.
+- **Una consulta más por petición.** El filtro de sesión consulta las restricciones vigentes en cada petición
+  autenticada con rol activo (sin caché, como ya hace con el estado de la cuenta).
+- **Fin automático con hasta un minuto de retraso.** El rol se recupera cuando el barrido cierra la restricción, no
+  en el instante exacto de `ends_at`.
 - **Reincidencia.** Cualquier restricción anterior cuenta, incluso una retirada antes de su fin; si se retiró por error,
   igual marca la cuenta como reincidente.
 - **Suspensión paralela.** `endRestriction` no comprueba si CU-27 tiene una suspensión vigente sobre la misma tienda;
@@ -113,7 +124,8 @@ Le da a la tienda 1 una reclamación con reembolso y una publicación retirada p
 1. `admin.demo@example.com` → menú «Administración» → «Restricciones de cuentas» → buscar `demo@marketplace.local`.
    Aparecen 2 antecedentes y la marca «Reincidente».
 2. Pedir aclaración y aplicar una restricción al rol Vendedor: la tienda 1 queda `RESTRICTED`.
-3. `demo@marketplace.local` con el rol Vendedor activo → «Mi negocio» → «Mi cuenta»: ve la restricción y responde.
+3. `demo@marketplace.local`: el rol Vendedor ya no se puede elegir (aparece el aviso) y, sin rol activo o con el de
+   Comprador, abre «Mi cuenta»: ve la restricción y responde la aclaración.
 4. De vuelta como administración: la respuesta aparece en la evaluación; retirar la restricción y la tienda vuelve a
    `ACTIVE`.
 

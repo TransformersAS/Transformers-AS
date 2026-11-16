@@ -192,10 +192,10 @@ class AccountRestrictionIntegrationTests extends AbstractIntegrationTest {
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM account_restriction_changes WHERE restriction_id = ? "
                 + "AND change_type = 'APPLIED'", Integer.class, restriction)).isEqualTo(1);
 
+        // La sesión abierta pierde el rol Vendedor en la siguiente petición: ya no puede publicar.
         perform(account, post("/api/seller/products").contentType("application/json")
                 .content("{\"name\":\"Nuevo\",\"price\":10,\"stock\":1,\"category\":\"Hogar\"}"))
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.code").value("STORE_RESTRICTED"));
+                .andExpect(status().isForbidden());
 
         perform(account, get(STANDING)).andExpect(status().isOk())
                 .andExpect(jsonPath("$.activeRestrictions", hasSize(1)))
@@ -215,6 +215,61 @@ class AccountRestrictionIntegrationTests extends AbstractIntegrationTest {
         restrict("ROLE", "COMPRADOR", true, null);
         assertThat(storeStatus()).isEqualTo("ACTIVE");
         assertThat(sellerStanding.execute(accountId).orElseThrow().canSell()).isTrue();
+    }
+
+    // ---------- Efecto sobre el acceso ----------
+
+    @Test
+    void aRestrictedRoleLeavesTheOpenSessionAndCannotBeChosenAgain() throws Exception {
+        perform(account, get("/api/auth/validation/vendedor")).andExpect(status().isNoContent());
+        long restriction = restrict("ROLE", "VENDEDOR", false, 7);
+
+        perform(account, get("/api/auth/me")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.activeRole").doesNotExist())
+                .andExpect(jsonPath("$.roles", hasItem("VENDEDOR")));
+        perform(account, get("/api/auth/validation/vendedor")).andExpect(status().isForbidden());
+        chooseRole(account, "VENDEDOR").andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("ROLE_RESTRICTED"));
+
+        // El otro rol sigue disponible y «Mi cuenta» responde sin rol activo.
+        perform(account, get(STANDING)).andExpect(status().isOk());
+        chooseRole(account, "COMPRADOR").andExpect(status().isOk())
+                .andExpect(jsonPath("$.activeRole").value("COMPRADOR"));
+        perform(account, get("/api/auth/validation/comprador")).andExpect(status().isNoContent());
+
+        withdraw(restriction).andExpect(status().isOk());
+        chooseRole(account, "VENDEDOR").andExpect(status().isOk());
+        perform(account, get("/api/auth/validation/vendedor")).andExpect(status().isNoContent());
+    }
+
+    @Test
+    void aWholeAccountRestrictionBlocksEveryRoleButKeepsTheAccountPage() throws Exception {
+        restrict("ACCOUNT", null, true, null);
+        Session fresh = login(EMAIL);
+
+        for (String role : new String[] {"COMPRADOR", "VENDEDOR"}) {
+            chooseRole(fresh, role).andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.code").value("ROLE_RESTRICTED"));
+        }
+        perform(fresh, get("/api/auth/validation/comprador")).andExpect(status().isForbidden());
+        perform(account, get("/api/auth/validation/vendedor")).andExpect(status().isForbidden());
+        perform(fresh, get(STANDING)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.activeRestrictions[0].scope").value("ACCOUNT"));
+    }
+
+    @Test
+    void aSingleRoleAccountUnderRestrictionLogsInWithoutThatRoleActive() throws Exception {
+        long buyer = createAccount("solo.comprador@example.com", "COMPRADOR");
+        perform(admin, post(ADMIN + "/" + buyer + "/restrictions").contentType("application/json")
+                .content("{\"scope\":\"ROLE\",\"role\":\"COMPRADOR\",\"reason\":\"Fraude en compras repetidas\","
+                        + "\"permanent\":true}"))
+                .andExpect(status().isCreated());
+
+        Session session = login("solo.comprador@example.com");
+        perform(session, get("/api/auth/me")).andExpect(jsonPath("$.activeRole").doesNotExist());
+        perform(session, get("/api/cart")).andExpect(status().isForbidden());
+        perform(session, get(STANDING)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.activeRestrictions", hasSize(1)));
     }
 
     // ---------- A7: modificar ----------
@@ -350,6 +405,11 @@ class AccountRestrictionIntegrationTests extends AbstractIntegrationTest {
     private ResultActions restrictExpecting(String body) throws Exception {
         return perform(admin, post(ADMIN + "/" + accountId + "/restrictions").contentType("application/json")
                 .content(body));
+    }
+
+    private ResultActions chooseRole(Session session, String role) throws Exception {
+        return perform(session, put("/api/auth/active-role").contentType("application/json")
+                .content("{\"role\":\"" + role + "\"}"));
     }
 
     private ResultActions withdraw(long restriction) throws Exception {

@@ -201,6 +201,15 @@ const MENUS_POR_ROL: Record<string, MenuRol> = {
   }
 };
 
+/**
+ * Menú de una sesión sin rol activo: la cuenta aún no lo eligió o el que tenía quedó restringido (CU-22). Deja
+ * llegar a «Mi cuenta» para consultar la restricción y responder las aclaraciones.
+ */
+const MENU_SIN_ROL: MenuRol = {
+  titulo: 'Mi cuenta',
+  grupos: [{ titulo: 'Cuenta', opciones: [{ id: 'mi-cuenta', etiqueta: 'Mi cuenta' }] }]
+};
+
 @Component({
   selector: 'app-root',
 
@@ -546,10 +555,11 @@ export class AppComponent {
     return this.auth.cuenta()?.activeRole === 'ADMIN';
   }
 
-  /** Menú del rol activo; null si no hay sesión o el rol no tiene accesos propios. */
+  /** Menú del rol activo, el de una sesión sin rol, o null si no hay sesión o el rol no tiene accesos propios. */
   get menuRol(): MenuRol | null {
-    const rol = this.auth.cuenta()?.activeRole;
-    return rol ? MENUS_POR_ROL[rol] ?? null : null;
+    const cuenta = this.auth.cuenta();
+    if (!cuenta) return null;
+    return cuenta.activeRole ? MENUS_POR_ROL[cuenta.activeRole] ?? null : MENU_SIN_ROL;
   }
 
   abrirDesdeMenu(opcion: OpcionMenu): void {
