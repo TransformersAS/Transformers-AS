@@ -17,4 +17,6 @@ frontend/test-results/
 frontend/playwright-report-real/
 frontend/playwright-report/
 frontend/playwright-report-cu01-demo/
+frontend/playwright-report-cu02-demo/
+frontend/playwright-report-cu03-demo/
 frontend/test-results-real/
