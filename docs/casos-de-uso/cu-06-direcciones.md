@@ -119,7 +119,33 @@ Para ver la demostración lenta, desde `frontend`:
 npm.cmd run demo:cu06
 ```
 
-Abre Chrome, una prueba por vez y con 700 ms entre acciones; utiliza el puerto 4440 y API controlada. La demostración no sustituye la prueba de integración con MySQL.
+Abre Chrome con **un solo recorrido continuo**, 1 segundo entre acciones y pausas
+explicativas. Utiliza el puerto 4440 y API controlada. No necesita credenciales,
+túnel ni modificar MySQL. Las 13 regresiones originales de
+`frontend/e2e/direcciones.spec.ts` se conservan separadas y sin cambios.
+
+El recorrido de `frontend/e2e-cu06-demo/direcciones-demo.spec.ts` muestra:
+
+1. Consulta de la dirección de casa y registro de una dirección de oficina.
+2. Teléfono inválido, mensaje junto al campo y conservación de los datos válidos.
+3. Corrección, guardado, edición y cambio de una única dirección predeterminada.
+4. Apertura del carrito de demostración y del checkout, búsqueda y selección de
+   una dirección con el desplegable compacto, y cálculo del total sin duplicarla.
+5. Rechazo controlado al eliminar Casa por un pedido en proceso.
+6. Confirmación y eliminación de Oficina, y conservación de una predeterminada.
+
+El carrito ya contiene un pantalón de demostración; no se realiza un pago.
+La restricción del pedido en proceso y las respuestas de direcciones se simulan
+en el fixture. Este recorrido verifica la interfaz y no sustituye las pruebas
+de integración de permisos, transacciones, histórico de pedidos o MySQL, ni la
+medición de cobertura y rendimiento del backend.
+
+Validación de la demostración continua (15/11/2026):
+
+- `npm.cmd run demo:cu06`: **1 passed (1.4m)**.
+- Regresiones originales en Chrome, un worker y puerto 4472:
+  **13 passed (19.2s)**, incluidas vistas de escritorio y móvil.
+- La ejecución de interfaz no vuelve a medir el porcentaje de cobertura Java.
 
 La medición de rendimiento realiza 900 solicitudes con 100 compradores concurrentes, dos direcciones por cuenta y tres rondas de consulta, edición y cambio real de predeterminada. Excluye registro de cuentas y latencia de red externa; utiliza MockMvc y MySQL real aislado. Mantiene el límite de p95 de 2.000 ms. El resultado local observado fue **983,88 ms** después de reducir consultas y escrituras innecesarias. No certifica por sí solo el rendimiento de un despliegue productivo.
 
