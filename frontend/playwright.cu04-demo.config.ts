@@ -1,25 +1,28 @@
 import { defineConfig, devices } from '@playwright/test';
 import base from './playwright.config';
 
-// Mismas pruebas funcionales; solo cambia la presentación para la sustentación.
+// Una demostración continua; las regresiones siguen en e2e/favoritos.spec.ts.
 const port = '4436';
 export default defineConfig({
   ...base,
-  testMatch: 'favoritos.spec.ts',
+  testDir: './e2e-cu04-demo',
+  testMatch: 'favoritos-demo.spec.ts',
   workers: 1,
-  timeout: 120000,
+  timeout: 240000,
+  outputDir: '../artifacts/playwright-cu04-demo',
   reporter: 'list',
   use: {
     ...base.use,
     baseURL: `http://127.0.0.1:${port}`,
     headless: false,
-    launchOptions: { slowMo: 700 },
+    launchOptions: { slowMo: 1000 },
   },
   webServer: {
-    command: `npm start -- --host 127.0.0.1 --port ${port} --live-reload=false --hmr=false`,
+    command: 'npm run build && node e2e-security-server.cjs',
+    env: { SECURITY_E2E_PORT: port },
     url: `http://127.0.0.1:${port}`,
     reuseExistingServer: false,
-    timeout: 120000,
+    timeout: 180000,
   },
   projects: [{ name: 'chrome', use: { ...devices['Desktop Chrome'], channel: 'chrome' } }],
 });

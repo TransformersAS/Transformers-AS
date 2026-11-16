@@ -55,11 +55,32 @@ Desde `frontend`, ejecutar:
 npm.cmd run demo:cu04
 ```
 
-Abre Chrome visible, una prueba a la vez, con 700 ms entre acciones del navegador.
-No necesita avanzar manualmente en el inspector. Utiliza las mismas ocho pruebas
-de `favoritos.spec.ts`, con API controlada; no modifica la base de datos local.
-Usa el puerto 4436 y un límite de 120 segundos por prueba para la presentación.
-La verificación normal conserva su velocidad y sus límites originales.
+Abre Chrome visible con **un solo recorrido continuo**, fotos locales, 1 segundo
+entre acciones y pausas explicativas. No necesita avanzar manualmente en el
+inspector ni iniciar sesión. Usa respuestas HTTP controladas; no modifica MySQL.
+Usa el puerto 4436 y un límite de 240 segundos. Las ocho regresiones originales
+de `e2e/favoritos.spec.ts` se conservan separadas y sin modificaciones.
+
+El recorrido guarda un pantalón y una chaqueta, ordena favoritos, crea una alerta
+de precio, la pausa, modifica y reactiva, y crea una alerta para la Talla M
+agotada. Después anuncia un **escenario controlado** de bajada de precio y
+reposición, muestra ambas alertas cumplidas y las notificaciones internas, abre
+el producto desde el aviso y elimina alertas y favoritos.
+
+Archivo: `frontend/e2e-cu04-demo/favoritos-demo.spec.ts`. Los cambios de precio,
+stock y cumplimiento pertenecen al fixture de demostración: este recorrido no
+certifica el evaluador del backend, RabbitMQ ni la entrega Web Push. Para esos
+componentes ejecutar la verificación integral descrita al inicio del documento.
+
+### Resultado de la demostración continua (15/11/2026)
+
+- `npm.cmd run demo:cu04`: **1 passed (1.3m)**, recorrido visual continuo.
+- Regresión original `e2e/favoritos.spec.ts`, Chrome, un worker: **8 passed
+  (11.9s)**. Se ejecutó en el puerto 4470 para no interferir con la demostración.
+- `tsc --noEmit -p tsconfig.json`: salida 0.
+- No se modificó código de producción ni las ocho pruebas originales.
+- Esta validación no volvió a ejecutar JaCoCo, MySQL, RabbitMQ ni Web Push;
+  no actualiza ni certifica sus porcentajes de cobertura o resultados.
 
 
 | Requisito o flujo | Evidencia automática |

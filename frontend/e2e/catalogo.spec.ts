@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 const productos = [
   { id: 1, name: 'Cafetera compacta', description: 'Cafe para casa', price: 75000, stock: 18, category: 'Hogar', active: true,
     brand: 'Marca de prueba', store: { id: 1, name: 'Tienda de prueba', description: 'Articulos para el hogar' },
-    imageUrls: ['https://images.unsplash.com/cafetera-frente', 'https://images.unsplash.com/cafetera-lateral'],
+    imageUrls: ['/assets/catalogo-demo/photo-1495474472287-4d71bcdd2085.jpg', '/assets/catalogo-demo/photo-1484101403633-562f891dc89a.jpg'],
     specifications: [{ name: 'Capacidad', value: '600 ml' }, { name: 'Filtro', value: 'Reutilizable' }],
     variants: [{ name: 'Negra', price: 75000, stock: 10 }] },
   { id: 2, name: 'Lampara LED', description: 'Luz de lectura', price: 55000, stock: 10, category: 'Hogar', active: true },
@@ -41,6 +41,8 @@ test('las imagenes ilustrativas y la portada cargan aunque Unsplash este bloquea
   // Las fotos aportadas por una publicación siguen siendo sus fotos, no se sustituyen.
   await expect(page.getByRole('img', { name: 'Cafetera compacta', exact: true }))
     .toHaveAttribute('src', productos[0].imageUrls![0]);
+  await expect.poll(() => page.getByRole('img', { name: 'Cafetera compacta', exact: true })
+    .evaluate((element: HTMLImageElement) => element.complete && element.naturalWidth > 0)).toBe(true);
 });
 
 test('muestra errores del catalogo y del detalle', async ({ page }) => {
@@ -97,7 +99,7 @@ test('consulta detalle y compara solo productos de la misma categoria', async ({
   await expect(dialogo).toContainText('Opciones publicadas');
   await expect(dialogo.getByRole('button', { name: 'Ver imagen 2' })).toBeVisible();
   await dialogo.getByRole('button', { name: 'Ver imagen 2' }).click();
-  await expect(dialogo.locator('.detalle-imagen')).toHaveAttribute('src', 'https://images.unsplash.com/cafetera-lateral');
+  await expect(dialogo.locator('.detalle-imagen')).toHaveAttribute('src', productos[0].imageUrls![1]);
   await dialogo.getByRole('button', { name: 'Cerrar detalle' }).click();
   await catalogo.locator('.product-card').nth(0).getByRole('button', { name: 'Comparar', exact: true }).click();
   await catalogo.locator('.product-card').nth(2).getByRole('button', { name: 'Comparar', exact: true }).click();
