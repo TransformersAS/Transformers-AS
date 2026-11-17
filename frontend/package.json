@@ -30,7 +30,12 @@
     "demo:cu19": "playwright test --config=playwright.cu19-demo.config.ts",
     "demo:cu20": "playwright test --config=playwright.cu20-demo.config.ts",
     "demo:cu21": "playwright test --config=playwright.cu21-demo.config.ts",
-    "demo:cu22": "playwright test --config=playwright.cu22-demo.config.ts"
+    "demo:cu22": "playwright test --config=playwright.cu22-demo.config.ts",
+    "demo:cu23": "playwright test --config=playwright.cu23-demo.config.ts",
+    "demo:cu24": "playwright test --config=playwright.cu24-demo.config.ts",
+    "demo:cu25": "playwright test --config=playwright.cu25-demo.config.ts",
+    "demo:cu26": "playwright test --config=playwright.cu26-demo.config.ts",
+    "demo:cu27": "playwright test --config=playwright.cu27-demo.config.ts"
   },
   "dependencies": {
     "@angular/common": "20.3.35",
