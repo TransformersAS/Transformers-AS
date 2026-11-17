@@ -16,7 +16,7 @@ test('muestra los dos cotejos persistidos y conserva el pago si falla la consult
   const banner = page.getByRole('region', { name: 'Estado del pago' });
   await banner.getByRole('button', { name: 'Ver verificaciones del pago' }).click();
   await expect(banner).toContainText('Primer chequeo: datos del proveedor');
-  await expect(banner).toContainText('Segundo chequeo: compra bloqueada');
+  await expect(banner).toContainText('Segundo chequeo: validación antes de confirmar');
   await expect(banner.getByRole('heading', { level: 4 })).toHaveCount(2);
   await expect(banner).toContainText('Receptor esperado: 123');
   fail = true;

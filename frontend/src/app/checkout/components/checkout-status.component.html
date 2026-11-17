@@ -35,7 +35,7 @@
       <p *ngIf="!safetyBusy && !safetyError && !safety.length">No hay verificaciones registradas para esta compra. Los pagos anteriores a esta función no tienen una bitácora retroactiva. Consultar estado registra las comprobaciones que se ejecuten ahora.</p>
       <ol *ngIf="!safetyBusy && safety.length">
         <li *ngFor="let row of safety">
-          <h4>{{ row.phase === 'FIRST' ? 'Primer chequeo: datos del proveedor' : 'Segundo chequeo: compra bloqueada' }} — {{ safetyResult(row) }}</h4>
+          <h4>{{ row.phase === 'FIRST' ? 'Primer chequeo: datos del proveedor' : 'Segundo chequeo: validación antes de confirmar' }} — {{ safetyResult(row) }}</h4>
           <p>Fecha: {{ row.recordedAt | date:'medium' }} · Pago: {{ row.paymentId }}</p>
           <p>Importe esperado: {{ row.expectedAmount | currency:row.expectedCurrency }} · Observado: {{ row.observedAmount | currency:row.observedCurrency }}</p>
           <p>Receptor esperado: {{ row.expectedCollector }} · Observado: {{ row.observedCollector }}</p>

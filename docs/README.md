@@ -1,5 +1,7 @@
 # Documentación del proyecto
 
+- [Guía para evaluar y sustentar RNF-025 a RNF-030](pruebas/usabilidad/guia-rnf-025-a-030.md): pasos, plantillas y evidencias de usabilidad para todo el Marketplace.
+
 - [CU-06: direcciones de entrega](casos-de-uso/cu-06-direcciones.md): implementación, restricciones, pruebas, cobertura y demostración.
 
 - [CU-05: reseñas de productos comprados](casos-de-uso/cu-05-resenas.md): implementación, pruebas automáticas, cobertura y consultas SQL.
@@ -7,6 +9,8 @@
 Este es el punto de entrada a las guías de Marketplace. Los documentos están agrupados por tema y sus nombres están en español, en minúsculas y separados por guiones. **CU** significa **caso de uso**; se conserva su número para relacionar las guías con los requisitos.
 
 ## Por dónde empezar
+
+- **Para evaluar y sustentar usabilidad:** [Guía de RNF-025 a RNF-030](pruebas/usabilidad/guia-rnf-025-a-030.md): pasos, tareas con cinco evaluadores, encuesta y evidencias de todo el Marketplace.
 
 - **Para abrir la aplicación en Windows:** [Iniciar la demo](ejecucion/iniciar-demo-windows.md).
 - **Para demostrar los casos CU-08 y CU-11:** [Guía de demostración](ejecucion/guia-demostracion-autenticacion-y-cancelacion.md).

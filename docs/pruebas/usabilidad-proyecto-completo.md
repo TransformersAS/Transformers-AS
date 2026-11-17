@@ -1,5 +1,12 @@
 # Evaluación de usabilidad del Marketplace completo
 
+**Actualización del protocolo, 16/11/2026:** usar la
+[guía RNF-025 a RNF-030](usabilidad/guia-rnf-025-a-030.md) para los criterios de
+aceptación del Excel compartido. Especifica las cinco personas, el umbral 4/5,
+el promedio ≥4/5 y las comprobaciones de formularios, escritorio, accesibilidad
+y navegadores. No agrega resultados de sesiones ni cambia los hallazgos previos.
+Las metas propuestas más adelante no sustituyen esos criterios.
+
 Fecha de inspección: 14 de noviembre de 2026. Alcance: aplicación completa, independientemente del autor de cada caso de uso.
 
 **Estado:** inspección estática de navegación realizada; protocolo y formatos preparados. No se han ejecutado sesiones con participantes ni se certifica el cumplimiento global del atributo. Los mapas describen accesos presentes en el repositorio, no una verificación de que todas las operaciones funcionen en el entorno desplegado.

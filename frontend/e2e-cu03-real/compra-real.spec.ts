@@ -152,7 +152,7 @@ test('CU-03 asistido: sandbox real, pedido y doble chequeo persistidos en MySQL'
   }
   await banner.getByRole('button', { name: 'Ver verificaciones del pago', exact: true }).click();
   await expect(banner).toContainText('Primer chequeo: datos del proveedor');
-  await expect(banner).toContainText('Segundo chequeo: compra bloqueada');
+  await expect(banner).toContainText('Segundo chequeo: validación antes de confirmar');
   const refreshed = page.waitForResponse(response => {
     const path = new URL(response.url()).pathname;
     return path === `/api/payments/mercadopago/checkouts/${created.id}/refresh` ||
