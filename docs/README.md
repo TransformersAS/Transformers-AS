@@ -71,6 +71,12 @@ Este es el punto de entrada a las guías de Marketplace. Los documentos están a
 
 - [CU-03: checkout con Mercado Pago](pruebas/cu03-mercadopago.md): configuración de sandbox, flujos, límites y pruebas.
 
+- [CU-12: demostración automática](pruebas/cu12-demostracion.md): recorrido en Chrome de registrarse como vendedor con correo y tienda únicos, confirmar el correo con el código y habilitar el rol con una cuenta de comprador, con `npm.cmd run demo:cu12`.
+
+- [CU-13: demostración automática](pruebas/cu13-demostracion.md): recorrido en Chrome de abrir una reclamación con evidencia, pedir información, proponer un reembolso, escalar y que soporte decida, con `npm.cmd run demo:cu13`.
+
+- [CU-16: demostración automática](pruebas/cu16-demostracion.md): recorrido en Chrome de diseñar y activar cupones, ver los conflictos, aplicarlos en el checkout solo a los productos incluidos y desactivarlos, con `npm.cmd run demo:cu16`.
+
 - [CU-18: demostración automática](pruebas/cu18-demostracion.md): recorrido en Chrome de consultar, validar el plazo mínimo, editar con vista previa y guardar la tienda, con `npm.cmd run demo:cu18`.
 
 - [CU-19: demostración automática](pruebas/cu19-demostracion.md): recorrido en Chrome de solicitar, revisar, aclarar, aprobar, enviar e inspeccionar hasta el reembolso, con `npm.cmd run demo:cu19`.
