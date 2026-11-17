@@ -1,5 +1,7 @@
 # Documentación del proyecto
 
+- [Descripción completa del proyecto y sus herramientas](arquitectura/descripcion-completa-del-proyecto.md): funcionalidades, arquitectura, tecnologías, propósito y justificación técnica de cada componente.
+
 - [Guía para evaluar y sustentar RNF-025 a RNF-030](pruebas/usabilidad/guia-rnf-025-a-030.md): pasos, plantillas y evidencias de usabilidad para todo el Marketplace.
 
 - [CU-06: direcciones de entrega](casos-de-uso/cu-06-direcciones.md): implementación, restricciones, pruebas, cobertura y demostración.
