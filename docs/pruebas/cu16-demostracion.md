@@ -40,3 +40,20 @@ El informe se abre desde `frontend` con:
 ```powershell
 npx.cmd playwright show-report playwright-report-cu16-demo
 ```
+
+## Versión contra la aplicación real (queda en MySQL)
+
+Desde la raíz del repo, con Docker abierto, en Git Bash:
+
+```bash
+bash scripts/demos/cu16-real.sh
+```
+
+Usa el Docker local (`compose.yaml`, puerto 4300) y lo levanta si no está corriendo. No simula nada: Chrome entra con
+la cuenta pública de demostración `demo@marketplace.local`, crea en la pantalla del vendedor un cupón del 20 % con un
+código nuevo (`CLASE<hora>`), lo activa, cambia al rol comprador y lo aplica en el checkout. Al final el script muestra
+las filas de la tabla `promotions` con el cupón guardado y activo, y el total que calculó el backend con el descuento.
+
+El pago de la aplicación real solo se hace en Mercado Pago, que es externo, así que la demo termina en el total con
+descuento y no crea un pedido. Cada corrida deja su cupón en la base; los anteriores aparecen como cupones que se cruzan.
+El recorrido está en `frontend/e2e-cu12-17-real/cupones-real.spec.ts`.
