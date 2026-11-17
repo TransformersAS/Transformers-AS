@@ -87,12 +87,15 @@ Este es el punto de entrada a las guías de Marketplace. Los documentos están a
 
 - [CU-22: demostración automática](pruebas/cu22-demostracion.md): recorrido en Chrome de evaluar, restringir, responder y retirar, con `npm.cmd run demo:cu22`.
 
+- [Automatización de CU-18 a CU-22](pruebas/automatizacion-cu18-cu22.md): resumen de las cinco demostraciones (TypeScript y Playwright, API simulada, cobertura por caso), el defecto de Mi tienda que encontraron y su prueba de regresión en la CI.
+
 | Documento | Para qué sirve |
 | --- | --- |
 | [Pruebas de autenticación y sesiones — CU-08](pruebas/cu-08-autenticacion-y-sesiones.md) | Localizar pruebas de backend, interfaz y extremo a extremo, con sus alcances. |
 | [Cobertura de integración del backend](pruebas/cobertura-integracion-backend.md) | Ejecutar y auditar las pruebas de integración y su cobertura. |
 | [Datos de demostración y rendimiento](pruebas/datos-demostracion-y-rendimiento.md) | Preparar datos reproducibles para demostraciones y pruebas de carga. |
 | [Mediciones de ASR-005 y ASR-006](pruebas/mediciones-asr-005-asr-006.md) | Consultar los tiempos medidos de rendimiento, despliegue y rollback, y qué falta medir con dos computadores. |
+| [Disponibilidad (ASR-004)](pruebas/disponibilidad-asr-004.md) | Consultar las tácticas de disponibilidad y dónde están, cómo probar la caída de una réplica (en uno o dos computadores) y los resultados medidos y pendientes. |
 
 ## Despliegue e integración continua
 
